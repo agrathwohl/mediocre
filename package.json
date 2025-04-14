@@ -1,0 +1,50 @@
+{
+  "name": "mediocre",
+  "version": "0.1.0",
+  "description": "CLI tool for generating synthetic music compositions for AI training datasets",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mediocre": "./dist/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "lint": "eslint src/**/*.js",
+    "typecheck": "tsc --project jsconfig.json --noEmit",
+    "generate:abc": "node src/index.js generate",
+    "convert:midi": "node src/index.js convert --to midi",
+    "convert:pdf": "node src/index.js convert --to pdf",
+    "convert:wav": "node src/index.js convert --to wav",
+    "process:effects": "node src/index.js process",
+    "build:dataset": "node src/index.js dataset",
+    "types": "tsc --project jsconfig.json --declaration --emitDeclarationOnly --outDir types"
+  },
+  "keywords": [
+    "music",
+    "composition",
+    "abc-notation",
+    "midi",
+    "ai",
+    "dataset",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^1.2.0",
+    "ai": "^4.2.1",
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "conf": "^12.0.0",
+    "dotenv": "^16.4.7",
+    "execa": "^8.0.1",
+    "neo-blessed": "^0.2.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  }
+}
