@@ -24,6 +24,12 @@
   - timidity (for MIDI to WAV conversion) 
   - sox (for audio effects processing)
 
+## Examples
+[berio.webm](https://github.com/user-attachments/assets/0926e777-8809-41e6-b963-464ed5f33a4f)
+
+[pcmusic.webm](https://github.com/user-attachments/assets/bf2a1b1d-3582-4790-8b4b-8f40a7498944)
+
+
 ## Installation
 
 1. Clone the repository:
