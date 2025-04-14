@@ -1,6 +1,8 @@
 # Mediocre
 
-A tool for generating hybrid genre music compositions for training LLM models on audio processing tasks like mixing, de-verbing, and effects processing.
+>A tool for generating hybrid genre music compositions for training LLM models on audio processing tasks like mixing, de-verbing, and effects processing.
+
+![](./screenshot.png)
 
 ## Features
 

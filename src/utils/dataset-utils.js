@@ -109,19 +109,43 @@ export function filterByGenre(genre, directory = config.get('outputDir'), extens
 }
 
 /**
+ * Filters files by exact composition name (including score number)
+ * @param {string} compositionName - Composition name to filter by
+ * @param {string} directory - Directory to search (defaults to output dir)
+ * @param {string} extension - File extension to filter by (defaults to 'wav')
+ * @returns {Array<Object>} Filtered array of file objects
+ */
+export function filterByComposition(compositionName, directory = config.get('outputDir'), extension = 'wav') {
+  const files = fs.readdirSync(directory)
+    .filter(file => file.endsWith(`.${extension}`))
+    .filter(file => {
+      // Normalize by removing extension
+      const baseName = file.substring(0, file.lastIndexOf('.'));
+      return baseName.toLowerCase().includes(compositionName.toLowerCase());
+    })
+    .map(file => getFileStats(path.join(directory, file)));
+  
+  return files;
+}
+
+/**
  * Gets all related files for a music piece (ABC, MIDI, WAV, description)
  * @param {string} baseFilename - Base filename without extension
  * @param {string} directory - Directory to search (defaults to output dir)
  * @returns {Object} Object containing all related files and metadata
  */
 export function getMusicPieceInfo(baseFilename, directory = config.get('outputDir')) {
-  // Extract base name without extension if a full filename is provided
+  // Extract base name without ANY extension if a full filename is provided
+  // Strip off the extension completely and any trailing digits from the Unix timestamp
   if (baseFilename.includes('.')) {
-    baseFilename = baseFilename.substring(0, baseFilename.lastIndexOf('.'));
+    baseFilename = baseFilename.substring(0, baseFilename.indexOf('.'));
   }
   
-  // Remove MIDI numbering if present (e.g. "piece1" from "piece1.mid")
-  baseFilename = baseFilename.replace(/(\d+)\.mid$/, '');
+  // CRITICALLY IMPORTANT: remove the last digit from the timestamp
+  // Example: convert chorale_x_experimental-score1-17446030330691 to chorale_x_experimental-score1-1744603033069
+  if (baseFilename.match(/-score\d+-\d+\d$/)) {
+    baseFilename = baseFilename.slice(0, -1);
+  }
 
   const files = {};
   
@@ -134,38 +158,35 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
     };
   }
   
-  // Find MIDI file(s)
-  const midiFiles = fs.readdirSync(directory)
-    .filter(file => file.startsWith(baseFilename) && file.endsWith('.mid'));
-  
-  if (midiFiles.length > 0) {
-    files.midi = midiFiles.map(file => ({
-      path: path.join(directory, file),
-      stats: getFileStats(path.join(directory, file))
-    }));
+  // Find MIDI file - should be ${basename}1.mid
+  const midiPath = path.join(directory, `${baseFilename}1.mid`);
+  if (fs.existsSync(midiPath)) {
+    files.midi = [{
+      path: midiPath,
+      stats: getFileStats(midiPath)
+    }];
   }
   
-  // Find WAV file(s)
-  const wavFiles = fs.readdirSync(directory)
-    .filter(file => file.startsWith(baseFilename) && file.endsWith('.wav'));
-  
-  if (wavFiles.length > 0) {
-    files.wav = wavFiles.map(file => ({
-      path: path.join(directory, file),
-      stats: getFileStats(path.join(directory, file))
-    }));
+  // Find WAV file - should be ${basename}1.mid.wav
+  const wavPath = path.join(directory, `${baseFilename}1.mid.wav`);
+  if (fs.existsSync(wavPath)) {
+    files.wav = [{
+      path: wavPath,
+      stats: getFileStats(wavPath)
+    }];
   }
   
-  // Find description file (JSON)
-  const descriptionPath = path.join(directory, `${baseFilename}_description.json`);
-  if (fs.existsSync(descriptionPath)) {
+  // Find description file (JSON) - should match exactly basename_description.json
+  // Example: xenakis_x_experimental-score1-1744603280663_description.json
+  const descPath = path.join(directory, `${baseFilename}_description.json`);
+  if (fs.existsSync(descPath)) {
     files.description = {
-      path: descriptionPath,
-      content: JSON.parse(fs.readFileSync(descriptionPath, 'utf8'))
+      path: descPath,
+      content: JSON.parse(fs.readFileSync(descPath, 'utf8'))
     };
   }
   
-  // Find markdown file
+  // Find markdown file - should be ${basename}.md
   const mdPath = path.join(directory, `${baseFilename}.md`);
   if (fs.existsSync(mdPath)) {
     files.markdown = {

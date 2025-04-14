@@ -239,6 +239,7 @@ if (process.argv.length === 2) {
     mediocre list --sort length --limit 10
     mediocre info "baroque_x_grunge-score1-1744572129572"
     mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2
+    mediocre browse
     
   For more information, run: mediocre --help
   `);
