@@ -92,7 +92,10 @@ npm run dev -- dataset -d ./output
 
 ## Hybrid Genre System
 
-The system creates hybrid genres by combining classical and modern musical traditions:
+The system creates hybrid genres by combining classical and modern musical traditions.
+The following are merely *examples*. Feel free to come up with whatever crazy
+genres and conventions you like. I've done "Cardi B x King Gizzard and the Lizard Wizard"
+in a "Rockabilly" style and it sounded pretty alright to me!
 
 ### Classical/Traditional Genres
 - Baroque, Classical, Romantic, Renaissance, Medieval
