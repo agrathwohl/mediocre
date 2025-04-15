@@ -35,6 +35,16 @@
 
 ## Installation
 
+### CLI Tool
+
+Install the CLI tool onto your system by running:
+
+```bash
+npm install mediocre-music -g
+```
+
+### Development Version
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/yourusername/mediocre.git
