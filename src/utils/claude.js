@@ -26,6 +26,7 @@ export function getAnthropic() {
  * @param {string} [options.modernGenre] - Modern component of hybrid genre
  * @param {string} [options.style] - Music style
  * @param {number} [options.temperature=0.7] - Temperature for generation
+ * @param {string} [options.customSystemPrompt] - Custom system prompt override
  * @returns {Promise<string>} Generated ABC notation
  */
 export async function generateMusicWithClaude(options) {
@@ -38,8 +39,9 @@ export async function generateMusicWithClaude(options) {
   // Use Claude 3.7 Sonnet for best music generation capabilities
   const model = myAnthropic('claude-3-7-sonnet-20250219');
 
-  // Construct the system prompt
-  const systemPrompt = `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
+  // Use custom system prompt if provided, otherwise use the default
+  const systemPrompt = options.customSystemPrompt || 
+  `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
 Your task is to create a composition that authentically blends elements of both ${classicalGenre} and ${modernGenre} musical traditions.
 Return ONLY the ABC notation format for the composition, with no explanation or additional text.
 
@@ -94,15 +96,19 @@ DO NOT use any of these unsupported extensions:
 - NO %%MIDI chordattack
 - NO %%MIDI randomchordattack
 
-The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. We do not need a bunch of music that sounds like stuff already out there. We want to see what YOU, the artificial intelligence, think is most interesting about these gerne hybrids. You DO have opinions and thoughts... right? ;)`;
+The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. We do not need a bunch of music that sounds like stuff already out there. We want to see what YOU, the artificial intelligence, think is most interesting about these gerne hybrids.`;
+
+  // Use custom user prompt if provided, otherwise use the default
+  const userPrompt = options.customUserPrompt || 
+    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}. Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
 
   // Generate the ABC notation
   const { text } = await generateText({
     model,
     system: systemPrompt,
-    prompt: `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}. Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors.`,
+    prompt: userPrompt,
     temperature: options.temperature || 0.7,
-    maxTokens: 4000
+    maxTokens: 20000,
   });
 
   return text;
@@ -149,7 +155,12 @@ Organize your analysis into these sections:
     system: systemPrompt,
     prompt: `Analyze this ${genre} composition that fuses ${classicalGenre} and ${modernGenre}. Pay attention to the musical elements that create this fusion.\n\n${abcNotation}`,
     temperature: 0.5,
-    maxTokens: 2000
+    maxTokens: 2000,
+    providerOptions: {
+      anthropic: {
+        thinking: { type: 'enabled', budgetTokens: 12000 },
+      },
+    },
   });
 
   return {

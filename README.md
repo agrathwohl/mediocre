@@ -8,11 +8,13 @@
 
 - Generate hybrid music genres combining classical and modern elements
 - Create ABC notation files using Claude API with abc2midi extensions
+- Support for custom system and user prompts for fine-tuned music generation
 - Convert ABC to MIDI files
 - Create PDF score visualizations 
 - Convert MIDI to WAV audio files
 - Apply audio effects (reverb, delay, distortion)
 - Build datasets for training models
+- Interactive TUI browser with playback controls and rating system
 
 ## Requirements
 
@@ -72,7 +74,12 @@ npm run dev -- generate -g "Baroque_x_Techno" -c 1
 
 # Generate multiple compositions using random hybrid genres from lists
 npm run dev -- generate -C "baroque,classical" -M "techno,ambient" -c 3
+
+# Generate a composition using a custom system prompt
+npm run dev -- generate -g "Baroque_x_Jazz" --system-prompt examples/custom-system-prompt.txt
 ```
+
+For more information on using custom prompts, see [Custom Prompts Guide](./docs/CUSTOM_PROMPTS.md).
 
 ### Converting and Processing Files
 

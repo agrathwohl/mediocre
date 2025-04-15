@@ -108,6 +108,8 @@ function parseHybridGenre(genreName) {
  * @param {string} [options.style] - Music style
  * @param {number} [options.count=1] - Number of compositions to generate
  * @param {string} [options.output] - Output directory
+ * @param {string} [options.systemPrompt] - Custom system prompt for Claude
+ * @param {string} [options.userPrompt] - Custom user prompt for Claude
  * @returns {Promise<string[]>} Array of generated file paths
  */
 export async function generateAbc(options) {
@@ -115,6 +117,8 @@ export async function generateAbc(options) {
   const genre = options.genre || 'Classical_x_Contemporary';
   const style = options.style || 'standard';
   const outputDir = options.output || config.get('outputDir');
+  const customSystemPrompt = options.systemPrompt;
+  const customUserPrompt = options.userPrompt;
   
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
@@ -136,12 +140,19 @@ export async function generateAbc(options) {
       console.log(`Generating ${genre} composition in ${style} style...`);
       console.log(`Fusing ${genreComponents.classical} with ${genreComponents.modern}...`);
       
+      // Log if using a custom system prompt
+      if (customSystemPrompt) {
+        console.log('Using custom system prompt...');
+      }
+      
       const abcNotation = await generateMusicWithClaude({
         genre,
         classicalGenre: genreComponents.classical,
         modernGenre: genreComponents.modern,
         style,
-        temperature: 0.7
+        temperature: 0.7,
+        customSystemPrompt,
+        customUserPrompt
       });
       
       // Extract the instruments used in the composition

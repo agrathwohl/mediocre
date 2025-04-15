@@ -12,7 +12,8 @@ import {
   getMusicPieceInfo,
   generateMoreLikeThis
 } from '../utils/dataset-utils.js';
-import { execaCommand } from 'execa';
+import mpv from 'node-mpv';
+import { promisify } from 'util';
 
 /**
  * Format file size in a human readable way
@@ -147,13 +148,75 @@ export async function createDatasetBrowser(options = {}) {
     left: 0,
     width: '100%',
     height: 3,
-    content: ' {bold}Sort:{/bold} [A]ge | [L]ength | [T]itle  {bold}Filter:{/bold} [G] by Name  {bold}Actions:{/bold} [P]lay | [I]nfo | [M]ore Like This | [Q]uit',
+    content: ' {bold}Sort:{/bold} [A]ge | [L]ength | [T]itle  {bold}Filter:{/bold} [G] by Name  {bold}Actions:{/bold} [P]lay | [I]nfo | [M]ore Like This | [👍] Like | [👎] Dislike | [Q]uit',
     tags: true,
     style: {
       fg: 'white',
       bg: 'gray'
     }
   });
+  
+  // Create playback container (for progress bar and time)
+  const playbackContainer = blessed.box({
+    top: '63%',  // Position it clearly between command panel and console output
+    left: 0,
+    width: '100%',
+    height: 4, // Increased height
+    padding: 0,
+    style: {
+      bg: 'black',
+      fg: 'white'
+    },
+    border: {
+      type: 'line',
+      fg: 'red'  // Bright border to make it stand out
+    },
+    label: ' PLAYBACK CONTROLS ',
+    hidden: true
+  });
+  
+  // Create standalone progress bar that will appear very visible
+  const progressBar = blessed.ProgressBar({
+    top: 1,
+    left: 3,
+    width: '80%',
+    height: 1,
+    orientation: 'horizontal',
+    style: {
+      bg: 'black',
+      bar: {
+        bg: 'red'  // Even brighter color for visibility
+      },
+      border: {
+        fg: 'green'
+      }
+    },
+    // No border - simplified
+    pch: '█',
+    filled: 0,
+    ch: '·', // For the empty portion
+    track: {
+      bg: 'blue',
+      fg: 'white'
+    }
+  });
+  
+  const timeDisplay = blessed.box({
+    top: 1,
+    right: 3,
+    width: 15,
+    height: 1,
+    content: '00:00 / 00:00',
+    style: {
+      fg: 'yellow',
+      bold: true,
+      bg: 'black'
+    }
+  });
+  
+  // Add children to the playback container
+  playbackContainer.append(progressBar);
+  playbackContainer.append(timeDisplay);
 
   // Create status bar/console output
   const consoleOutput = blessed.log({
@@ -212,6 +275,7 @@ export async function createDatasetBrowser(options = {}) {
   screen.append(fileList);
   screen.append(detailsPanel);
   screen.append(commandPanel);
+  screen.append(playbackContainer);
   screen.append(consoleOutput);
   screen.append(filterInput);
 
@@ -242,6 +306,11 @@ export async function createDatasetBrowser(options = {}) {
   screen.key('p', function() {
     playSelectedFile();
   });
+  
+  // Play/pause toggle with spacebar
+  screen.key('space', function() {
+    togglePlayback();
+  });
 
   screen.key('i', function() {
     showDetailedInfo();
@@ -249,6 +318,24 @@ export async function createDatasetBrowser(options = {}) {
 
   screen.key('m', function() {
     generateMoreLike();
+  });
+  
+  // Rating handlers
+  screen.key(['u', '+', 'pageup'], function() {
+    rateComposition('thumbs_up');
+  });
+  
+  screen.key(['d', '-', 'pagedown'], function() {
+    rateComposition('thumbs_down');
+  });
+  
+  // Seek handlers
+  screen.key(['left', 'h'], function() {
+    seekBackward();
+  });
+  
+  screen.key(['right', 'l'], function() {
+    seekForward();
   });
 
   // List selection handler
@@ -362,17 +449,26 @@ export async function createDatasetBrowser(options = {}) {
     if (displayName.includes('_x_')) {
       genre = displayName;
     }
+    
+    // Check if this file has been rated
+    const isThumbsDown = file.path.includes('thumbs_down');
+    const ratingDisplay = isThumbsDown ? 
+      '{bold}{red-fg}Rating:{/bold} 👎 Disliked{/red-fg}' : 
+      '{bold}Rating:{/bold} Not rated - press U or D to rate';
 
     detailsPanel.setContent(
       `{bold}File:{/bold} ${basename}\n\n` +
       `{bold}Genre:{/bold} ${genre}\n\n` +
+      `${ratingDisplay}\n\n` +
       `{bold}Size:{/bold} ${formatFileSize(file.size)}\n\n` +
       `{bold}Created:{/bold} ${formatDate(file.created)}\n\n` +
       `{bold}Modified:{/bold} ${formatDate(file.modified)}\n\n` +
       `{bold}Path:{/bold} ${file.path}\n\n` +
-      `Press 'I' for more information\n` +
-      `Press 'P' to play this file\n` +
-      `Press 'M' to generate more like this`
+      `{bold}Playback:{/bold}\n` +
+      `Space: Play/Pause | Left/Right: Seek\n` +
+      `P: Play | U: Like | D: Dislike\n\n` +
+      `{bold}Other:{/bold}\n` +
+      `I: Detailed Info | M: Generate More Like This`
     );
 
     // Get and display the markdown content in the console output
@@ -541,6 +637,142 @@ export async function createDatasetBrowser(options = {}) {
     });
   }
 
+  // Define player-related variables
+  let mpvPlayer = null;
+  let isPlaying = false;
+  let duration = 0;
+  let currentPosition = 0;
+  let progressInterval = null;
+  
+  /**
+   * Start the progress bar update interval
+   */
+  function startProgressUpdates() {
+    // Clear any existing interval
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+    
+    // Create a new interval that updates every 500ms
+    progressInterval = setInterval(async () => {
+      if (mpvPlayer && isPlaying) {
+        try {
+          // Get current position and duration
+          currentPosition = await mpvPlayer.getProperty('time-pos') || 0;
+          if (!duration) {
+            duration = await mpvPlayer.getProperty('duration') || 0;
+          }
+          
+          // Update the progress bar
+          if (duration > 0) {
+            const percent = Math.min(100, Math.max(0, (currentPosition / duration) * 100));
+            progressBar.setProgress(percent);
+            
+            // Update time display
+            const formattedTime = formatTime(currentPosition) + ' / ' + formatTime(duration);
+            timeDisplay.setContent(formattedTime);
+            
+            // Add control instructions within the playback container
+            if (!playbackContainer.controlsAdded) {
+              const controlsText = blessed.text({
+                top: 2,
+                left: 'center',
+                content: 'Space: Play/Pause | ←→: Seek | U: Like | D: Dislike',
+                style: {
+                  fg: 'green',
+                  bold: true
+                }
+              });
+              playbackContainer.append(controlsText);
+              playbackContainer.controlsAdded = true;
+            }
+            
+            // Update the command panel during playback
+            commandPanel.setContent(
+              ` {bold}Status:{/bold} ${isPlaying ? 'Playing' : 'Paused'}  ` +
+              `{bold}Controls:{/bold} [Space] Play/Pause | [←/→] Seek | [U]p | [D]own | [Q]uit`
+            );
+          }
+          
+          screen.render();
+        } catch (error) {
+          // Ignore errors during update
+        }
+      }
+    }, 500);
+  }
+  
+  /**
+   * Format time in MM:SS format
+   * @param {number} seconds - Time in seconds
+   * @returns {string} Formatted time string
+   */
+  function formatTime(seconds) {
+    if (!seconds) return '00:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  
+  /**
+   * Toggle playback between play and pause
+   */
+  async function togglePlayback() {
+    if (!mpvPlayer) {
+      if (selectedFile) {
+        playSelectedFile();
+      }
+      return;
+    }
+    
+    try {
+      if (isPlaying) {
+        await mpvPlayer.pause();
+        isPlaying = false;
+        consoleOutput.log('Playback paused');
+      } else {
+        await mpvPlayer.resume();
+        isPlaying = true;
+        consoleOutput.log('Playback resumed');
+      }
+      screen.render();
+    } catch (error) {
+      consoleOutput.log(`Error toggling playback: ${error.message}`);
+    }
+  }
+  
+  /**
+   * Seek backward in the current track
+   */
+  async function seekBackward() {
+    if (!mpvPlayer || !isPlaying) return;
+    
+    try {
+      // Seek back 10 seconds
+      const newPosition = Math.max(0, currentPosition - 10);
+      await mpvPlayer.seek(newPosition);
+      consoleOutput.log(`Seeking to ${formatTime(newPosition)}`);
+    } catch (error) {
+      consoleOutput.log(`Error seeking: ${error.message}`);
+    }
+  }
+  
+  /**
+   * Seek forward in the current track
+   */
+  async function seekForward() {
+    if (!mpvPlayer || !isPlaying) return;
+    
+    try {
+      // Seek forward 10 seconds
+      const newPosition = Math.min(duration, currentPosition + 10);
+      await mpvPlayer.seek(newPosition);
+      consoleOutput.log(`Seeking to ${formatTime(newPosition)}`);
+    } catch (error) {
+      consoleOutput.log(`Error seeking: ${error.message}`);
+    }
+  }
+  
   /**
    * Play the selected file
    */
@@ -550,23 +782,94 @@ export async function createDatasetBrowser(options = {}) {
     try {
       consoleOutput.log(`Playing ${path.basename(selectedFile.path)}...`);
 
-      // Use different play commands based on platform
-      let playCommand;
-      if (process.platform === 'darwin') {
-        playCommand = `afplay "${selectedFile.path}"`;
-      } else if (process.platform === 'linux') {
-        playCommand = `aplay "${selectedFile.path}"`;
-      } else if (process.platform === 'win32') {
-        playCommand = `start "" "${selectedFile.path}"`;
-      } else {
-        throw new Error('Unsupported platform');
+      // If player already exists, stop it and clean up
+      if (mpvPlayer) {
+        try {
+          await mpvPlayer.quit();
+          clearInterval(progressInterval);
+          progressInterval = null;
+        } catch (e) {
+          // Ignore errors during quit
+        }
+        mpvPlayer = null;
       }
-
-      // Play in background
-      execaCommand(playCommand, { detached: true, stdio: 'ignore' });
-
+      
+      // Show playback container
+      playbackContainer.hidden = false;
+      progressBar.setProgress(0);
+      screen.render();
+      
+      // Reset playback state
+      isPlaying = true;
+      currentPosition = 0;
+      duration = 0;
+      timeDisplay.setContent('00:00 / 00:00');
+      
+      // Create a new MPV instance with path detection
+      const mpvPath = process.env.MPV_PATH || 'mpv'; // Use environment variable or default
+      mpvPlayer = new mpv({
+        audio_only: true,
+        auto_restart: false,
+        binary: mpvPath
+      });
+      
+      // Setup event listeners
+      mpvPlayer.on('statuschange', (status) => {
+        // Update UI when status changes
+        isPlaying = status.pause === false;
+        // Make sure playback container is visible during playback
+        playbackContainer.hidden = false;
+        screen.render();
+      });
+      
+      mpvPlayer.on('stopped', () => {
+        isPlaying = false;
+        consoleOutput.log('Playback stopped');
+        
+        // Reset playback container and command panel
+        playbackContainer.hidden = true;
+        timeDisplay.setContent('00:00 / 00:00');
+        commandPanel.setContent(
+          ' {bold}Sort:{/bold} [A]ge | [L]ength | [T]itle  {bold}Filter:{/bold} [G] by Name  {bold}Actions:{/bold} [P]lay | [I]nfo | [M]ore Like This | [👍] Like | [👎] Dislike | [Q]uit'
+        );
+        
+        // Clear interval
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+        
+        screen.render();
+      });
+      
+      mpvPlayer.on('timeposition', (seconds) => {
+        currentPosition = seconds;
+      });
+      
+      mpvPlayer.on('error', (error) => {
+        consoleOutput.log(`MPV error: ${error.message}`);
+        playbackContainer.hidden = true;
+      });
+      
+      // Start playback
+      await mpvPlayer.load(selectedFile.path);
+      
+      // Get duration
+      try {
+        // Wait a moment for the file to load before getting duration
+        setTimeout(async () => {
+          duration = await mpvPlayer.getProperty('duration') || 0;
+          // Start progress updates
+          startProgressUpdates();
+        }, 500);
+      } catch (e) {
+        consoleOutput.log(`Error getting duration: ${e.message}`);
+      }
+      
     } catch (error) {
       consoleOutput.log(`Error playing file: ${error.message}`);
+      playbackContainer.hidden = true;
+      screen.render();
     }
   }
 
@@ -757,9 +1060,88 @@ export async function createDatasetBrowser(options = {}) {
   // Render the screen
   screen.render();
 
+  /**
+   * Rate the current composition (thumbs up or down)
+   * @param {string} rating - Either 'thumbs_up' or 'thumbs_down'
+   */
+  async function rateComposition(rating) {
+    if (!selectedFile || isLoading) return;
+    
+    try {
+      const basename = path.basename(selectedFile.path);
+      const baseFilename = basename.includes('.') ?
+        basename.substring(0, basename.indexOf('.')) :
+        basename;
+        
+      if (rating === 'thumbs_down') {
+        // Check if the file is already in the thumbs_down directory
+        if (selectedFile.path.includes('thumbs_down')) {
+          consoleOutput.log('This composition is already marked as disliked');
+          return;
+        }
+        
+        // Create the thumbs_down directory if it doesn't exist
+        const thumbsDownDir = path.join(config.get('outputDir'), 'thumbs_down');
+        if (!fs.existsSync(thumbsDownDir)) {
+          fs.mkdirSync(thumbsDownDir, { recursive: true });
+        }
+        
+        // Get all related files for this composition
+        const musicInfo = getMusicPieceInfo(baseFilename, path.dirname(selectedFile.path));
+        const allFiles = [];
+        
+        // Collect all file paths
+        if (musicInfo.files.abc) allFiles.push(musicInfo.files.abc.path);
+        if (musicInfo.files.midi && musicInfo.files.midi.length) allFiles.push(musicInfo.files.midi[0].path);
+        if (musicInfo.files.wav && musicInfo.files.wav.length) allFiles.push(musicInfo.files.wav[0].path);
+        if (musicInfo.files.description) allFiles.push(musicInfo.files.description.path);
+        if (musicInfo.files.markdown) allFiles.push(musicInfo.files.markdown.path);
+        
+        // Move all files to the thumbs_down directory
+        const movedFiles = [];
+        for (const filePath of allFiles) {
+          const filename = path.basename(filePath);
+          const destPath = path.join(thumbsDownDir, filename);
+          
+          // Move the file
+          fs.renameSync(filePath, destPath);
+          movedFiles.push(filename);
+        }
+        
+        consoleOutput.log(`👎 Marked composition as disliked and moved ${movedFiles.length} files to thumbs_down directory`);
+        
+        // Reload the file list to reflect changes
+        await loadFiles();
+      } else if (rating === 'thumbs_up') {
+        // For now, we'll just mark it in the console
+        consoleOutput.log(`👍 Marked "${baseFilename}" as liked`);
+        
+        // In the future, we could move it to a thumbs_up directory or add it to a favorites list
+      }
+    } catch (error) {
+      consoleOutput.log(`Error rating composition: ${error.message}`);
+    }
+  }
+
   // Return a promise that resolves when the UI is closed
   return new Promise((resolve) => {
-    screen.key(['escape', 'q', 'C-c'], function() {
+    screen.key(['escape', 'q', 'C-c'], async function() {
+      // Clean up MPV player if it exists
+      if (mpvPlayer) {
+        try {
+          await mpvPlayer.quit();
+          
+          // Clear any running intervals
+          if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+          }
+        } catch (e) {
+          // Ignore errors during quit
+        }
+        mpvPlayer = null;
+      }
+      
       screen.destroy();
       resolve();
     });

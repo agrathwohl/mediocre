@@ -1,5 +1,5 @@
 {
-  "name": "mediocre",
+  "name": "mediocre-music",
   "version": "0.1.0",
   "description": "CLI tool for generating synthetic music compositions for AI training datasets",
   "type": "module",
@@ -18,7 +18,9 @@
     "convert:wav": "node src/index.js convert --to wav",
     "process:effects": "node src/index.js process",
     "build:dataset": "node src/index.js dataset",
-    "types": "tsc --project jsconfig.json --declaration --emitDeclarationOnly --outDir types"
+    "types": "tsc --project jsconfig.json --declaration --emitDeclarationOnly --outDir types",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
   },
   "keywords": [
     "music",
@@ -40,11 +42,14 @@
     "dotenv": "^16.4.7",
     "execa": "^8.0.1",
     "neo-blessed": "^0.2.0",
+    "node-mpv": "^1.5.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",
     "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "mock-fs": "^5.5.0",
     "typescript": "^5.3.3"
   }
 }

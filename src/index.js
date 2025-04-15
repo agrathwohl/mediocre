@@ -49,6 +49,8 @@ program
   .option('-C, --classical <genres>', 'Comma-separated list of classical/traditional genres for hybrid generation')
   .option('-M, --modern <genres>', 'Comma-separated list of modern genres for hybrid generation')
   .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
+  .option('--system-prompt <file>', 'Path to a file containing a custom system prompt for Claude')
+  .option('--user-prompt <file>', 'Path to a file containing a custom user prompt for Claude')
   .action(async (options) => {
     try {
       let genres = [];
@@ -81,6 +83,30 @@ program
         });
       }
       
+      // Load custom prompts if provided
+      let customSystemPrompt = null;
+      let customUserPrompt = null;
+      
+      if (options.systemPrompt) {
+        try {
+          customSystemPrompt = fs.readFileSync(options.systemPrompt, 'utf8');
+          console.log(`Loaded custom system prompt from ${options.systemPrompt}`);
+        } catch (error) {
+          console.error(`Error loading system prompt: ${error.message}`);
+          process.exit(1);
+        }
+      }
+      
+      if (options.userPrompt) {
+        try {
+          customUserPrompt = fs.readFileSync(options.userPrompt, 'utf8');
+          console.log(`Loaded custom user prompt from ${options.userPrompt}`);
+        } catch (error) {
+          console.error(`Error loading user prompt: ${error.message}`);
+          process.exit(1);
+        }
+      }
+      
       // Generate ABC notation for each genre
       const allFiles = [];
       
@@ -89,7 +115,9 @@ program
           genre: genre.name,
           style: options.style || 'standard',
           count: 1, // Generate one composition per genre
-          output: options.output
+          output: options.output,
+          systemPrompt: customSystemPrompt,
+          userPrompt: customUserPrompt
         };
         
         const files = await generateAbc(genreOptions);
@@ -236,6 +264,7 @@ if (process.argv.length === 2) {
   Examples:
     mediocre genres -c "baroque,classical,romantic" -m "techno,ambient,glitch" -n 5
     mediocre generate -C "baroque,classical" -M "techno,ambient" -c 3
+    mediocre generate -g "baroque_x_jazz" --system-prompt my-prompt.txt
     mediocre list --sort length --limit 10
     mediocre info "baroque_x_grunge-score1-1744572129572"
     mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2
