@@ -115,6 +115,79 @@ The composition should be a genuine artistic fusion that respects and represents
 }
 
 /**
+ * Modify an existing ABC notation composition based on user instructions
+ * @param {Object} options - Modification options
+ * @param {string} options.abcNotation - Original ABC notation to modify
+ * @param {string} options.instructions - User instructions for the modification
+ * @param {string} [options.genre] - Hybrid genre name
+ * @param {string} [options.classicalGenre] - Classical component of hybrid genre
+ * @param {string} [options.modernGenre] - Modern component of hybrid genre
+ * @param {number} [options.temperature=0.7] - Temperature for generation
+ * @returns {Promise<string>} Modified ABC notation
+ */
+export async function modifyCompositionWithClaude(options) {
+  const myAnthropic = getAnthropic();
+  const model = myAnthropic('claude-3-7-sonnet-20250219');
+  
+  const abcNotation = options.abcNotation;
+  const instructions = options.instructions;
+  const genre = options.genre || 'Classical_x_Contemporary';
+  const classicalGenre = options.classicalGenre || 'Classical';
+  const modernGenre = options.modernGenre || 'Contemporary';
+  
+  // Construct a system prompt specifically for modifying existing compositions
+  const systemPrompt = `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
+Your task is to modify an existing ABC notation composition according to specific instructions.
+Return ONLY the complete modified ABC notation, with no explanation or additional text.
+
+Guidelines for modifying the composition:
+
+1. Maintain the original character and style of the piece while implementing the requested changes.
+2. Preserve the header information (X:, T:, M:, L:, K:, etc.) unless explicitly told to change it.
+3. When adding new sections or extending the piece, match the harmonic language and style of the original.
+4. Ensure all modifications result in musically coherent and playable content.
+5. Preserve and extend any MIDI directives (%%MIDI) in a consistent manner.
+
+Technical guidelines:
+- Ensure the ABC notation remains properly formatted and playable
+- Use ONLY the following well-supported abc2midi syntax extensions:
+
+ONLY USE THESE SUPPORTED EXTENSIONS:
+
+1. Channel and Program selection:
+   - %%MIDI program [channel] n   
+     Example: %%MIDI program 1 40
+   
+2. Dynamics:
+   - Use standard ABC dynamics notation: !p!, !f!, etc.
+   - %%MIDI beat a b c n   
+     Example: %%MIDI beat 90 80 65 1
+   
+3. Transposition (if needed):
+   - %%MIDI transpose n   
+     Example: %%MIDI transpose -12
+   
+4. Simple chord accompaniment:
+   - %%MIDI gchord string   
+     Example: %%MIDI gchord fzczfzcz
+
+DO NOT use any unsupported MIDI extensions.
+
+Your modifications should respect both the user's instructions and the musical integrity of the original piece. If the instructions are unclear or contradictory, prioritize creating a musically coherent result.`;
+
+  // Generate the modified ABC notation
+  const { text } = await generateText({
+    model,
+    system: systemPrompt,
+    prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nModify this composition according to these instructions:\n${instructions}\n\nReturn the complete modified ABC notation.`,
+    temperature: options.temperature || 0.7,
+    maxTokens: 20000,
+  });
+
+  return text;
+}
+
+/**
  * Generate a description document for a composition
  * @param {Object} options - Generation options
  * @param {string} options.abcNotation - ABC notation of the composition

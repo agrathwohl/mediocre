@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import fs from 'fs';
 import { program } from 'commander';
 import { config } from './utils/config.js';
 import { parseGenreList, generateMultipleHybridGenres } from './utils/genre-generator.js';
@@ -10,6 +11,7 @@ import { convertToWav } from './commands/convert-wav.js';
 import { processEffects } from './commands/process-effects.js';
 import { buildDataset } from './commands/build-dataset.js';
 import { listCompositions, displayCompositionInfo, createMoreLikeThis } from './commands/manage-dataset.js';
+import { modifyComposition } from './commands/modify-composition.js';
 import { createDatasetBrowser } from './ui/index.js';
 
 // Set up the CLI program
@@ -231,6 +233,44 @@ program
   });
 
 program
+  .command('modify')
+  .description('Modify an existing composition according to instructions')
+  .argument('<filename>', 'Filename or base filename of the composition to modify')
+  .option('-i, --instructions <text>', 'Instructions for modifying the composition')
+  .option('-f, --instructions-file <file>', 'File containing instructions for modifying the composition')
+  .option('-d, --directory <directory>', 'Directory containing the original composition', config.get('outputDir'))
+  .option('-o, --output <directory>', 'Output directory for the modified composition')
+  .action(async (filename, options) => {
+    try {
+      let instructions = options.instructions;
+      
+      // If instructions file is provided, read from it
+      if (options.instructionsFile && !instructions) {
+        try {
+          instructions = fs.readFileSync(options.instructionsFile, 'utf8');
+          console.log(`Loaded modification instructions from ${options.instructionsFile}`);
+        } catch (error) {
+          console.error(`Error loading instructions file: ${error.message}`);
+          process.exit(1);
+        }
+      }
+      
+      if (!instructions) {
+        console.error('Instructions are required. Use --instructions or --instructions-file.');
+        process.exit(1);
+      }
+      
+      await modifyComposition({ 
+        ...options, 
+        filename,
+        instructions
+      });
+    } catch (error) {
+      console.error('Error modifying composition:', error);
+    }
+  });
+
+program
   .command('browse')
   .description('Launch interactive browser for the music dataset')
   .option('-d, --directory <directory>', 'Directory to browse', config.get('outputDir'))
@@ -259,6 +299,7 @@ if (process.argv.length === 2) {
     list           List and sort compositions in the output directory
     info           Display detailed information about a composition
     more-like-this Generate more compositions similar to the specified one
+    modify         Modify an existing composition according to instructions
     browse         Launch interactive TUI browser for the music dataset
     
   Examples:
@@ -268,6 +309,7 @@ if (process.argv.length === 2) {
     mediocre list --sort length --limit 10
     mediocre info "baroque_x_grunge-score1-1744572129572"
     mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2
+    mediocre modify "baroque_x_grunge-score1-1744572129572" -i "Make it longer with a breakdown section"
     mediocre browse
     
   For more information, run: mediocre --help

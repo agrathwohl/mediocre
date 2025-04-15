@@ -9,6 +9,7 @@
 - Generate hybrid music genres combining classical and modern elements
 - Create ABC notation files using Claude API with abc2midi extensions
 - Support for custom system and user prompts for fine-tuned music generation
+- Modify existing compositions with specific instructions (e.g., make longer, add sections)
 - Convert ABC to MIDI files
 - Create PDF score visualizations 
 - Convert MIDI to WAV audio files
@@ -95,6 +96,16 @@ npm run dev -- convert --to wav -d ./output
 
 # Process audio effects
 npm run dev -- process -d ./output -e reverb
+```
+
+### Modifying Compositions
+
+```bash
+# Modify a composition with inline instructions
+npm run dev -- modify "baroque_x_jazz-score1-1234567890" -i "Make it longer with a dramatic breakdown section"
+
+# Modify a composition using instructions from a file
+npm run dev -- modify "baroque_x_jazz-score1-1234567890" -f examples/modification-instructions.txt
 ```
 
 ### Building Datasets

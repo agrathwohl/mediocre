@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
  * @param {string} abcNotation - ABC notation
  * @returns {Array<string>} Array of instrument names
  */
-function extractInstruments(abcNotation) {
+export function extractInstruments(abcNotation) {
   const instruments = [];
   const programRegex = /%%MIDI\s+program\s+(?:\d+\s+)?(\d+)/g;
   let match;
