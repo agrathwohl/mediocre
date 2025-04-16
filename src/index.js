@@ -12,6 +12,7 @@ import { processEffects } from './commands/process-effects.js';
 import { buildDataset } from './commands/build-dataset.js';
 import { listCompositions, displayCompositionInfo, createMoreLikeThis } from './commands/manage-dataset.js';
 import { modifyComposition } from './commands/modify-composition.js';
+import { combineCompositions } from './commands/combine-compositions.js';
 import { createDatasetBrowser } from './ui/index.js';
 
 // Set up the CLI program
@@ -283,6 +284,24 @@ program
     }
   });
 
+program
+  .command('combine')
+  .description('Find short compositions and combine them into new pieces')
+  .option('-l, --duration-limit <seconds>', 'Maximum duration in seconds for pieces to combine', '60')
+  .option('-f, --date-from <date>', 'Filter pieces created after this date (ISO format)')
+  .option('-t, --date-to <date>', 'Filter pieces created before this date (ISO format)')
+  .option('-g, --genres <genres>', 'Comma-separated list of genres to include')
+  .option('-o, --output <directory>', 'Output directory for new compositions', config.get('outputDir'))
+  .option('-d, --directory <directory>', 'Directory to search for compositions', config.get('outputDir'))
+  .action(async (options) => {
+    try {
+      const files = await combineCompositions(options);
+      console.log(`Generated ${files.length} combined composition(s)`);
+    } catch (error) {
+      console.error('Error combining compositions:', error);
+    }
+  });
+
 // Default help message
 if (process.argv.length === 2) {
   console.log(`
@@ -300,6 +319,7 @@ if (process.argv.length === 2) {
     info           Display detailed information about a composition
     more-like-this Generate more compositions similar to the specified one
     modify         Modify an existing composition according to instructions
+    combine        Find short compositions and combine them into new pieces
     browse         Launch interactive TUI browser for the music dataset
     
   Examples:
@@ -310,6 +330,7 @@ if (process.argv.length === 2) {
     mediocre info "baroque_x_grunge-score1-1744572129572"
     mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2
     mediocre modify "baroque_x_grunge-score1-1744572129572" -i "Make it longer with a breakdown section"
+    mediocre combine --duration-limit 45 --genres "baroque,romantic"
     mediocre browse
     
   For more information, run: mediocre --help

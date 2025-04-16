@@ -33,7 +33,7 @@ export function sortByAge(directory = config.get('outputDir'), extension = 'wav'
   const files = fs.readdirSync(directory)
     .filter(file => file.endsWith(`.${extension}`))
     .map(file => getFileStats(path.join(directory, file)));
-  
+
   return files.sort((a, b) => b.created - a.created);
 }
 
@@ -56,6 +56,7 @@ export async function sortByLength(directory = config.get('outputDir'), extensio
           `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`
         );
         const duration = parseFloat(stdout.trim());
+        console.log('DURATION!', duration)
         const stats = getFileStats(filePath);
         return { ...stats, duration };
       } catch (error) {
@@ -83,7 +84,7 @@ export function sortByTitle(directory = config.get('outputDir'), extension = 'wa
   const files = fs.readdirSync(directory)
     .filter(file => file.endsWith(`.${extension}`))
     .map(file => getFileStats(path.join(directory, file)));
-  
+
   return files.sort((a, b) => {
     // Extract title from filename (strip off timestamp and extensions)
     const titleA = a.basename.replace(/(-score\d+-\d+)(\.\w+)+$/, '');
@@ -104,7 +105,7 @@ export function filterByGenre(genre, directory = config.get('outputDir'), extens
     .filter(file => file.endsWith(`.${extension}`))
     .filter(file => file.toLowerCase().includes(genre.toLowerCase()))
     .map(file => getFileStats(path.join(directory, file)));
-  
+
   return files;
 }
 
@@ -124,7 +125,7 @@ export function filterByComposition(compositionName, directory = config.get('out
       return baseName.toLowerCase().includes(compositionName.toLowerCase());
     })
     .map(file => getFileStats(path.join(directory, file)));
-  
+
   return files;
 }
 
@@ -140,7 +141,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
   if (baseFilename.includes('.')) {
     baseFilename = baseFilename.substring(0, baseFilename.indexOf('.'));
   }
-  
+
   // CRITICALLY IMPORTANT: remove the last digit from the timestamp
   // Example: convert chorale_x_experimental-score1-17446030330691 to chorale_x_experimental-score1-1744603033069
   if (baseFilename.match(/-score\d+-\d+\d$/)) {
@@ -148,7 +149,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
   }
 
   const files = {};
-  
+
   // Find ABC notation file
   const abcPath = path.join(directory, `${baseFilename}.abc`);
   if (fs.existsSync(abcPath)) {
@@ -157,7 +158,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
       content: fs.readFileSync(abcPath, 'utf8')
     };
   }
-  
+
   // Find MIDI file - should be ${basename}1.mid
   const midiPath = path.join(directory, `${baseFilename}1.mid`);
   if (fs.existsSync(midiPath)) {
@@ -166,7 +167,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
       stats: getFileStats(midiPath)
     }];
   }
-  
+
   // Find WAV file - should be ${basename}1.mid.wav
   const wavPath = path.join(directory, `${baseFilename}1.mid.wav`);
   if (fs.existsSync(wavPath)) {
@@ -175,7 +176,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
       stats: getFileStats(wavPath)
     }];
   }
-  
+
   // Find description file (JSON) - should match exactly basename_description.json
   // Example: xenakis_x_experimental-score1-1744603280663_description.json
   const descPath = path.join(directory, `${baseFilename}_description.json`);
@@ -185,7 +186,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
       content: JSON.parse(fs.readFileSync(descPath, 'utf8'))
     };
   }
-  
+
   // Find markdown file - should be ${basename}.md
   const mdPath = path.join(directory, `${baseFilename}.md`);
   if (fs.existsSync(mdPath)) {
@@ -194,7 +195,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
       content: fs.readFileSync(mdPath, 'utf8')
     };
   }
-  
+
   // Extract genre information
   let genre = null;
   if (files.description && files.description.content.genre) {
@@ -202,7 +203,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
   } else if (baseFilename.includes('_x_')) {
     genre = baseFilename.replace(/(-score\d+-\d+)$/, '');
   }
-  
+
   // Extract title from ABC if available
   let title = null;
   if (files.abc && files.abc.content) {
@@ -211,7 +212,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
       title = titleMatch[1].trim();
     }
   }
-  
+
   // Extract instruments from ABC if available
   let instruments = [];
   if (files.abc && files.abc.content) {
@@ -250,7 +251,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
       'Guitar Fret Noise', 'Breath Noise', 'Seashore', 'Bird Tweet',
       'Telephone Ring', 'Helicopter', 'Applause', 'Gunshot'
     ];
-    
+
     for (const match of programMatches) {
       const programNumber = parseInt(match[1], 10);
       if (programNumber >= 1 && programNumber <= 128) {
@@ -258,16 +259,16 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
         instruments.push(instrumentName);
       }
     }
-    
+
     // Check for guitar chords
     if (files.abc.content.includes('%%MIDI gchord')) {
       instruments.push('Guitar Chords');
     }
-    
+
     // Remove duplicates
     instruments = [...new Set(instruments)];
   }
-  
+
   return {
     title,
     genre,
@@ -287,15 +288,15 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
 export async function generateMoreLikeThis(baseFilename, count = 1, directory = config.get('outputDir')) {
   // Get details of the reference piece
   const refPiece = getMusicPieceInfo(baseFilename, directory);
-  
+
   if (!refPiece.genre) {
     throw new Error('Could not determine genre of the reference piece');
   }
-  
+
   // Prepare options for generating new pieces
   const genreComponents = refPiece.genre.split('_x_');
   let options = {};
-  
+
   if (genreComponents.length === 2) {
     // If it's a hybrid genre
     options = {
@@ -311,10 +312,10 @@ export async function generateMoreLikeThis(baseFilename, count = 1, directory = 
       output: directory
     };
   }
-  
+
   // Import the generate function dynamically to avoid circular dependencies
   const { generateAbc } = await import('../commands/generate-abc.js');
-  
+
   // Generate new compositions
   return generateAbc(options);
 }
