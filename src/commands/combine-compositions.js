@@ -56,12 +56,14 @@ export async function combineCompositions(options) {
   }
 
   // Get all WAV files
-  const filesWithDuration = await Promise.all(
+  let filesWithDuration = await Promise.all(
     fs.readdirSync(directory)
       .filter(file => file.endsWith('.wav'))
       .map(file => path.join(directory, file))
       .map(async (file) => { return { path: path.resolve(file), duration: await getDur(file) } }))
 
+
+  filesWithDuration = filesWithDuration.filter(file => file.duration >= 1)
   console.log(filesWithDuration)
 
   /*
@@ -361,6 +363,8 @@ ${sourcePiecesText}
 
 Create a new composition in ABC notation that combines these pieces into a cohesive whole. The new piece should maintain the character of the ${combinedGenre} genre but feel like a complete, original composition. Select the most interesting motifs, harmonies, or sections from each source piece and weave them together with appropriate transitions.
 
+The piece MUST be longer in duration than the combined lengths of each piece you will be combining. It may never be shorter than either piece or all pieces combined.
+
 IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure all headers come first (X:1, T:, M:, L:, Q:, K:), then any MIDI program declarations, then voice declarations, then music.`;
 
   try {
@@ -373,32 +377,32 @@ IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure a
     });
 
     let notation = text;
-    
+
     // Validate ABC notation has required headers
-    if (!notation.includes('X:') || !notation.includes('T:') || 
-        !notation.includes('M:') || !notation.includes('L:') || 
-        !notation.includes('K:')) {
+    if (!notation.includes('X:') || !notation.includes('T:') ||
+      !notation.includes('M:') || !notation.includes('L:') ||
+      !notation.includes('K:')) {
       console.error('Generated ABC notation missing required headers');
       return null;
     }
-    
+
     // Fix common issues with Claude-generated ABC notation
-    
+
     // 1. Ensure no blank lines between sections (abc2midi doesn't like them)
     notation = notation.replace(/\n\s*\n/g, '\n');
-    
+
     // 2. Ensure sections are properly connected (no blank lines between section types)
     notation = notation.replace(/\n%\s*Section/g, '\n% Section');
-    
+
     // 3. Fix any misaligned voice declarations
     notation = notation.replace(/\n\s+V:/g, '\nV:');
-    
+
     // 4. Fix common spacing issues
     notation = notation.replace(/\[Q:([^\]]+)\]/g, 'Q:$1');
-    
+
     // 5. Ensure proper spacing in MIDI directives
     notation = notation.replace(/%%MIDI\s+program\s+(\d+)\s+(\d+)/g, '%%MIDI program $1 $2');
-    
+
     return notation;
   } catch (error) {
     console.error('Error generating combined piece:', error);

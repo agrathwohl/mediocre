@@ -13,6 +13,7 @@ import { buildDataset } from './commands/build-dataset.js';
 import { listCompositions, displayCompositionInfo, createMoreLikeThis } from './commands/manage-dataset.js';
 import { modifyComposition } from './commands/modify-composition.js';
 import { combineCompositions } from './commands/combine-compositions.js';
+import { generateLyrics } from './commands/generate-lyrics.js';
 import { createDatasetBrowser } from './ui/index.js';
 
 // Set up the CLI program
@@ -302,6 +303,24 @@ program
     }
   });
 
+program
+  .command('lyrics')
+  .description('Add lyrics to an existing composition using Claude')
+  .requiredOption('-m, --midi-file <file>', 'Path to MIDI file to add lyrics to')
+  .requiredOption('-p, --lyrics-prompt <text>', 'Prompt describing what the lyrics should be about')
+  .option('-d, --directory <directory>', 'Directory containing the original MIDI file', config.get('outputDir'))
+  .option('-o, --output <directory>', 'Output directory for the file with lyrics')
+  .action(async (options) => {
+    try {
+      const abcFile = await generateLyrics(options);
+      console.log(`ABC notation with lyrics saved to: ${abcFile}`);
+      console.log('Convert to PDF to see the score with lyrics using:');
+      console.log(`mediocre convert --input ${abcFile} --to pdf`);
+    } catch (error) {
+      console.error('Error adding lyrics:', error);
+    }
+  });
+
 // Default help message
 if (process.argv.length === 2) {
   console.log(`
@@ -320,6 +339,7 @@ if (process.argv.length === 2) {
     more-like-this Generate more compositions similar to the specified one
     modify         Modify an existing composition according to instructions
     combine        Find short compositions and combine them into new pieces
+    lyrics         Add lyrics to an existing composition using Claude
     browse         Launch interactive TUI browser for the music dataset
     
   Examples:
@@ -331,6 +351,7 @@ if (process.argv.length === 2) {
     mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2
     mediocre modify "baroque_x_grunge-score1-1744572129572" -i "Make it longer with a breakdown section"
     mediocre combine --duration-limit 45 --genres "baroque,romantic"
+    mediocre lyrics -m "baroque_x_jazz-score1.mid" -p "A song about the beauty of nature"
     mediocre browse
     
   For more information, run: mediocre --help
