@@ -55,6 +55,7 @@ program
   .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
   .option('--system-prompt <file>', 'Path to a file containing a custom system prompt for Claude')
   .option('--user-prompt <file>', 'Path to a file containing a custom user prompt for Claude')
+  .option('--creative-names', 'Generate creative genre names instead of standard hybrid format', true)
   .action(async (options) => {
     try {
       let genres = [];
@@ -121,7 +122,8 @@ program
           count: 1, // Generate one composition per genre
           output: options.output,
           systemPrompt: customSystemPrompt,
-          userPrompt: customUserPrompt
+          userPrompt: customUserPrompt,
+          creativeNames: options.creativeNames !== false // Default to true if not specified
         };
         
         const files = await generateAbc(genreOptions);
@@ -226,6 +228,7 @@ program
   .argument('<filename>', 'Filename or base filename of the reference composition')
   .option('-c, --count <number>', 'Number of compositions to generate', '1')
   .option('-d, --directory <directory>', 'Directory to search in', config.get('outputDir'))
+  .option('--creative-names', 'Generate creative genre names instead of standard hybrid format', true)
   .action(async (filename, options) => {
     try {
       await createMoreLikeThis({ ...options, filename });

@@ -164,16 +164,20 @@ export async function createMoreLikeThis(options) {
   const directory = options.directory || config.get('outputDir');
   const filename = options.filename;
   const count = options.count ? parseInt(options.count, 10) : 1;
+  const creativeNames = options.creativeNames !== false; // Default to true if not specified
   
   if (!filename) {
     throw new Error('Filename is required');
   }
   
   console.log(chalk.blue(`\nGenerating ${count} composition(s) similar to "${filename}"...`));
+  if (creativeNames) {
+    console.log(chalk.blue('Using creative genre names...'));
+  }
   
   try {
     // Generate similar compositions
-    const newFiles = await generateMoreLikeThis(filename, count, directory);
+    const newFiles = await generateMoreLikeThis(filename, count, directory, { creativeNames });
     
     console.log(chalk.green(`\nGenerated ${newFiles.length} new composition(s):`));
     newFiles.forEach(file => {

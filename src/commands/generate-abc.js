@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { generateMusicWithClaude, generateDescription } from '../utils/claude.js';
+import { generateCreativeGenreName } from '../utils/genre-generator.js';
 import { config } from '../utils/config.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -91,11 +92,14 @@ function parseHybridGenre(genreName) {
   };
   
   // Check if follows the hybrid format
-  const parts = genreName.split('_x_');
+  const parts = genreName.toLowerCase().split('_x_');
   
   if (parts.length === 2) {
-    components.classical = parts[0];
-    components.modern = parts[1];
+    // Preserve original case for display, but match case-insensitive
+    const lowerGenreName = genreName.toLowerCase();
+    const splitIndex = lowerGenreName.indexOf('_x_');
+    components.classical = genreName.substring(0, splitIndex);
+    components.modern = genreName.substring(splitIndex + 3);
   }
   
   return components;
@@ -119,6 +123,7 @@ export async function generateAbc(options) {
   const outputDir = options.output || config.get('outputDir');
   const customSystemPrompt = options.systemPrompt;
   const customUserPrompt = options.userPrompt;
+  const useCreativeNames = options.creativeNames !== false; // Default to true if not specified
   
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
@@ -131,13 +136,39 @@ export async function generateAbc(options) {
   const generatedFiles = [];
   
   for (let i = 0; i < count; i++) {
-    // Generate a filename based on genre and style
+    // Generate a timestamp
     const timestamp = Date.now();
-    const filename = `${genre}-score${i+1}-${timestamp}`;
     
     try {
+      // Generate a creative genre name if requested
+      let displayGenre = genre;
+      let creativeGenreName = null;
+      
+      if (useCreativeNames) {
+        console.log('Generating creative genre name...');
+        try {
+          const creativeResult = await generateCreativeGenreName({
+            classicalGenre: genreComponents.classical,
+            modernGenre: genreComponents.modern,
+            temperature: 0.9
+          });
+          
+          creativeGenreName = creativeResult.creativeName;
+          console.log(`Generated creative genre name: ${creativeGenreName}`);
+          
+          // Use the creative name in the filename but keep the original genres internally
+          displayGenre = creativeGenreName;
+        } catch (error) {
+          console.error('Error generating creative genre name:', error.message);
+          // Fall back to standard genre format if creative name generation fails
+        }
+      }
+      
+      // Generate a filename based on genre and style
+      const filename = `${displayGenre}-score${i+1}-${timestamp}`;
+      
       // Generate the ABC notation with special attention to genre fusion
-      console.log(`Generating ${genre} composition in ${style} style...`);
+      console.log(`Generating ${displayGenre} composition in ${style} style...`);
       console.log(`Fusing ${genreComponents.classical} with ${genreComponents.modern}...`);
       
       // Log if using a custom system prompt
@@ -146,7 +177,7 @@ export async function generateAbc(options) {
       }
       
       const abcNotation = await generateMusicWithClaude({
-        genre,
+        genre: creativeGenreName || genre, // Use creative name if available
         classicalGenre: genreComponents.classical,
         modernGenre: genreComponents.modern,
         style,
@@ -163,29 +194,39 @@ export async function generateAbc(options) {
       
       console.log(`Using instruments: ${instrumentString}`);
       
-      // Save the ABC notation to a file
+      // Remove any extraneous blank lines from the ABC notation that might cause parsing issues
+      const cleanedAbcNotation = abcNotation
+        .replace(/\n\s*\n(\[V:)/g, '\n$1')  // Remove blank lines before voice sections
+        .replace(/\n\s*\n(%\s*Section)/g, '\n$1');  // Remove blank lines before section comments
+      
+      // Save the cleaned ABC notation to a file
       const abcFilePath = path.join(outputDir, `${filename}.abc`);
-      fs.writeFileSync(abcFilePath, abcNotation);
+      fs.writeFileSync(abcFilePath, cleanedAbcNotation);
       generatedFiles.push(abcFilePath);
       
       // Generate and save the description
       console.log('Generating description document...');
       const description = await generateDescription({
         abcNotation,
-        genre,
+        genre: creativeGenreName || genre, // Use creative name if available
         classicalGenre: genreComponents.classical,
         modernGenre: genreComponents.modern,
         style
       });
+      
+      // Add creative genre name to the description if one was generated
+      if (creativeGenreName) {
+        description.creativeGenreName = creativeGenreName;
+      }
       
       // Save the description as JSON
       const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
       fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
       
       // Create a markdown file with both the ABC notation and description
-      const mdContent = `# ${genre} Composition in ${style} Style
+      const mdContent = `# ${creativeGenreName || genre} Composition in ${style} Style
       
-## Genre Fusion
+## Genre Fusion${creativeGenreName ? `\n- Creative Genre Name: "${creativeGenreName}"` : ''}
 - Classical Element: ${genreComponents.classical}
 - Modern Element: ${genreComponents.modern}
 

@@ -200,7 +200,7 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
   let genre = null;
   if (files.description && files.description.content.genre) {
     genre = files.description.content.genre;
-  } else if (baseFilename.includes('_x_')) {
+  } else if (baseFilename.toLowerCase().includes('_x_')) {
     genre = baseFilename.replace(/(-score\d+-\d+)$/, '');
   }
 
@@ -283,9 +283,10 @@ export function getMusicPieceInfo(baseFilename, directory = config.get('outputDi
  * @param {string} baseFilename - Base filename of the reference piece
  * @param {number} count - Number of compositions to generate
  * @param {string} directory - Directory to search (defaults to output dir)
+ * @param {Object} [additionalOptions={}] - Additional options to pass to generateAbc
  * @returns {Promise<Array<string>>} Array of new composition file paths
  */
-export async function generateMoreLikeThis(baseFilename, count = 1, directory = config.get('outputDir')) {
+export async function generateMoreLikeThis(baseFilename, count = 1, directory = config.get('outputDir'), additionalOptions = {}) {
   // Get details of the reference piece
   const refPiece = getMusicPieceInfo(baseFilename, directory);
 
@@ -294,24 +295,13 @@ export async function generateMoreLikeThis(baseFilename, count = 1, directory = 
   }
 
   // Prepare options for generating new pieces
-  const genreComponents = refPiece.genre.split('_x_');
-  let options = {};
-
-  if (genreComponents.length === 2) {
-    // If it's a hybrid genre
-    options = {
-      genre: refPiece.genre,
-      count: count.toString(),
-      output: directory
-    };
-  } else {
-    // For non-hybrid genres, use the same genre
-    options = {
-      genre: refPiece.genre,
-      count: count.toString(),
-      output: directory
-    };
-  }
+  const genreComponents = refPiece.genre.toLowerCase().split('_x_');
+  let options = {
+    genre: refPiece.genre,
+    count: count.toString(),
+    output: directory,
+    ...additionalOptions // Include any additional options like creativeNames
+  };
 
   // Import the generate function dynamically to avoid circular dependencies
   const { generateAbc } = await import('../commands/generate-abc.js');

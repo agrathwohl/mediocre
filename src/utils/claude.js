@@ -66,6 +66,13 @@ Guidelines for the ${genre} fusion:
    - Ensure the ABC notation is properly formatted and playable
    - Use ONLY the following well-supported abc2midi syntax extensions:
 
+CRITICAL FORMATTING RULES:
+- NEVER include blank lines between voice sections in your ABC notation
+- Each voice section ([V:1], [V:2], etc.) should be on its own line with no blank lines before or after
+- Each section comment (% Section A, etc.) can be on its own line with no blank lines before or after
+- When voice sections follow each other, they must be immediately adjacent with no blank lines between them
+- This is EXTREMELY IMPORTANT for proper parsing by abc2midi
+
 ONLY USE THESE SUPPORTED EXTENSIONS:
 
 1. Channel and Program selection:
@@ -152,6 +159,15 @@ Technical guidelines:
 - Ensure the ABC notation remains properly formatted and playable
 - Use ONLY the following well-supported abc2midi syntax extensions:
 
+CRITICAL FORMATTING RULES:
+- NEVER include blank lines between voice sections in your ABC notation
+- Each voice section ([V:1], [V:2], etc.) should be on its own line with no blank lines before or after
+- Each section comment (% Section A, etc.) can be on its own line with no blank lines before or after
+- When voice sections follow each other, they must be immediately adjacent with no blank lines between them
+- This is EXTREMELY IMPORTANT for proper parsing by abc2midi
+- When fixing existing music, carefully remove any blank lines between voice sections
+- Output the corrected ABC notation with proper formatting
+
 ONLY USE THESE SUPPORTED EXTENSIONS:
 
 1. Channel and Program selection:
@@ -184,7 +200,12 @@ Your modifications should respect both the user's instructions and the musical i
     maxTokens: 20000,
   });
 
-  return text;
+  // Clean up any extraneous blank lines that might cause parsing issues
+  const cleanedText = text
+    .replace(/\n\s*\n(\[V:)/g, '\n$1')  // Remove blank lines before voice sections
+    .replace(/\n\s*\n(%\s*Section)/g, '\n$1');  // Remove blank lines before section comments
+
+  return cleanedText;
 }
 
 /**
@@ -290,6 +311,16 @@ Technical guidelines:
 - Make sure all melody notes have corresponding lyrics
 - For instrumental sections, you can mark them with "w: *" or leave the lyrics empty for that section
 
+CRITICAL FORMATTING RULES:
+- NEVER include blank lines between voice sections in your ABC notation
+- Each voice section ([V:1], [V:2], etc.) should be on its own line with no blank lines before or after
+- Each section comment (% Section A, etc.) can be on its own line with no blank lines before or after
+- When voice sections follow each other, they must be immediately adjacent with no blank lines between them
+- The "w:" lines must immediately follow their corresponding melody lines with no blank lines in between
+- This is EXTREMELY IMPORTANT for proper parsing by abc2midi
+- If the input has blank lines between sections, REMOVE them in your output
+- Output the corrected ABC notation with proper formatting
+
 Your result should be a singable composition with lyrics that fit both the music and the thematic prompt.`;
 
   // Generate the ABC notation with lyrics
@@ -301,5 +332,11 @@ Your result should be a singable composition with lyrics that fit both the music
     maxTokens: 40000,
   });
 
-  return text;
+  // Clean up any extraneous blank lines that might cause parsing issues
+  const cleanedText = text
+    .replace(/\n\s*\n(\[V:)/g, '\n$1')  // Remove blank lines before voice sections
+    .replace(/\n\s*\n(%\s*Section)/g, '\n$1')  // Remove blank lines before section comments
+    .replace(/\n\s*\n(w:)/g, '\nw:');  // Ensure w: lines have no blank lines before them
+
+  return cleanedText;
 }

@@ -446,7 +446,7 @@ export async function createDatasetBrowser(options = {}) {
 
     // Extract genre information
     let genre = "Unknown";
-    if (displayName.includes('_x_')) {
+    if (displayName.toLowerCase().includes('_x_')) {
       genre = displayName;
     }
     
@@ -536,7 +536,7 @@ export async function createDatasetBrowser(options = {}) {
       const desc = JSON.parse(fs.readFileSync(descPath, 'utf8'));
 
       // Display title based on genre
-      const genre = desc.genre || baseWithoutExt;
+      const genre = desc.genre || baseWithoutExt; // Already case-insensitive via file filtering
       consoleOutput.pushLine(`{bold}{yellow-fg}${genre}{/yellow-fg}{/bold}`);
       consoleOutput.pushLine('');
 
