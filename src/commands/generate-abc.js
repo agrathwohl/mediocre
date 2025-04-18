@@ -114,6 +114,8 @@ function parseHybridGenre(genreName) {
  * @param {string} [options.output] - Output directory
  * @param {string} [options.systemPrompt] - Custom system prompt for Claude
  * @param {string} [options.userPrompt] - Custom user prompt for Claude
+ * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
+ * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @returns {Promise<string[]>} Array of generated file paths
  */
 export async function generateAbc(options) {
@@ -123,7 +125,9 @@ export async function generateAbc(options) {
   const outputDir = options.output || config.get('outputDir');
   const customSystemPrompt = options.systemPrompt;
   const customUserPrompt = options.userPrompt;
-  const useCreativeNames = options.creativeNames !== false; // Default to true if not specified
+  const useCreativeNames = options.creativeNames === true; // Default to false unless explicitly specified
+  const includeSolo = options.solo || false;
+  const recordLabel = options.recordLabel || '';
   
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
@@ -145,7 +149,8 @@ export async function generateAbc(options) {
       let creativeGenreName = null;
       
       if (useCreativeNames) {
-        console.log('Generating creative genre name...');
+        console.log('EXPERIMENTAL FEATURE: Generating creative genre name...');
+        console.log('WARNING: Creative genre names may produce unpredictable results');
         try {
           const creativeResult = await generateCreativeGenreName({
             classicalGenre: genreComponents.classical,
@@ -183,7 +188,9 @@ export async function generateAbc(options) {
         style,
         temperature: 0.7,
         customSystemPrompt,
-        customUserPrompt
+        customUserPrompt,
+        solo: includeSolo,
+        recordLabel: recordLabel
       });
       
       // Extract the instruments used in the composition

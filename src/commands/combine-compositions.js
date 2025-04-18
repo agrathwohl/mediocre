@@ -20,6 +20,8 @@ const __dirname = path.dirname(__filename);
  * @param {string} [options.genres] - Comma-separated list of genres to include
  * @param {string} [options.output] - Output directory for new compositions
  * @param {string} [options.directory] - Directory to search for compositions
+ * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
+ * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @returns {Promise<Array<string>>} Paths to the generated compositions
  */
 export async function combineCompositions(options) {
@@ -28,6 +30,8 @@ export async function combineCompositions(options) {
   const durationLimit = parseFloat(options.durationLimit) || 60;
   const dateFrom = options.dateFrom ? new Date(options.dateFrom) : null;
   const dateTo = options.dateTo ? new Date(options.dateTo) : null;
+  const includeSolo = options.solo || false;
+  const recordLabel = options.recordLabel || '';
 
   // Parse genres list
   const genres = options.genres ? options.genres.split(',').map(g => g.trim()) : [];
@@ -180,7 +184,7 @@ export async function combineCompositions(options) {
     }
 
     // Create a combined piece using Claude
-    const newPiece = await createCombinedPiece(abcNotations, genres, i);
+    const newPiece = await createCombinedPiece(abcNotations, genres, i, includeSolo, recordLabel);
 
     // Save the new composition
     if (newPiece) {
@@ -306,9 +310,11 @@ function combineGenres(genres) {
  * @param {Array<string>} abcNotations - List of ABC notations
  * @param {Array<string>} genres - List of genre names
  * @param {number} groupIndex - Index of the group (for labeling)
+ * @param {boolean} [includeSolo=false] - Include a musical solo section for the lead instrument
+ * @param {string} [recordLabel=''] - Make it sound like it was released on this record label
  * @returns {Promise<string>} Combined ABC notation
  */
-async function createCombinedPiece(abcNotations, genres, groupIndex) {
+async function createCombinedPiece(abcNotations, genres, groupIndex, includeSolo = false, recordLabel = '') {
   const myAnthropic = getAnthropic();
   const model = myAnthropic('claude-3-7-sonnet-20250219');
 
@@ -335,6 +341,8 @@ Technical guidelines:
 - Use the title "Combined ${combinedGenre} Composition ${groupIndex + 1}"
 - All notes must belong to a voice (V:1, V:2, etc.)
 - Maintain consistent key signatures and time signatures between voices
+${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
+${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
 
 ONLY USE THESE SUPPORTED EXTENSIONS:
 1. Channel and Program selection:
@@ -361,7 +369,7 @@ Return ONLY the complete ABC notation for the new combined composition, with no 
 
 ${sourcePiecesText}
 
-Create a new composition in ABC notation that combines these pieces into a cohesive whole. The new piece should maintain the character of the ${combinedGenre} genre but feel like a complete, original composition. Select the most interesting motifs, harmonies, or sections from each source piece and weave them together with appropriate transitions.
+Create a new composition in ABC notation that combines these pieces into a cohesive whole. The new piece should maintain the character of the ${combinedGenre} genre but feel like a complete, original composition. Select the most interesting motifs, harmonies, or sections from each source piece and weave them together with appropriate transitions.${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}
 
 The piece MUST be longer in duration than the combined lengths of each piece you will be combining. It may never be shorter than either piece or all pieces combined.
 

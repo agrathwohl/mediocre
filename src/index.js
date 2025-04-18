@@ -55,7 +55,9 @@ program
   .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
   .option('--system-prompt <file>', 'Path to a file containing a custom system prompt for Claude')
   .option('--user-prompt <file>', 'Path to a file containing a custom user prompt for Claude')
-  .option('--creative-names', 'Generate creative genre names instead of standard hybrid format', true)
+  .option('--creative-names', '[EXPERIMENTAL] Generate creative genre names instead of standard hybrid format (may produce unpredictable results)', false)
+  .option('--solo', 'Include a musical solo section for the lead instrument')
+  .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .action(async (options) => {
     try {
       let genres = [];
@@ -123,7 +125,9 @@ program
           output: options.output,
           systemPrompt: customSystemPrompt,
           userPrompt: customUserPrompt,
-          creativeNames: options.creativeNames !== false // Default to true if not specified
+          creativeNames: options.creativeNames === true, // Default to false unless explicitly specified
+          solo: options.solo || false,
+          recordLabel: options.recordLabel || ''
         };
         
         const files = await generateAbc(genreOptions);
@@ -228,7 +232,7 @@ program
   .argument('<filename>', 'Filename or base filename of the reference composition')
   .option('-c, --count <number>', 'Number of compositions to generate', '1')
   .option('-d, --directory <directory>', 'Directory to search in', config.get('outputDir'))
-  .option('--creative-names', 'Generate creative genre names instead of standard hybrid format', true)
+  .option('--creative-names', '[EXPERIMENTAL] Generate creative genre names instead of standard hybrid format (may produce unpredictable results)', false)
   .action(async (filename, options) => {
     try {
       await createMoreLikeThis({ ...options, filename });
@@ -245,6 +249,8 @@ program
   .option('-f, --instructions-file <file>', 'File containing instructions for modifying the composition')
   .option('-d, --directory <directory>', 'Directory containing the original composition', config.get('outputDir'))
   .option('-o, --output <directory>', 'Output directory for the modified composition')
+  .option('--solo', 'Include a musical solo section for the lead instrument')
+  .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .action(async (filename, options) => {
     try {
       let instructions = options.instructions;
@@ -297,6 +303,8 @@ program
   .option('-g, --genres <genres>', 'Comma-separated list of genres to include')
   .option('-o, --output <directory>', 'Output directory for new compositions', config.get('outputDir'))
   .option('-d, --directory <directory>', 'Directory to search for compositions', config.get('outputDir'))
+  .option('--solo', 'Include a musical solo section for the lead instrument')
+  .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .action(async (options) => {
     try {
       const files = await combineCompositions(options);
@@ -313,6 +321,8 @@ program
   .requiredOption('-p, --lyrics-prompt <text>', 'Prompt describing what the lyrics should be about')
   .option('-d, --directory <directory>', 'Directory containing the original MIDI file', config.get('outputDir'))
   .option('-o, --output <directory>', 'Output directory for the file with lyrics')
+  .option('--solo', 'Include a musical solo section for the lead instrument')
+  .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .action(async (options) => {
     try {
       const abcFile = await generateLyrics(options);
@@ -348,13 +358,15 @@ if (process.argv.length === 2) {
   Examples:
     mediocre genres -c "baroque,classical,romantic" -m "techno,ambient,glitch" -n 5
     mediocre generate -C "baroque,classical" -M "techno,ambient" -c 3
-    mediocre generate -g "baroque_x_jazz" --system-prompt my-prompt.txt
+    mediocre generate -g "baroque_x_jazz" --system-prompt my-prompt.txt --solo
+    mediocre generate -g "baroque_x_jazz" --record-label "Merge Records"
+    mediocre generate -g "baroque_x_jazz" --creative-names # EXPERIMENTAL FEATURE
     mediocre list --sort length --limit 10
     mediocre info "baroque_x_grunge-score1-1744572129572"
     mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2
-    mediocre modify "baroque_x_grunge-score1-1744572129572" -i "Make it longer with a breakdown section"
-    mediocre combine --duration-limit 45 --genres "baroque,romantic"
-    mediocre lyrics -m "baroque_x_jazz-score1.mid" -p "A song about the beauty of nature"
+    mediocre modify "baroque_x_grunge-score1-1744572129572" -i "Make it longer with a breakdown section" --solo
+    mediocre combine --duration-limit 45 --genres "baroque,romantic" --record-label "Raster Noton"
+    mediocre lyrics -m "baroque_x_jazz-score1.mid" -p "A song about the beauty of nature" --solo
     mediocre browse
     
   For more information, run: mediocre --help

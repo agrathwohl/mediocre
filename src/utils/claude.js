@@ -25,6 +25,8 @@ export function getAnthropic() {
  * @param {string} [options.classicalGenre] - Classical component of hybrid genre
  * @param {string} [options.modernGenre] - Modern component of hybrid genre
  * @param {string} [options.style] - Music style
+ * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
+ * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {number} [options.temperature=0.7] - Temperature for generation
  * @param {string} [options.customSystemPrompt] - Custom system prompt override
  * @returns {Promise<string>} Generated ABC notation
@@ -35,6 +37,8 @@ export async function generateMusicWithClaude(options) {
   const classicalGenre = options.classicalGenre || 'Classical';
   const modernGenre = options.modernGenre || 'Contemporary';
   const style = options.style || 'standard';
+  const includeSolo = options.solo || false;
+  const recordLabel = options.recordLabel || '';
 
   // Use Claude 3.7 Sonnet for best music generation capabilities
   const model = myAnthropic('claude-3-7-sonnet-20250219');
@@ -63,6 +67,8 @@ Guidelines for the ${genre} fusion:
    - Create a composition that is 64 or more measures long
    - Use appropriate time signatures, key signatures, and tempos that bridge both genres
    - Include appropriate articulations, dynamics, and other musical notations
+   ${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
+   ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
    - Ensure the ABC notation is properly formatted and playable
    - Use ONLY the following well-supported abc2midi syntax extensions:
 
@@ -107,7 +113,7 @@ The composition should be a genuine artistic fusion that respects and represents
 
   // Use custom user prompt if provided, otherwise use the default
   const userPrompt = options.customUserPrompt ||
-    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}. Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
+    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? ' Include a dedicated solo section for the lead instrument.' : ''}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ''} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
 
   // Generate the ABC notation
   const { text } = await generateText({
@@ -129,6 +135,8 @@ The composition should be a genuine artistic fusion that respects and represents
  * @param {string} [options.genre] - Hybrid genre name
  * @param {string} [options.classicalGenre] - Classical component of hybrid genre
  * @param {string} [options.modernGenre] - Modern component of hybrid genre
+ * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
+ * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {number} [options.temperature=0.7] - Temperature for generation
  * @returns {Promise<string>} Modified ABC notation
  */
@@ -141,6 +149,8 @@ export async function modifyCompositionWithClaude(options) {
   const genre = options.genre || 'Classical_x_Contemporary';
   const classicalGenre = options.classicalGenre || 'Classical';
   const modernGenre = options.modernGenre || 'Contemporary';
+  const includeSolo = options.solo || false;
+  const recordLabel = options.recordLabel || '';
 
   // Construct a system prompt specifically for modifying existing compositions
   const systemPrompt = `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
@@ -157,6 +167,8 @@ Guidelines for modifying the composition:
 
 Technical guidelines:
 - Ensure the ABC notation remains properly formatted and playable
+${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
+${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
 - Use ONLY the following well-supported abc2midi syntax extensions:
 
 CRITICAL FORMATTING RULES:
@@ -195,7 +207,7 @@ Your modifications should respect both the user's instructions and the musical i
   const { text } = await generateText({
     model,
     system: systemPrompt,
-    prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nModify this composition according to these instructions:\n${instructions}\n\nReturn the complete modified ABC notation.`,
+    prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nModify this composition according to these instructions:\n${instructions}${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}\n\nReturn the complete modified ABC notation.`,
     temperature: options.temperature || 0.7,
     maxTokens: 20000,
   });
@@ -277,6 +289,8 @@ Organize your analysis into these sections:
  * @param {Object} options - Lyrics generation options
  * @param {string} options.abcNotation - Original ABC notation to add lyrics to
  * @param {string} options.lyricsPrompt - Prompt describing what the lyrics should be about
+ * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
+ * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {number} [options.temperature=0.7] - Temperature for generation
  * @returns {Promise<string>} ABC notation with lyrics
  */
@@ -286,6 +300,8 @@ export async function addLyricsWithClaude(options) {
 
   const abcNotation = options.abcNotation;
   const lyricsPrompt = options.lyricsPrompt;
+  const includeSolo = options.solo || false;
+  const recordLabel = options.recordLabel || '';
 
   // Construct a system prompt specifically for adding lyrics to compositions
   const systemPrompt = `You are a music composer and lyricist specializing in adding lyrics to existing compositions.
@@ -309,6 +325,8 @@ Technical guidelines:
 - Keep the existing ABC notation completely intact
 - Use proper ABC notation lyric syntax (w: lines, hyphens, asterisks)
 - Make sure all melody notes have corresponding lyrics
+${includeSolo ? '- If adding a solo section, mark it clearly in the notation and leave the lyrics empty for that instrumental section' : ''}
+${recordLabel ? `- Style the lyrics to sound like they were written for a release on the record label "${recordLabel}"` : ''}
 - For instrumental sections, you can mark them with "w: *" or leave the lyrics empty for that section
 
 CRITICAL FORMATTING RULES:
@@ -327,7 +345,7 @@ Your result should be a singable composition with lyrics that fit both the music
   const { text } = await generateText({
     model,
     system: systemPrompt,
-    prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nAdd lyrics to this composition based on the following theme/prompt:\n${lyricsPrompt}\n\nThe lyrics should fit naturally with the melody and rhythm of the piece. Return the complete ABC notation with lyrics added using the w: syntax.`,
+    prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nAdd lyrics to this composition based on the following theme/prompt:\n${lyricsPrompt}${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the lyrics to sound like they were written for a release on the record label "${recordLabel}".` : ''}\n\nThe lyrics should fit naturally with the melody and rhythm of the piece. Return the complete ABC notation with lyrics added using the w: syntax.`,
     temperature: options.temperature || 0.9,
     maxTokens: 40000,
   });
