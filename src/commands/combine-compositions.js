@@ -6,7 +6,7 @@ import { generateText } from 'ai';
 import { spawn } from 'child_process';
 import { config } from '../utils/config.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
-import { modifyCompositionWithClaude, generateDescription, getAnthropic } from '../utils/claude.js';
+import { modifyCompositionWithClaude, generateDescription, getAnthropic, cleanAbcNotation } from '../utils/claude.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -328,6 +328,11 @@ async function createCombinedPiece(abcNotations, genres, groupIndex, includeSolo
   const systemPrompt = `You are a creative music composer specializing in combining existing musical fragments into cohesive new compositions.
 Your task is to analyze the provided ABC notation pieces and create a new composition that combines the most interesting elements from each source.
 
+⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
+The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
+Every voice declaration, section comment, and other element must be on its own line with NO INDENTATION.
+Failure to follow these formatting rules will result in completely unplayable music files.
+
 Guidelines for combining the compositions:
 1. Create a cohesive piece that feels like a natural fusion of the source materials
 2. Maintain the hybrid genre character (${classicalGenre} x ${modernGenre})
@@ -394,22 +399,21 @@ IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure a
       return null;
     }
 
-    // Fix common issues with Claude-generated ABC notation
-
-    // 1. Ensure no blank lines between sections (abc2midi doesn't like them)
-    notation = notation.replace(/\n\s*\n/g, '\n');
-
-    // 2. Ensure sections are properly connected (no blank lines between section types)
-    notation = notation.replace(/\n%\s*Section/g, '\n% Section');
-
-    // 3. Fix any misaligned voice declarations
-    notation = notation.replace(/\n\s+V:/g, '\nV:');
-
-    // 4. Fix common spacing issues
-    notation = notation.replace(/\[Q:([^\]]+)\]/g, 'Q:$1');
-
-    // 5. Ensure proper spacing in MIDI directives
-    notation = notation.replace(/%%MIDI\s+program\s+(\d+)\s+(\d+)/g, '%%MIDI program $1 $2');
+    // First pass: clean the notation
+    notation = cleanAbcNotation(notation);
+    
+    // Validate the ABC notation
+    const validation = validateAbcNotation(notation);
+    
+    // If there are issues, log and use the fixed version
+    if (!validation.isValid) {
+      console.warn(`⚠️ WARNING: ABC notation validation issues found:`);
+      validation.issues.forEach(issue => console.warn(`  - ${issue}`));
+      console.warn(`Auto-fixing ${validation.issues.length} issues...`);
+      notation = validation.fixedNotation;
+    } else {
+      console.log(`✅ ABC notation validation passed`);
+    }
 
     return notation;
   } catch (error) {

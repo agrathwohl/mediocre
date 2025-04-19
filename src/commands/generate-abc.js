@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { generateMusicWithClaude, generateDescription } from '../utils/claude.js';
+import { generateMusicWithClaude, generateDescription, cleanAbcNotation, validateAbcNotation } from '../utils/claude.js';
 import { generateCreativeGenreName } from '../utils/genre-generator.js';
 import { config } from '../utils/config.js';
 
@@ -201,12 +201,23 @@ export async function generateAbc(options) {
       
       console.log(`Using instruments: ${instrumentString}`);
       
-      // Remove any extraneous blank lines from the ABC notation that might cause parsing issues
-      const cleanedAbcNotation = abcNotation
-        .replace(/\n\s*\n(\[V:)/g, '\n$1')  // Remove blank lines before voice sections
-        .replace(/\n\s*\n(%\s*Section)/g, '\n$1');  // Remove blank lines before section comments
+      // First pass: clean the notation
+      let cleanedAbcNotation = cleanAbcNotation(abcNotation);
       
-      // Save the cleaned ABC notation to a file
+      // Validate the ABC notation
+      const validation = validateAbcNotation(cleanedAbcNotation);
+      
+      // If there are issues, log and use the fixed version
+      if (!validation.isValid) {
+        console.warn(`⚠️ WARNING: ABC notation validation issues found for ${filename}.abc:`);
+        validation.issues.forEach(issue => console.warn(`  - ${issue}`));
+        console.warn(`Auto-fixing ${validation.issues.length} issues...`);
+        cleanedAbcNotation = validation.fixedNotation;
+      } else {
+        console.log(`✅ ABC notation validation passed for ${filename}.abc`);
+      }
+      
+      // Save the cleaned and validated ABC notation to a file
       const abcFilePath = path.join(outputDir, `${filename}.abc`);
       fs.writeFileSync(abcFilePath, cleanedAbcNotation);
       generatedFiles.push(abcFilePath);

@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { execa } from 'execa';
 import { config } from '../utils/config.js';
+import { validateAbcNotation, cleanAbcNotation } from '../utils/claude.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,7 +71,34 @@ async function convertFile(inputPath, outputPath) {
       throw new Error('abc2midi not found. Please install abcmidi package.');
     }
     
-    // Convert ABC to MIDI using abc2midi
+    // Read the ABC file
+    const abcContent = fs.readFileSync(inputPath, 'utf-8');
+    
+    // Validate the ABC content
+    const validation = validateAbcNotation(abcContent);
+    
+    // If there are issues, fix the file first
+    if (!validation.isValid) {
+      console.warn(`⚠️ WARNING: ABC notation validation issues found in ${inputPath}:`);
+      validation.issues.forEach(issue => console.warn(`  - ${issue}`));
+      console.warn(`Auto-fixing issues before conversion...`);
+      
+      // Create a temporary file with the fixed content
+      const fixedContent = validation.fixedNotation;
+      const tempPath = inputPath + '.fixed.abc';
+      fs.writeFileSync(tempPath, fixedContent);
+      
+      // Convert the fixed file
+      await execa('abc2midi', [tempPath, '-o', outputPath, '-silent']);
+      
+      // Optionally clean up the temp file
+      fs.unlinkSync(tempPath);
+      
+      console.log(`Converted fixed version of ${inputPath} to ${outputPath}`);
+      return;
+    }
+    
+    // If no issues, convert the original file
     await execa('abc2midi', [inputPath, '-o', outputPath, '-silent']);
     
     console.log(`Converted ${inputPath} to ${outputPath}`);

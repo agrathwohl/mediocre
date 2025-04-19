@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { modifyCompositionWithClaude, generateDescription } from '../utils/claude.js';
+import { modifyCompositionWithClaude, generateDescription, validateAbcNotation, cleanAbcNotation } from '../utils/claude.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
 import { config } from '../utils/config.js';
 import { extractInstruments } from './generate-abc.js';
@@ -53,7 +53,7 @@ export async function modifyComposition(options) {
   console.log(`Applying instructions: "${instructions}"`);
   
   // Generate the modified composition
-  const modifiedAbc = await modifyCompositionWithClaude({
+  let modifiedAbc = await modifyCompositionWithClaude({
     abcNotation: originalAbc,
     instructions,
     genre,
@@ -61,6 +61,19 @@ export async function modifyComposition(options) {
     modernGenre,
     temperature: 0.7
   });
+  
+  // Validate the ABC notation
+  const validation = validateAbcNotation(modifiedAbc);
+  
+  // If there are issues, log and use the fixed version
+  if (!validation.isValid) {
+    console.warn(`⚠️ WARNING: ABC notation validation issues found:`);
+    validation.issues.forEach(issue => console.warn(`  - ${issue}`));
+    console.warn(`Auto-fixing ${validation.issues.length} issues...`);
+    modifiedAbc = validation.fixedNotation;
+  } else {
+    console.log(`✅ ABC notation validation passed`);
+  }
   
   // Extract the instruments used in the modified composition
   const instruments = extractInstruments(modifiedAbc);

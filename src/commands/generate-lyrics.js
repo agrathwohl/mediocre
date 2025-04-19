@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addLyricsWithClaude } from '../utils/claude.js';
+import { addLyricsWithClaude, validateAbcNotation, cleanAbcNotation } from '../utils/claude.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
 import { config } from '../utils/config.js';
 import { extractInstruments } from './generate-abc.js';
@@ -93,11 +93,24 @@ export async function generateLyrics(options) {
   console.log(`Adding lyrics based on prompt: "${lyricsPrompt}"`);
   
   // Generate the ABC notation with lyrics
-  const lyricsAbc = await addLyricsWithClaude({
+  let lyricsAbc = await addLyricsWithClaude({
     abcNotation: originalAbc,
     lyricsPrompt,
     temperature: 0.7
   });
+  
+  // Validate the ABC notation
+  const validation = validateAbcNotation(lyricsAbc);
+  
+  // If there are issues, log and use the fixed version
+  if (!validation.isValid) {
+    console.warn(`⚠️ WARNING: ABC notation validation issues found:`);
+    validation.issues.forEach(issue => console.warn(`  - ${issue}`));
+    console.warn(`Auto-fixing ${validation.issues.length} issues...`);
+    lyricsAbc = validation.fixedNotation;
+  } else {
+    console.log(`✅ ABC notation validation passed`);
+  }
   
   // Extract the instruments used in the composition
   const instruments = extractInstruments(lyricsAbc);

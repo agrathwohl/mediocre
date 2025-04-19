@@ -158,26 +158,47 @@ export function displayCompositionInfo(options) {
  * @param {string} options.filename - Filename or base filename of the reference composition
  * @param {number} [options.count] - Number of compositions to generate
  * @param {string} [options.directory] - Directory to search in
+ * @param {string} [options.style] - Music style to apply
+ * @param {boolean} [options.creativeNames] - Generate creative genre names
+ * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
+ * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @returns {Promise<Array<string>>} Array of new composition file paths
  */
 export async function createMoreLikeThis(options) {
   const directory = options.directory || config.get('outputDir');
   const filename = options.filename;
   const count = options.count ? parseInt(options.count, 10) : 1;
-  const creativeNames = options.creativeNames !== false; // Default to true if not specified
+  const style = options.style || '';
+  const creativeNames = options.creativeNames === true; // Default to false unless explicitly specified
+  const solo = options.solo || false;
+  const recordLabel = options.recordLabel || '';
   
   if (!filename) {
     throw new Error('Filename is required');
   }
   
   console.log(chalk.blue(`\nGenerating ${count} composition(s) similar to "${filename}"...`));
+  if (style) {
+    console.log(chalk.blue(`Applying style: ${style}...`));
+  }
   if (creativeNames) {
     console.log(chalk.blue('Using creative genre names...'));
+  }
+  if (solo) {
+    console.log(chalk.blue('Including solo section for lead instrument...'));
+  }
+  if (recordLabel) {
+    console.log(chalk.blue(`Making it sound like it was released on "${recordLabel}"...`));
   }
   
   try {
     // Generate similar compositions
-    const newFiles = await generateMoreLikeThis(filename, count, directory, { creativeNames });
+    const newFiles = await generateMoreLikeThis(filename, count, directory, { 
+      style,
+      creativeNames,
+      solo,
+      recordLabel
+    });
     
     console.log(chalk.green(`\nGenerated ${newFiles.length} new composition(s):`));
     newFiles.forEach(file => {

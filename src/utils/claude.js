@@ -3,6 +3,121 @@ import { generateText } from 'ai';
 import { config } from './config.js';
 
 /**
+ * Validates ABC notation for formatting issues that would cause playback problems
+ * @param {string} abcNotation - ABC notation to validate
+ * @returns {Object} Validation results with issues array and isValid flag
+ */
+export function validateAbcNotation(abcNotation) {
+  // Initialize result object
+  const result = {
+    isValid: true,
+    issues: [],
+    lineIssues: [],
+    fixedNotation: null
+  };
+
+  // Split the notation into lines for analysis
+  const lines = abcNotation.split('\n');
+  
+  // Check for basic header fields
+  const requiredHeaders = ['X:', 'T:', 'M:', 'K:'];
+  const foundHeaders = [];
+  
+  // Detect pattern issues
+  let inVoiceSection = false;
+  let prevLine = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+    
+    // Check for blank lines (completely empty or just whitespace)
+    if (line.trim() === '') {
+      result.issues.push(`Line ${lineNum}: Blank line detected - will cause ABC parsing errors`);
+      result.lineIssues.push(lineNum);
+      result.isValid = false;
+    }
+    
+    // Check for indentation (line starts with whitespace)
+    if (line !== '' && line.startsWith(' ') || line.startsWith('\t')) {
+      result.issues.push(`Line ${lineNum}: Line starts with whitespace - may cause ABC parsing errors`);
+      result.lineIssues.push(lineNum);
+      result.isValid = false;
+    }
+    
+    // Check for voice declarations not at start of line
+    if (line.match(/\s+\[?V:/)) {
+      result.issues.push(`Line ${lineNum}: Voice declaration not at start of line`);
+      result.lineIssues.push(lineNum);
+      result.isValid = false;
+    }
+    
+    // Check for required headers
+    for (const header of requiredHeaders) {
+      if (line.startsWith(header)) {
+        foundHeaders.push(header);
+      }
+    }
+    
+    // Check for lyrics lines not following melody lines
+    if (line.startsWith('w:') && !prevLine.match(/^\[?V:/)) {
+      // This is a heuristic - not 100% reliable but catches obvious issues
+      const prevLineHasNotes = prevLine.match(/[A-Ga-g]/) !== null;
+      if (!prevLineHasNotes) {
+        result.issues.push(`Line ${lineNum}: Lyrics line (w:) not immediately following a melody line`);
+        result.lineIssues.push(lineNum);
+        result.isValid = false;
+      }
+    }
+    
+    // Store current line for next iteration
+    prevLine = line;
+  }
+  
+  // Check for missing required headers
+  for (const header of requiredHeaders) {
+    if (!foundHeaders.includes(header)) {
+      result.issues.push(`Missing required header: ${header}`);
+      result.isValid = false;
+    }
+  }
+  
+  // Fix the ABC notation if issues were found
+  if (!result.isValid) {
+    result.fixedNotation = cleanAbcNotation(abcNotation);
+  }
+  
+  return result;
+}
+
+/**
+ * Cleans up ABC notation to ensure proper formatting for abc2midi
+ * @param {string} abcNotation - ABC notation to clean
+ * @returns {string} Cleaned ABC notation
+ */
+export function cleanAbcNotation(abcNotation) {
+  let cleanedText = abcNotation
+    // Remove ALL blank lines between ANY content (most aggressive approach)
+    .replace(/\n\s*\n/g, '\n')
+    
+    // Ensure proper voice, lyric, and section formatting
+    .replace(/\n\s*(\[V:)/g, '\n$1')      // Fix spacing before bracketed voice declarations
+    .replace(/\n\s*(V:)/g, '\nV:')        // Fix spacing before unbracketed voice declarations
+    .replace(/\n\s*(%\s*Section)/g, '\n$1')  // Fix spacing before section comments
+    .replace(/\n\s*(w:)/g, '\nw:')        // Fix spacing before lyrics lines
+    
+    // Fix common notation issues
+    .replace(/\]\s*\n\s*\[/g, ']\n[')     // Ensure clean line breaks between bracketed elements
+    .replace(/\n\s+/g, '\n')              // Remove leading whitespace on any line
+    .replace(/\[Q:([^\]]+)\]/g, 'Q:$1')   // Fix Q: tempo markings
+    .replace(/%%MIDI\s+program\s+(\d+)\s+(\d+)/g, '%%MIDI program $1 $2') // Fix MIDI program spacing
+    .trim();                               // Remove any trailing whitespace
+    
+  // Ensure the file ends with a single newline
+  return cleanedText + '\n';
+}
+
+/**
  * Creates a custom Anthropic instance with the provided API key
  * @returns {object} The Anthropic provider instance
  */
@@ -47,6 +162,12 @@ export async function generateMusicWithClaude(options) {
   const systemPrompt = options.customSystemPrompt ||
     `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
 Your task is to create a composition that authentically blends elements of both ${classicalGenre} and ${modernGenre} musical traditions.
+
+⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
+The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
+Every voice declaration, section comment, and other element must be on its own line with NO INDENTATION.
+Failure to follow these formatting rules will result in completely unplayable music files.
+
 Return ONLY the ABC notation format for the composition, with no explanation or additional text.
 
 Guidelines for the ${genre} fusion:
@@ -155,6 +276,12 @@ export async function modifyCompositionWithClaude(options) {
   // Construct a system prompt specifically for modifying existing compositions
   const systemPrompt = `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
 Your task is to modify an existing ABC notation composition according to specific instructions.
+
+⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
+The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
+Every voice declaration, section comment, and other element must be on its own line with NO INDENTATION.
+Failure to follow these formatting rules will result in completely unplayable music files.
+
 Return ONLY the complete modified ABC notation, with no explanation or additional text.
 
 Guidelines for modifying the composition:
@@ -212,10 +339,8 @@ Your modifications should respect both the user's instructions and the musical i
     maxTokens: 20000,
   });
 
-  // Clean up any extraneous blank lines that might cause parsing issues
-  const cleanedText = text
-    .replace(/\n\s*\n(\[V:)/g, '\n$1')  // Remove blank lines before voice sections
-    .replace(/\n\s*\n(%\s*Section)/g, '\n$1');  // Remove blank lines before section comments
+  // Clean up using our standard ABC notation cleaner
+  const cleanedText = cleanAbcNotation(text);
 
   return cleanedText;
 }
@@ -306,6 +431,13 @@ export async function addLyricsWithClaude(options) {
   // Construct a system prompt specifically for adding lyrics to compositions
   const systemPrompt = `You are a music composer and lyricist specializing in adding lyrics to existing compositions.
 Your task is to add lyrics to an existing ABC notation composition according to a specific thematic prompt.
+
+⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
+The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
+Every voice declaration, section comment, lyrics line (w:), and other element must be on its own line with NO INDENTATION.
+Lyrics lines (w:) must immediately follow their corresponding melody lines with NO blank lines between them.
+Failure to follow these formatting rules will result in completely unplayable music files.
+
 Return ONLY the complete ABC notation with lyrics added, with no explanation or additional text.
 
 Guidelines for adding lyrics:
@@ -350,11 +482,8 @@ Your result should be a singable composition with lyrics that fit both the music
     maxTokens: 40000,
   });
 
-  // Clean up any extraneous blank lines that might cause parsing issues
-  const cleanedText = text
-    .replace(/\n\s*\n(\[V:)/g, '\n$1')  // Remove blank lines before voice sections
-    .replace(/\n\s*\n(%\s*Section)/g, '\n$1')  // Remove blank lines before section comments
-    .replace(/\n\s*\n(w:)/g, '\nw:');  // Ensure w: lines have no blank lines before them
+  // Clean up using our standard ABC notation cleaner
+  const cleanedText = cleanAbcNotation(text);
 
   return cleanedText;
 }

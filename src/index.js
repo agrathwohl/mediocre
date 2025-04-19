@@ -15,6 +15,7 @@ import { modifyComposition } from './commands/modify-composition.js';
 import { combineCompositions } from './commands/combine-compositions.js';
 import { generateLyrics } from './commands/generate-lyrics.js';
 import { createDatasetBrowser } from './ui/index.js';
+import { validateAbcNotation, cleanAbcNotation } from './utils/claude.js';
 
 // Set up the CLI program
 program
@@ -232,7 +233,10 @@ program
   .argument('<filename>', 'Filename or base filename of the reference composition')
   .option('-c, --count <number>', 'Number of compositions to generate', '1')
   .option('-d, --directory <directory>', 'Directory to search in', config.get('outputDir'))
+  .option('-s, --style <string>', 'Music style to apply')
   .option('--creative-names', '[EXPERIMENTAL] Generate creative genre names instead of standard hybrid format (may produce unpredictable results)', false)
+  .option('--solo', 'Include a musical solo section for the lead instrument')
+  .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .action(async (filename, options) => {
     try {
       await createMoreLikeThis({ ...options, filename });
@@ -334,6 +338,46 @@ program
     }
   });
 
+program
+  .command('validate-abc')
+  .description('Validate and fix formatting issues in ABC notation files')
+  .requiredOption('-i, --input <file>', 'Input ABC file to validate and fix')
+  .option('-o, --output <file>', 'Output file path (defaults to overwriting input)')
+  .action(async (options) => {
+    try {
+      // Use the imported validateAbcNotation and cleanAbcNotation functions
+      
+      // Load the ABC notation
+      console.log(`Validating ABC file: ${options.input}`);
+      const abcContent = fs.readFileSync(options.input, 'utf-8');
+      
+      // Validate the ABC notation
+      const validation = validateAbcNotation(abcContent);
+      
+      if (validation.isValid) {
+        console.log(`✅ ABC notation validation passed. No issues found.`);
+        return;
+      }
+      
+      // Log the issues found
+      console.warn(`⚠️ Found ${validation.issues.length} issues in the ABC notation:`);
+      validation.issues.forEach(issue => console.warn(`  - ${issue}`));
+      
+      // Apply automatic fixes
+      console.log(`Applying automatic fixes...`);
+      const fixedContent = validation.fixedNotation;
+      
+      // Determine the output path
+      const outputPath = options.output || options.input;
+      
+      // Save the fixed content
+      fs.writeFileSync(outputPath, fixedContent);
+      console.log(`Fixed ABC notation saved to: ${outputPath}`);
+    } catch (error) {
+      console.error('Error validating ABC file:', error);
+    }
+  });
+
 // Default help message
 if (process.argv.length === 2) {
   console.log(`
@@ -354,6 +398,7 @@ if (process.argv.length === 2) {
     combine        Find short compositions and combine them into new pieces
     lyrics         Add lyrics to an existing composition using Claude
     browse         Launch interactive TUI browser for the music dataset
+    validate-abc   Validate and fix formatting issues in ABC notation files
     
   Examples:
     mediocre genres -c "baroque,classical,romantic" -m "techno,ambient,glitch" -n 5
@@ -363,10 +408,11 @@ if (process.argv.length === 2) {
     mediocre generate -g "baroque_x_jazz" --creative-names # EXPERIMENTAL FEATURE
     mediocre list --sort length --limit 10
     mediocre info "baroque_x_grunge-score1-1744572129572"
-    mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2
+    mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2 -s "minimalist" --record-label "Warp Records" --solo
     mediocre modify "baroque_x_grunge-score1-1744572129572" -i "Make it longer with a breakdown section" --solo
     mediocre combine --duration-limit 45 --genres "baroque,romantic" --record-label "Raster Noton"
     mediocre lyrics -m "baroque_x_jazz-score1.mid" -p "A song about the beauty of nature" --solo
+    mediocre validate-abc -i "baroque_x_jazz-score1.abc" -o "fixed.abc"
     mediocre browse
     
   For more information, run: mediocre --help
