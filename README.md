@@ -15,6 +15,7 @@
 > 🔊 **Create intricate, nuanced, and musically-sophisticated audio using our unique approach to LLM prompting for musical generation. Perfect for training LLM models on audio processing tasks like mixing, de-verbing, and effects processing.
 
 ## 🚀 Examples
+[trombone.webm](https://github.com/user-attachments/assets/46cb7ad7-7d10-40ed-9cd5-aabb389450cc)
 
 [berio.webm](https://github.com/user-attachments/assets/0926e777-8809-41e6-b963-464ed5f33a4f)
   
