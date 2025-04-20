@@ -1,6 +1,6 @@
 <div align="center">
   
-# 🎵 MEDIOCRE 🎵
+# 🎵 MEDIOCRE-MUSIC 🎵
 
 **Genre-bending AI music composition toolkit** for LLM training dataset creation.
 
