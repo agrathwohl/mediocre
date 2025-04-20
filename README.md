@@ -16,14 +16,9 @@
 
 ## 🚀 Examples
 
-<div align="center">
-  <a href="https://github.com/user-attachments/assets/0926e777-8809-41e6-b963-464ed5f33a4f">
-    <img src="https://github.com/user-attachments/assets/0926e777-8809-41e6-b963-464ed5f33a4f/poster.jpg" width="45%">
-  </a>&nbsp;&nbsp;
-  <a href="https://github.com/user-attachments/assets/bf2a1b1d-3582-4790-8b4b-8f40a7498944">
-    <img src="https://github.com/user-attachments/assets/bf2a1b1d-3582-4790-8b4b-8f40a7498944/poster.jpg" width="45%">
-  </a>
-</div>
+[berio.webm](https://github.com/user-attachments/assets/0926e777-8809-41e6-b963-464ed5f33a4f)
+  
+[pcmusic.webm](https://github.com/user-attachments/assets/bf2a1b1d-3582-4790-8b4b-8f40a7498944)
 
 ## ✨ Features
 
