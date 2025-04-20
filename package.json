@@ -1,6 +1,6 @@
 {
   "name": "mediocre-music",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "CLI tool for generating synthetic music compositions for AI training datasets",
   "type": "module",
   "main": "dist/index.js",
