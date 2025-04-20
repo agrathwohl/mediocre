@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
+import path from 'path';
 import { program } from 'commander';
 import { config } from './utils/config.js';
 import { parseGenreList, generateMultipleHybridGenres } from './utils/genre-generator.js';
@@ -59,6 +60,7 @@ program
   .option('--creative-names', '[EXPERIMENTAL] Generate creative genre names instead of standard hybrid format (may produce unpredictable results)', false)
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
+  .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .action(async (options) => {
     try {
       let genres = [];
@@ -128,7 +130,8 @@ program
           userPrompt: customUserPrompt,
           creativeNames: options.creativeNames === true, // Default to false unless explicitly specified
           solo: options.solo || false,
-          recordLabel: options.recordLabel || ''
+          recordLabel: options.recordLabel || '',
+          producer: options.producer || ''
         };
         
         const files = await generateAbc(genreOptions);
@@ -237,6 +240,7 @@ program
   .option('--creative-names', '[EXPERIMENTAL] Generate creative genre names instead of standard hybrid format (may produce unpredictable results)', false)
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
+  .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .action(async (filename, options) => {
     try {
       await createMoreLikeThis({ ...options, filename });
@@ -255,6 +259,7 @@ program
   .option('-o, --output <directory>', 'Output directory for the modified composition')
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
+  .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .action(async (filename, options) => {
     try {
       let instructions = options.instructions;
@@ -309,6 +314,7 @@ program
   .option('-d, --directory <directory>', 'Directory to search for compositions', config.get('outputDir'))
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
+  .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .action(async (options) => {
     try {
       const files = await combineCompositions(options);
@@ -327,6 +333,7 @@ program
   .option('-o, --output <directory>', 'Output directory for the file with lyrics')
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
+  .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .action(async (options) => {
     try {
       const abcFile = await generateLyrics(options);
@@ -341,13 +348,66 @@ program
 program
   .command('validate-abc')
   .description('Validate and fix formatting issues in ABC notation files')
-  .requiredOption('-i, --input <file>', 'Input ABC file to validate and fix')
+  .option('-i, --input <file>', 'Input ABC file to validate and fix')
   .option('-o, --output <file>', 'Output file path (defaults to overwriting input)')
   .action(async (options) => {
     try {
-      // Use the imported validateAbcNotation and cleanAbcNotation functions
+      // When no input/output options are provided, process all ABC files in the output directory
+      if (!options.input) {
+        console.log('No input file specified. Processing all ABC files in the output directory...');
+        
+        // Get the output directory path from config
+        const outputDir = config.get('outputDir');
+        
+        // Find all ABC files in the output directory
+        const abcFiles = fs.readdirSync(outputDir)
+          .filter(file => file.endsWith('.abc'))
+          .map(file => path.join(outputDir, file));
+          
+        // TO TEST: Limit to just a few files in development
+        // const abcFiles = fs.readdirSync(outputDir)
+        //   .filter(file => file.endsWith('.abc'))
+        //   .slice(0, 3)  // Process only the first 3 files for testing
+        //   .map(file => path.join(outputDir, file));
+        
+        console.log(`Found ${abcFiles.length} ABC files to process.`);
+        
+        let fixedCount = 0;
+        let validCount = 0;
+        
+        // Process each file
+        for (const abcFile of abcFiles) {
+          console.log(`Processing file: ${abcFile}`);
+          const abcContent = fs.readFileSync(abcFile, 'utf-8');
+          
+          // Validate the ABC notation
+          const validation = validateAbcNotation(abcContent);
+          
+          if (validation.isValid) {
+            console.log(`✅ ${path.basename(abcFile)}: Validation passed. No issues found.`);
+            validCount++;
+            continue;
+          }
+          
+          // Log the issues found
+          console.warn(`⚠️ ${path.basename(abcFile)}: Found ${validation.issues.length} issues in the ABC notation:`);
+          validation.issues.forEach(issue => console.warn(`  - ${issue}`));
+          
+          // Apply automatic fixes
+          console.log(`Applying automatic fixes to ${path.basename(abcFile)}...`);
+          const fixedContent = validation.fixedNotation;
+          
+          // Save the fixed content back to the original file
+          fs.writeFileSync(abcFile, fixedContent);
+          console.log(`✅ Fixed ABC notation saved to: ${abcFile}`);
+          fixedCount++;
+        }
+        
+        console.log(`Processed ${abcFiles.length} files: ${validCount} already valid, ${fixedCount} fixed.`);
+        return;
+      }
       
-      // Load the ABC notation
+      // Standard single file processing when input is specified
       console.log(`Validating ABC file: ${options.input}`);
       const abcContent = fs.readFileSync(options.input, 'utf-8');
       
@@ -405,6 +465,7 @@ if (process.argv.length === 2) {
     mediocre generate -C "baroque,classical" -M "techno,ambient" -c 3
     mediocre generate -g "baroque_x_jazz" --system-prompt my-prompt.txt --solo
     mediocre generate -g "baroque_x_jazz" --record-label "Merge Records"
+    mediocre generate -g "baroque_x_jazz" --producer "Phil Spector"
     mediocre generate -g "baroque_x_jazz" --creative-names # EXPERIMENTAL FEATURE
     mediocre list --sort length --limit 10
     mediocre info "baroque_x_grunge-score1-1744572129572"
@@ -412,7 +473,8 @@ if (process.argv.length === 2) {
     mediocre modify "baroque_x_grunge-score1-1744572129572" -i "Make it longer with a breakdown section" --solo
     mediocre combine --duration-limit 45 --genres "baroque,romantic" --record-label "Raster Noton"
     mediocre lyrics -m "baroque_x_jazz-score1.mid" -p "A song about the beauty of nature" --solo
-    mediocre validate-abc -i "baroque_x_jazz-score1.abc" -o "fixed.abc"
+    mediocre validate-abc                                 # Process and fix all ABC files in output dir
+    mediocre validate-abc -i "baroque_x_jazz-score1.abc" -o "fixed.abc"  # Process a single file
     mediocre browse
     
   For more information, run: mediocre --help

@@ -6,7 +6,7 @@ import { generateText } from 'ai';
 import { spawn } from 'child_process';
 import { config } from '../utils/config.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
-import { modifyCompositionWithClaude, generateDescription, getAnthropic, cleanAbcNotation } from '../utils/claude.js';
+import { modifyCompositionWithClaude, generateDescription, getAnthropic, cleanAbcNotation, validateAbcNotation } from '../utils/claude.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +32,7 @@ export async function combineCompositions(options) {
   const dateTo = options.dateTo ? new Date(options.dateTo) : null;
   const includeSolo = options.solo || false;
   const recordLabel = options.recordLabel || '';
+  const producer = options.producer || '';
 
   // Parse genres list
   const genres = options.genres ? options.genres.split(',').map(g => g.trim()) : [];
@@ -184,7 +185,7 @@ export async function combineCompositions(options) {
     }
 
     // Create a combined piece using Claude
-    const newPiece = await createCombinedPiece(abcNotations, genres, i, includeSolo, recordLabel);
+    const newPiece = await createCombinedPiece(abcNotations, genres, i, includeSolo, recordLabel, producer);
 
     // Save the new composition
     if (newPiece) {
@@ -312,9 +313,10 @@ function combineGenres(genres) {
  * @param {number} groupIndex - Index of the group (for labeling)
  * @param {boolean} [includeSolo=false] - Include a musical solo section for the lead instrument
  * @param {string} [recordLabel=''] - Make it sound like it was released on this record label
+ * @param {string} [producer=''] - Make it sound as if it was produced by this record producer
  * @returns {Promise<string>} Combined ABC notation
  */
-async function createCombinedPiece(abcNotations, genres, groupIndex, includeSolo = false, recordLabel = '') {
+async function createCombinedPiece(abcNotations, genres, groupIndex, includeSolo = false, recordLabel = '', producer = '') {
   const myAnthropic = getAnthropic();
   const model = myAnthropic('claude-3-7-sonnet-20250219');
 
@@ -348,6 +350,7 @@ Technical guidelines:
 - Maintain consistent key signatures and time signatures between voices
 ${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
 ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
+${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
 
 ONLY USE THESE SUPPORTED EXTENSIONS:
 1. Channel and Program selection:
@@ -374,7 +377,7 @@ Return ONLY the complete ABC notation for the new combined composition, with no 
 
 ${sourcePiecesText}
 
-Create a new composition in ABC notation that combines these pieces into a cohesive whole. The new piece should maintain the character of the ${combinedGenre} genre but feel like a complete, original composition. Select the most interesting motifs, harmonies, or sections from each source piece and weave them together with appropriate transitions.${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}
+Create a new composition in ABC notation that combines these pieces into a cohesive whole. The new piece should maintain the character of the ${combinedGenre} genre but feel like a complete, original composition. Select the most interesting motifs, harmonies, or sections from each source piece and weave them together with appropriate transitions.${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}
 
 The piece MUST be longer in duration than the combined lengths of each piece you will be combining. It may never be shorter than either piece or all pieces combined.
 

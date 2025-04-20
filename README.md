@@ -1,193 +1,179 @@
-# Mediocre
+<div align="center">
+  
+# 🎵 MEDIOCRE 🎵
 
->A tool for generating hybrid genre music compositions for training LLM models on audio processing tasks like mixing, de-verbing, and effects processing.
+**Genre-bending AI music composition toolkit** for LLM training dataset creation.
 
 ![](./screenshot.png)
 
-## Features
+[![npm version](https://img.shields.io/npm/v/mediocre-music.svg?style=flat-square)](https://www.npmjs.com/package/mediocre-music)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg?style=flat-square)](https://nodejs.org)
 
-- Generate hybrid music genres combining classical and modern elements
-- Create ABC notation files using Claude API with abc2midi extensions
-- Support for custom system and user prompts for fine-tuned music generation
-- Modify existing compositions with specific instructions (e.g., make longer, add sections)
-- Convert ABC to MIDI files
-- Create PDF score visualizations 
-- Convert MIDI to WAV audio files
-- Apply audio effects (reverb, delay, distortion)
-- Build datasets for training models
-- Interactive TUI browser with playback controls and rating system
+</div>
 
-## Requirements
+> 🔊 **Create intricate, nuanced, and musically-sophisticated audio using our unique approach to LLM prompting for musical generation. Perfect for training LLM models on audio processing tasks like mixing, de-verbing, and effects processing.
+
+## 🚀 Examples
+
+<div align="center">
+  <a href="https://github.com/user-attachments/assets/0926e777-8809-41e6-b963-464ed5f33a4f">
+    <img src="https://github.com/user-attachments/assets/0926e777-8809-41e6-b963-464ed5f33a4f/poster.jpg" width="45%">
+  </a>&nbsp;&nbsp;
+  <a href="https://github.com/user-attachments/assets/bf2a1b1d-3582-4790-8b4b-8f40a7498944">
+    <img src="https://github.com/user-attachments/assets/bf2a1b1d-3582-4790-8b4b-8f40a7498944/poster.jpg" width="45%">
+  </a>
+</div>
+
+## ✨ Features
+
+- 🎭 **Genre Fusion** - Combine classical and modern elements into unique hybrids
+- 🤖 **AI Composition** - Generate ABC notation using Claude 3.7 Sonnet
+- 🎼 **Format Conversion** - ABC → MIDI → WAV pipeline with PDF scores
+- 🎛️ **Audio Processing** - Apply reverb, delay, distortion and more
+- 📊 **Dataset Building** - Create structured datasets for ML training
+- 🖥️ **Interactive TUI** - Browse compositions with playback and rating system
+
+## 🛠️ Installation
+
+### Quick Start (CLI)
+
+```bash
+# Global installation
+npm install mediocre-music -g
+
+# Set your API key
+export ANTHROPIC_API_KEY=your_key_here
+```
+
+### Development Setup
+
+```bash
+# Clone and setup
+git clone https://github.com/yourusername/mediocre.git
+cd mediocre
+npm install
+
+# Create .env with your API key
+echo "ANTHROPIC_API_KEY=your_key_here" > .env
+```
+
+## 📦 Requirements
 
 - Node.js 18+
 - Anthropic API key (Claude 3.7 Sonnet recommended)
 - External tools:
-  - abcmidi (for ABC to MIDI conversion)
-  - abcm2ps and ghostscript (for PDF generation)
-  - timidity (for MIDI to WAV conversion) 
-  - sox (for audio effects processing)
+  - `abcmidi` - ABC ↔ MIDI conversion
+  - `abcm2ps` & `ghostscript` - PDF score generation
+  - `timidity` - MIDI → WAV conversion
+  - `sox` - Audio effects processing
 
-## Examples
-[berio.webm](https://github.com/user-attachments/assets/0926e777-8809-41e6-b963-464ed5f33a4f)
+## 🎮 Usage Guide
 
-[pcmusic.webm](https://github.com/user-attachments/assets/bf2a1b1d-3582-4790-8b4b-8f40a7498944)
-
-
-## Installation
-
-### CLI Tool
-
-Install the CLI tool onto your system by running:
+### Generate Wild Genre Hybrids
 
 ```bash
-npm install mediocre-music -g
+# Create 5 hybrid genres
+mediocre genres -n 5
+
+# Customize genre combinations
+mediocre genres -c "baroque,serialist,minimalist" -m "techno,trap,vaporwave" -n 3
 ```
 
-### Development Version
-
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/mediocre.git
-cd mediocre
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Create a `.env` file with your Anthropic API key:
-```bash
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-```
-
-## Usage
-
-### Generating Hybrid Genres
-
-Generate hybrid genre names by combining classical and modern genres:
+### Compose Musical Masterpieces
 
 ```bash
-# Generate 5 hybrid genres using specific genre lists
-npm run dev -- genres -c "baroque,classical,romantic" -m "techno,ambient,glitch" -n 5
+# Generate a composition for a specific hybrid
+mediocre generate -g "Baroque_x_Techno" -c 1
 
-# Generate 5 hybrid genres using default genre lists
-npm run dev -- genres -n 5
+# Generate multiple pieces with random hybrids
+mediocre generate -C "baroque,classical" -M "techno,ambient" -c 3
+
+# Use custom system prompt
+mediocre generate -g "Renaissance_x_Trap" --system-prompt examples/custom-system-prompt.txt
 ```
 
-### Generating Compositions
-
-Generate music for specific hybrid genres:
+### Process & Convert
 
 ```bash
-# Generate a composition for a specific hybrid genre
-npm run dev -- generate -g "Baroque_x_Techno" -c 1
+# Convert ABC → MIDI → WAV
+mediocre convert --to midi -d ./output
+mediocre convert --to wav -d ./output
 
-# Generate multiple compositions using random hybrid genres from lists
-npm run dev -- generate -C "baroque,classical" -M "techno,ambient" -c 3
+# Generate PDF scores
+mediocre convert --to pdf -d ./output
 
-# Generate a composition using a custom system prompt
-npm run dev -- generate -g "Baroque_x_Jazz" --system-prompt examples/custom-system-prompt.txt
+# Add effects
+mediocre process -d ./output -e reverb
 ```
 
-For more information on using custom prompts, see [Custom Prompts Guide](./docs/CUSTOM_PROMPTS.md).
-
-### Converting and Processing Files
+### Modify Compositions
 
 ```bash
-# Convert ABC to MIDI
-npm run dev -- convert --to midi -d ./output
-
-# Convert ABC to PDF
-npm run dev -- convert --to pdf -d ./output
-
-# Convert MIDI to WAV
-npm run dev -- convert --to wav -d ./output
-
-# Process audio effects
-npm run dev -- process -d ./output -e reverb
+# Extend or transform existing pieces
+mediocre modify "baroque_x_jazz-score1-1234567890" -i "Add a dramatic breakdown with harpsichord solo"
 ```
 
-### Modifying Compositions
+### Build ML Datasets
 
 ```bash
-# Modify a composition with inline instructions
-npm run dev -- modify "baroque_x_jazz-score1-1234567890" -i "Make it longer with a dramatic breakdown section"
-
-# Modify a composition using instructions from a file
-npm run dev -- modify "baroque_x_jazz-score1-1234567890" -f examples/modification-instructions.txt
+# Create structured dataset
+mediocre dataset -d ./output
 ```
 
-### Building Datasets
+## 🎯 Hybrid Genre System
 
-```bash
-npm run dev -- dataset -d ./output
-```
+Mix and match from these *example* categories to create unique sonic fusions:
 
-## Hybrid Genre System
+<table>
+<tr>
+<td width="50%" valign="top">
 
-The system creates hybrid genres by combining classical and modern musical traditions.
-The following are merely *examples*. Feel free to come up with whatever crazy
-genres and conventions you like. I've done "Cardi B x King Gizzard and the Lizard Wizard"
-in a "Rockabilly" style and it sounded pretty alright to me!
-
-### Classical/Traditional Genres
-- Baroque, Classical, Romantic, Renaissance, Medieval
-- Impressionist, Serialist, Minimalist, Neoclassical
-- Opera, Cantata, Oratorio, Sonata, Symphony
+### 🎻 Classical/Traditional
+- Baroque, Classical, Romantic
+- Renaissance, Medieval, Impressionist
+- Serialist, Minimalist, Neoclassical
+- Opera, Cantata, Oratorio
 - Chamber, Concerto, Ballet, Fugue
 
-### Modern Genres
-- Techno, House, Drum and Bass, Dubstep, Ambient
-- IDM, Glitch, Vaporwave, Lo-fi, Chillwave
-- Trap, Drill, Grime, Hip Hop, R&B
-- Rock, Metal, Punk, Grunge, Indie
-- Jazz, Funk, Disco, Soul, Blues
+</td>
+<td width="50%" valign="top">
 
-Hybrid genres are named in the format: `Classical_x_Modern` (e.g., "Baroque_x_Techno")
+### 🎧 Modern
+- Techno, House, Drum and Bass
+- Dubstep, Ambient, IDM, Glitch
+- Vaporwave, Lo-fi, Chillwave
+- Trap, Drill, Grime, Hip Hop
+- Rock, Metal, Punk, Jazz, Funk
 
-## Supported ABC2MIDI Extensions
+</td>
+</tr>
+</table>
 
-The system uses only the most reliable abc2midi extensions to ensure compatibility with all standard ABC processors:
+Come up with your own crazy ideas and give them a try! I merged Cardi B and
+John Zorn and I think it turned out really great.
 
-### Instrument Selection
-- `%%MIDI program [channel] n` - Sets the instrument for a specific channel
-  Example: `%%MIDI program 1 40` (Violin on channel 1)
+## 🧠 How It Works
 
-### Dynamics
-- `%%MIDI beat a b c n` - Controls note velocities
-  Example: `%%MIDI beat 90 80 65 1`
-- Standard ABC dynamics: `!p!`, `!f!`, etc.
+1. **Genre Fusion** - AI combines musical traditions into hybrid forms
+2. **Composition** - Claude creates ABC notation with abc2midi extensions
+3. **Conversion** - Pipeline transforms notation into playable formats
+4. **Processing** - Effects chain generates training pairs
+5. **Dataset** - Organized structure with complete metadata
 
-### Transposition
-- `%%MIDI transpose n` - Transposes the output
-  Example: `%%MIDI transpose -12` (down one octave)
-
-### Simple Chord Accompaniment
-- `%%MIDI gchord string` - Configures how guitar chords are generated
-  Example: `%%MIDI gchord fzczfzcz`
-
-## Project Structure
+## 📁 Project Structure
 
 ```
 mediocre/
 ├── src/              # Source code
 │   ├── commands/     # Command implementations
-│   ├── utils/        # Utility functions including genre generator
+│   ├── utils/        # Utility functions
 │   └── index.js      # Entry point
 ├── output/           # Generated music files 
 ├── dataset/          # Final processed dataset
 └── temp/             # Temporary files
 ```
 
-## How it Works
-
-1. **Genre Generation**: Creates hybrid genres combining classical and modern traditions
-2. **Music Generation**: Uses Claude to create ABC notation music files with minimal abc2midi extensions
-3. **Conversion**: Transforms ABC notation to MIDI, PDF, and WAV formats
-4. **Processing**: Applies audio effects to generate training pairs
-5. **Dataset Building**: Organizes files into a structured dataset with metadata
-
-## License
+## 📄 License
 
 MIT

@@ -116,6 +116,7 @@ function parseHybridGenre(genreName) {
  * @param {string} [options.userPrompt] - Custom user prompt for Claude
  * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
+ * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @returns {Promise<string[]>} Array of generated file paths
  */
 export async function generateAbc(options) {
@@ -128,6 +129,7 @@ export async function generateAbc(options) {
   const useCreativeNames = options.creativeNames === true; // Default to false unless explicitly specified
   const includeSolo = options.solo || false;
   const recordLabel = options.recordLabel || '';
+  const producer = options.producer || '';
   
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
@@ -190,7 +192,8 @@ export async function generateAbc(options) {
         customSystemPrompt,
         customUserPrompt,
         solo: includeSolo,
-        recordLabel: recordLabel
+        recordLabel: recordLabel,
+        producer: producer
       });
       
       // Extract the instruments used in the composition
