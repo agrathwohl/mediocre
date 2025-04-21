@@ -96,7 +96,11 @@ export async function generateLyrics(options) {
   let lyricsAbc = await addLyricsWithClaude({
     abcNotation: originalAbc,
     lyricsPrompt,
-    temperature: 0.7
+    temperature: 0.7,
+    solo: options.solo || false,
+    recordLabel: options.recordLabel || '',
+    producer: options.producer || '',
+    instruments: options.instruments || ''
   });
   
   // Validate the ABC notation

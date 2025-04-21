@@ -61,6 +61,7 @@ program
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
+  .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .action(async (options) => {
     try {
       let genres = [];
@@ -131,7 +132,8 @@ program
           creativeNames: options.creativeNames === true, // Default to false unless explicitly specified
           solo: options.solo || false,
           recordLabel: options.recordLabel || '',
-          producer: options.producer || ''
+          producer: options.producer || '',
+          instruments: options.instruments || ''
         };
         
         const files = await generateAbc(genreOptions);
@@ -241,6 +243,7 @@ program
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
+  .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .action(async (filename, options) => {
     try {
       await createMoreLikeThis({ ...options, filename });
@@ -260,6 +263,7 @@ program
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
+  .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .action(async (filename, options) => {
     try {
       let instructions = options.instructions;
@@ -315,6 +319,7 @@ program
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
+  .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .action(async (options) => {
     try {
       const files = await combineCompositions(options);
@@ -334,6 +339,7 @@ program
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
+  .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .action(async (options) => {
     try {
       const abcFile = await generateLyrics(options);
@@ -466,13 +472,14 @@ if (process.argv.length === 2) {
     mediocre generate -g "baroque_x_jazz" --system-prompt my-prompt.txt --solo
     mediocre generate -g "baroque_x_jazz" --record-label "Merge Records"
     mediocre generate -g "baroque_x_jazz" --producer "Phil Spector"
+    mediocre generate -g "baroque_x_jazz" --instruments "Violin,Piano,Trumpet"
     mediocre generate -g "baroque_x_jazz" --creative-names # EXPERIMENTAL FEATURE
     mediocre list --sort length --limit 10
     mediocre info "baroque_x_grunge-score1-1744572129572"
-    mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2 -s "minimalist" --record-label "Warp Records" --solo
-    mediocre modify "baroque_x_grunge-score1-1744572129572" -i "Make it longer with a breakdown section" --solo
-    mediocre combine --duration-limit 45 --genres "baroque,romantic" --record-label "Raster Noton"
-    mediocre lyrics -m "baroque_x_jazz-score1.mid" -p "A song about the beauty of nature" --solo
+    mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2 -s "minimalist" --record-label "Warp Records" --solo --instruments "Cello,Synthesizer"
+    mediocre modify "baroque_x_grunge-score1-1744572129572" -i "Make it longer with a breakdown section" --solo --instruments "Guitar,Drums,Bass"
+    mediocre combine --duration-limit 45 --genres "baroque,romantic" --record-label "Raster Noton" --instruments "Synthesizer,Piano,Violin"
+    mediocre lyrics -m "baroque_x_jazz-score1.mid" -p "A song about the beauty of nature" --solo --instruments "Piano,Vocals"
     mediocre validate-abc                                 # Process and fix all ABC files in output dir
     mediocre validate-abc -i "baroque_x_jazz-score1.abc" -o "fixed.abc"  # Process a single file
     mediocre browse

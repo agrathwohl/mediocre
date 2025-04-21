@@ -22,6 +22,8 @@ const __dirname = path.dirname(__filename);
  * @param {string} [options.directory] - Directory to search for compositions
  * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
+ * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
+ * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
  * @returns {Promise<Array<string>>} Paths to the generated compositions
  */
 export async function combineCompositions(options) {
@@ -33,6 +35,7 @@ export async function combineCompositions(options) {
   const includeSolo = options.solo || false;
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
+  const requestedInstruments = options.instruments || '';
 
   // Parse genres list
   const genres = options.genres ? options.genres.split(',').map(g => g.trim()) : [];
@@ -185,7 +188,7 @@ export async function combineCompositions(options) {
     }
 
     // Create a combined piece using Claude
-    const newPiece = await createCombinedPiece(abcNotations, genres, i, includeSolo, recordLabel, producer);
+    const newPiece = await createCombinedPiece(abcNotations, genres, i, includeSolo, recordLabel, producer, requestedInstruments);
 
     // Save the new composition
     if (newPiece) {
@@ -314,9 +317,10 @@ function combineGenres(genres) {
  * @param {boolean} [includeSolo=false] - Include a musical solo section for the lead instrument
  * @param {string} [recordLabel=''] - Make it sound like it was released on this record label
  * @param {string} [producer=''] - Make it sound as if it was produced by this record producer
+ * @param {string} [instruments=''] - Comma-separated list of instruments the output ABC notations must include
  * @returns {Promise<string>} Combined ABC notation
  */
-async function createCombinedPiece(abcNotations, genres, groupIndex, includeSolo = false, recordLabel = '', producer = '') {
+async function createCombinedPiece(abcNotations, genres, groupIndex, includeSolo = false, recordLabel = '', producer = '', instruments = '') {
   const myAnthropic = getAnthropic();
   const model = myAnthropic('claude-3-7-sonnet-20250219');
 
@@ -351,6 +355,7 @@ Technical guidelines:
 ${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
 ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
 ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
+${instruments ? `- Your composition MUST include these specific instruments: ${instruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
 
 ONLY USE THESE SUPPORTED EXTENSIONS:
 1. Channel and Program selection:
@@ -377,7 +382,7 @@ Return ONLY the complete ABC notation for the new combined composition, with no 
 
 ${sourcePiecesText}
 
-Create a new composition in ABC notation that combines these pieces into a cohesive whole. The new piece should maintain the character of the ${combinedGenre} genre but feel like a complete, original composition. Select the most interesting motifs, harmonies, or sections from each source piece and weave them together with appropriate transitions.${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}
+Create a new composition in ABC notation that combines these pieces into a cohesive whole. The new piece should maintain the character of the ${combinedGenre} genre but feel like a complete, original composition. Select the most interesting motifs, harmonies, or sections from each source piece and weave them together with appropriate transitions.${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${instruments ? `\n\nYour composition MUST include these specific instruments: ${instruments}. Find the most appropriate MIDI program number for each instrument.` : ''}
 
 The piece MUST be longer in duration than the combined lengths of each piece you will be combining. It may never be shorter than either piece or all pieces combined.
 

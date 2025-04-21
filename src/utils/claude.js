@@ -143,6 +143,7 @@ export function getAnthropic() {
  * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
+ * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
  * @param {number} [options.temperature=0.7] - Temperature for generation
  * @param {string} [options.customSystemPrompt] - Custom system prompt override
  * @returns {Promise<string>} Generated ABC notation
@@ -156,6 +157,7 @@ export async function generateMusicWithClaude(options) {
   const includeSolo = options.solo || false;
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
+  const requestedInstruments = options.instruments || '';
 
   // Use Claude 3.7 Sonnet for best music generation capabilities
   const model = myAnthropic('claude-3-7-sonnet-20250219');
@@ -193,6 +195,7 @@ Guidelines for the ${genre} fusion:
    ${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
    ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
    ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
+   ${requestedInstruments ? `- Your composition MUST include these specific instruments: ${requestedInstruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
    - Ensure the ABC notation is properly formatted and playable
    - Use ONLY the following well-supported abc2midi syntax extensions:
 
@@ -237,7 +240,7 @@ The composition should be a genuine artistic fusion that respects and represents
 
   // Use custom user prompt if provided, otherwise use the default
   const userPrompt = options.customUserPrompt ||
-    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? ' Include a dedicated solo section for the lead instrument.' : ''}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
+    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? ' Include a dedicated solo section for the lead instrument.' : ''}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? ` Your composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
 
   // Generate the ABC notation
   const { text } = await generateText({
@@ -262,6 +265,7 @@ The composition should be a genuine artistic fusion that respects and represents
  * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
+ * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
  * @param {number} [options.temperature=0.7] - Temperature for generation
  * @returns {Promise<string>} Modified ABC notation
  */
@@ -277,6 +281,7 @@ export async function modifyCompositionWithClaude(options) {
   const includeSolo = options.solo || false;
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
+  const requestedInstruments = options.instruments || '';
 
   // Construct a system prompt specifically for modifying existing compositions
   const systemPrompt = `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
@@ -302,6 +307,7 @@ Technical guidelines:
 ${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
 ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
 ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
+${requestedInstruments ? `- Your composition MUST include these specific instruments: ${requestedInstruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
 - Use ONLY the following well-supported abc2midi syntax extensions:
 
 CRITICAL FORMATTING RULES:
@@ -340,7 +346,7 @@ Your modifications should respect both the user's instructions and the musical i
   const { text } = await generateText({
     model,
     system: systemPrompt,
-    prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nModify this composition according to these instructions:\n${instructions}${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}\n\nReturn the complete modified ABC notation.`,
+    prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nModify this composition according to these instructions:\n${instructions}${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? `\n\nYour composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''}\n\nReturn the complete modified ABC notation.`,
     temperature: options.temperature || 0.7,
     maxTokens: 20000,
   });
@@ -423,6 +429,7 @@ Organize your analysis into these sections:
  * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
+ * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
  * @param {number} [options.temperature=0.7] - Temperature for generation
  * @returns {Promise<string>} ABC notation with lyrics
  */
@@ -435,6 +442,7 @@ export async function addLyricsWithClaude(options) {
   const includeSolo = options.solo || false;
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
+  const requestedInstruments = options.instruments || '';
 
   // Construct a system prompt specifically for adding lyrics to compositions
   const systemPrompt = `You are a music composer and lyricist specializing in adding lyrics to existing compositions.
@@ -469,6 +477,7 @@ ${includeSolo ? '- If adding a solo section, mark it clearly in the notation and
 ${recordLabel ? `- Style the lyrics to sound like they were written for a release on the record label "${recordLabel}"` : ''}
 ${producer ? `- Style the lyrics and musical elements to sound as if they were produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
 - For instrumental sections, you can mark them with "w: *" or leave the lyrics empty for that section
+${requestedInstruments ? `- Your composition MUST include these specific instruments: ${requestedInstruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
 
 CRITICAL FORMATTING RULES:
 - NEVER include blank lines between voice sections in your ABC notation
@@ -486,7 +495,7 @@ Your result should be a singable composition with lyrics that fit both the music
   const { text } = await generateText({
     model,
     system: systemPrompt,
-    prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nAdd lyrics to this composition based on the following theme/prompt:\n${lyricsPrompt}${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the lyrics to sound like they were written for a release on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the lyrics and musical elements to sound as if they were produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}\n\nThe lyrics should fit naturally with the melody and rhythm of the piece. Return the complete ABC notation with lyrics added using the w: syntax.`,
+    prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nAdd lyrics to this composition based on the following theme/prompt:\n${lyricsPrompt}${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the lyrics to sound like they were written for a release on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the lyrics and musical elements to sound as if they were produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? `\n\nYour composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''}\n\nThe lyrics should fit naturally with the melody and rhythm of the piece. Return the complete ABC notation with lyrics added using the w: syntax.`,
     temperature: options.temperature || 0.9,
     maxTokens: 40000,
   });

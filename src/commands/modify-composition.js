@@ -59,7 +59,11 @@ export async function modifyComposition(options) {
     genre,
     classicalGenre,
     modernGenre,
-    temperature: 0.7
+    temperature: 0.7,
+    solo: options.solo || false,
+    recordLabel: options.recordLabel || '',
+    producer: options.producer || '',
+    instruments: options.instruments || ''
   });
   
   // Validate the ABC notation

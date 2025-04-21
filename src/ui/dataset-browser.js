@@ -48,7 +48,7 @@ function formatDate(date) {
  * @returns {Promise<void>} - Resolves when UI is closed
  */
 export async function createDatasetBrowser(options = {}) {
-  const directory = options.directory || config.get('outputDir');
+  let directory = options.directory || config.get('outputDir'); // Make directory variable mutable
   let files = [];
   let selectedFile = null;
   let currentSortMethod = 'age';
@@ -148,7 +148,7 @@ export async function createDatasetBrowser(options = {}) {
     left: 0,
     width: '100%',
     height: 3,
-    content: ' {bold}Sort:{/bold} [A]ge | [L]ength | [T]itle  {bold}Filter:{/bold} [G] by Name  {bold}Actions:{/bold} [P]lay | [I]nfo | [M]ore Like This | [👍] Like | [👎] Dislike | [Q]uit',
+    content: ' {bold}Sort:{/bold} [A]ge | [L]ength | [T]itle  {bold}Filter:{/bold} [G] by Name  {bold}Actions:{/bold} [P]lay | [I]nfo | [M]ore Like This | [👍] Like | [👎] Dislike | {bold}Dirs:{/bold} [Enter] | [Q]uit',
     tags: true,
     style: {
       fg: 'white',
@@ -344,7 +344,17 @@ export async function createDatasetBrowser(options = {}) {
       const index = fileList.getItemIndex(item);
       if (index !== null && index < files.length) {
         selectedFile = files[index];
-        showFileDetails(selectedFile);
+        
+        // Handle directory navigation
+        if (selectedFile.isDirectory) {
+          // Change directory and load files from that directory
+          directory = selectedFile.path;
+          selectedFile = null; // Reset selection
+          loadFiles(); // Reload with new directory
+        } else {
+          // Show details for regular files
+          showFileDetails(selectedFile);
+        }
       }
     }
   });
@@ -354,33 +364,73 @@ export async function createDatasetBrowser(options = {}) {
    */
   async function loadFiles() {
     setLoading(true);
-    consoleOutput.log('Loading files...');
+    consoleOutput.log(`Loading files from ${directory}...`);
 
     try {
+      // Get both files and directories
+      const allEntries = fs.readdirSync(directory, { withFileTypes: true });
+      
+      // First, add parent directory entry if not at the root output dir
+      const outputDir = config.get('outputDir');
+      if (directory !== outputDir && directory.startsWith(outputDir)) {
+        files = [{
+          path: path.dirname(directory),
+          basename: '..',
+          isDirectory: true,
+          size: 0,
+          created: new Date(),
+          modified: new Date()
+        }];
+      } else {
+        files = [];
+      }
+      
+      // Add subdirectories to the file list
+      const directories = allEntries
+        .filter(entry => entry.isDirectory())
+        .map(entry => {
+          const fullPath = path.join(directory, entry.name);
+          return {
+            path: fullPath,
+            basename: entry.name,
+            isDirectory: true,
+            size: 0,
+            created: fs.statSync(fullPath).birthtime,
+            modified: fs.statSync(fullPath).mtime
+          };
+        });
+      
+      files = [...files, ...directories];
+
+      // Then add actual files with sorting/filtering
+      let audioFiles = [];
       if (currentFilterGenre) {
-        // Use the new filterByComposition function instead
-        files = filterByComposition(currentFilterGenre, directory);
+        // Use the filterByComposition function for filtering
+        audioFiles = filterByComposition(currentFilterGenre, directory);
         consoleOutput.log(`Filtered by composition name: ${currentFilterGenre}`);
       } else {
         switch (currentSortMethod) {
           case 'length':
             consoleOutput.log('Sorting by length...');
-            files = await sortByLength(directory);
+            audioFiles = await sortByLength(directory);
             break;
           case 'title':
             consoleOutput.log('Sorting by title...');
-            files = sortByTitle(directory);
+            audioFiles = sortByTitle(directory);
             break;
           case 'age':
           default:
             consoleOutput.log('Sorting by age (newest first)...');
-            files = sortByAge(directory);
+            audioFiles = sortByAge(directory);
             break;
         }
       }
+      
+      // Combine directories and files
+      files = [...files, ...audioFiles];
 
       updateFileList();
-      consoleOutput.log(`Found ${files.length} files.`);
+      consoleOutput.log(`Found ${directories.length} directories and ${audioFiles.length} files.`);
 
       // If we have files selected, select the first one for convenience
       if (files.length > 0 && !selectedFile) {
@@ -401,23 +451,41 @@ export async function createDatasetBrowser(options = {}) {
   function updateFileList() {
     const listItems = files.map(file => {
       const date = formatDate(file.created);
-      const filename = path.basename(file.path);
-
-      // Clean the filename - remove the extension completely
-      const cleanName = filename.includes('.') ?
-        filename.substring(0, filename.indexOf('.')) :
-        filename;
-
-      // Format table columns properly with fixed width for better alignment
-      const nameWidth = 40; // Set appropriate width for filenames
-      const dateWidth = 25; // Set appropriate width for date
-
-      // Ensure consistent column widths for proper alignment
-      const displayName = cleanName.padEnd(nameWidth).substring(0, nameWidth);
-      const displayDate = date.padEnd(dateWidth);
-
-      // Return formatted row with proper spacing
-      return `${displayName}  │  ${displayDate}`;
+      
+      // Handle directories differently
+      if (file.isDirectory) {
+        const directoryName = file.basename === '..' ? '[Parent Directory]' : `[${file.basename}]`;
+        
+        // Format table columns properly with fixed width
+        const nameWidth = 40; // Set appropriate width for names
+        const dateWidth = 25; // Set appropriate width for date
+        
+        // Ensure consistent column widths for proper alignment
+        const displayName = directoryName.padEnd(nameWidth).substring(0, nameWidth);
+        const displayDate = date.padEnd(dateWidth);
+        
+        // Return formatted row with proper spacing and directory highlight
+        return `{blue-fg}${displayName}{/blue-fg}  │  ${displayDate}`;
+      } else {
+        // Regular file handling
+        const filename = path.basename(file.path);
+  
+        // Clean the filename - remove the extension completely
+        const cleanName = filename.includes('.') ?
+          filename.substring(0, filename.indexOf('.')) :
+          filename;
+  
+        // Format table columns properly with fixed width for better alignment
+        const nameWidth = 40; // Set appropriate width for filenames
+        const dateWidth = 25; // Set appropriate width for date
+  
+        // Ensure consistent column widths for proper alignment
+        const displayName = cleanName.padEnd(nameWidth).substring(0, nameWidth);
+        const displayDate = date.padEnd(dateWidth);
+  
+        // Return formatted row with proper spacing
+        return `${displayName}  │  ${displayDate}`;
+      }
     });
 
     fileList.setItems(listItems);
@@ -431,6 +499,32 @@ export async function createDatasetBrowser(options = {}) {
   function showFileDetails(file) {
     if (!file) {
       detailsPanel.setContent('{center}No file selected{/center}');
+      screen.render();
+      return;
+    }
+    
+    // Handle directories differently
+    if (file.isDirectory) {
+      const dirName = file.basename === '..' ? 'Parent Directory' : file.basename;
+      const relativePath = file.path.replace(config.get('outputDir'), '').replace(/^\/+/, '') || '/';
+      
+      detailsPanel.setContent(
+        `{bold}{blue-fg}Directory:{/bold} ${dirName}{/blue-fg}\n\n` +
+        `{bold}Path:{/bold} ${relativePath}\n\n` +
+        `{bold}Actions:{/bold}\n` +
+        `Enter/Return: Open directory\n\n` +
+        `{bold}Instructions:{/bold}\n` +
+        `Select this directory to browse its contents.`
+      );
+      
+      // Clear the console output for directories
+      consoleOutput.setContent('');
+      consoleOutput.pushLine('{bold}{blue-fg}=== Directory Navigation ==={/blue-fg}{/bold}');
+      consoleOutput.pushLine('');
+      consoleOutput.pushLine(`Current path: ${relativePath}`);
+      consoleOutput.pushLine('');
+      consoleOutput.pushLine('Select this directory and press Enter to browse its contents.');
+      
       screen.render();
       return;
     }
@@ -591,12 +685,16 @@ export async function createDatasetBrowser(options = {}) {
   function setLoading(loading) {
     isLoading = loading;
 
+    // Get relative path for display
+    const relativePath = directory.replace(config.get('outputDir'), '').replace(/^\/+/, '') || '/';
+    const pathDisplay = relativePath === '/' ? '' : ` - ${relativePath}`;
+
     if (loading) {
       header.style.bg = 'red';
-      header.setContent('{center}🎵 Mediocre - Dataset Browser (Loading...) 🎵{/center}');
+      header.setContent(`{center}🎵 Mediocre - Dataset Browser${pathDisplay} (Loading...) 🎵{/center}`);
     } else {
       header.style.bg = 'blue';
-      header.setContent('{center}🎵 Mediocre - Dataset Browser 🎵{/center}');
+      header.setContent(`{center}🎵 Mediocre - Dataset Browser${pathDisplay} 🎵{/center}`);
     }
 
     screen.render();
@@ -830,7 +928,7 @@ export async function createDatasetBrowser(options = {}) {
         playbackContainer.hidden = true;
         timeDisplay.setContent('00:00 / 00:00');
         commandPanel.setContent(
-          ' {bold}Sort:{/bold} [A]ge | [L]ength | [T]itle  {bold}Filter:{/bold} [G] by Name  {bold}Actions:{/bold} [P]lay | [I]nfo | [M]ore Like This | [👍] Like | [👎] Dislike | [Q]uit'
+          ' {bold}Sort:{/bold} [A]ge | [L]ength | [T]itle  {bold}Filter:{/bold} [G] by Name  {bold}Actions:{/bold} [P]lay | [I]nfo | [M]ore Like This | [👍] Like | [👎] Dislike | {bold}Dirs:{/bold} [Enter] | [Q]uit'
         );
         
         // Clear interval

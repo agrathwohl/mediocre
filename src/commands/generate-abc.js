@@ -117,6 +117,7 @@ function parseHybridGenre(genreName) {
  * @param {boolean} [options.solo] - Include a musical solo section for the lead instrument
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
+ * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
  * @returns {Promise<string[]>} Array of generated file paths
  */
 export async function generateAbc(options) {
@@ -130,6 +131,7 @@ export async function generateAbc(options) {
   const includeSolo = options.solo || false;
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
+  const requestedInstruments = options.instruments || '';
   
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
@@ -193,7 +195,8 @@ export async function generateAbc(options) {
         customUserPrompt,
         solo: includeSolo,
         recordLabel: recordLabel,
-        producer: producer
+        producer: producer,
+        instruments: requestedInstruments
       });
       
       // Extract the instruments used in the composition
