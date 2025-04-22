@@ -15,6 +15,7 @@ import { listCompositions, displayCompositionInfo, createMoreLikeThis } from './
 import { modifyComposition } from './commands/modify-composition.js';
 import { combineCompositions } from './commands/combine-compositions.js';
 import { generateLyrics } from './commands/generate-lyrics.js';
+import { mixAndMatch } from './commands/mix-and-match.js';
 import { createDatasetBrowser } from './ui/index.js';
 import { validateAbcNotation, cleanAbcNotation } from './utils/claude.js';
 
@@ -255,16 +256,15 @@ program
 program
   .command('modify')
   .description('Modify an existing composition according to instructions')
-  .argument('<filename>', 'Filename or base filename of the composition to modify')
+  .argument('<abcFile>', 'Direct file path to ABC notation file to modify')
   .option('-i, --instructions <text>', 'Instructions for modifying the composition')
   .option('-f, --instructions-file <file>', 'File containing instructions for modifying the composition')
-  .option('-d, --directory <directory>', 'Directory containing the original composition', config.get('outputDir'))
   .option('-o, --output <directory>', 'Output directory for the modified composition')
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
-  .action(async (filename, options) => {
+  .action(async (abcFile, options) => {
     try {
       let instructions = options.instructions;
       
@@ -286,7 +286,7 @@ program
       
       await modifyComposition({ 
         ...options, 
-        filename,
+        abcFile,
         instructions
       });
     } catch (error) {
@@ -348,6 +348,26 @@ program
       console.log(`mediocre convert --input ${abcFile} --to pdf`);
     } catch (error) {
       console.error('Error adding lyrics:', error);
+    }
+  });
+
+program
+  .command('mix-and-match')
+  .description('Create a new composition by mixing and matching segments from multiple ABC files')
+  .requiredOption('-f, --files <files...>', 'List of direct file paths to ABC notation files')
+  .option('-o, --output <directory>', 'Output directory for the mixed composition')
+  .option('--solo', 'Include a musical solo section for the lead instrument')
+  .option('--record-label <name>', 'Make it sound like it was released on the given record label')
+  .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
+  .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
+  .action(async (options) => {
+    try {
+      const mixedFile = await mixAndMatch(options);
+      console.log(`Mixed composition saved to: ${mixedFile}`);
+      console.log('Convert to MIDI for playback using:');
+      console.log(`mediocre convert --input ${mixedFile} --to midi`);
+    } catch (error) {
+      console.error('Error mixing compositions:', error);
     }
   });
 
@@ -462,6 +482,7 @@ if (process.argv.length === 2) {
     more-like-this Generate more compositions similar to the specified one
     modify         Modify an existing composition according to instructions
     combine        Find short compositions and combine them into new pieces
+    mix-and-match  Create a new composition by mixing and matching segments from multiple ABC files
     lyrics         Add lyrics to an existing composition using Claude
     browse         Launch interactive TUI browser for the music dataset
     validate-abc   Validate and fix formatting issues in ABC notation files
@@ -477,8 +498,9 @@ if (process.argv.length === 2) {
     mediocre list --sort length --limit 10
     mediocre info "baroque_x_grunge-score1-1744572129572"
     mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2 -s "minimalist" --record-label "Warp Records" --solo --instruments "Cello,Synthesizer"
-    mediocre modify "baroque_x_grunge-score1-1744572129572" -i "Make it longer with a breakdown section" --solo --instruments "Guitar,Drums,Bass"
+    mediocre modify "/home/user/music/baroque_x_grunge-score1-1744572129572.abc" -i "Make it longer with a breakdown section" --solo --instruments "Guitar,Drums,Bass"
     mediocre combine --duration-limit 45 --genres "baroque,romantic" --record-label "Raster Noton" --instruments "Synthesizer,Piano,Violin"
+    mediocre mix-and-match -f "/home/user/music/fugue.abc" "/home/user/music/serialism.abc" --instruments "Piano,Violin,Synthesizer"
     mediocre lyrics -m "baroque_x_jazz-score1.mid" -p "A song about the beauty of nature" --solo --instruments "Piano,Vocals"
     mediocre validate-abc                                 # Process and fix all ABC files in output dir
     mediocre validate-abc -i "baroque_x_jazz-score1.abc" -o "fixed.abc"  # Process a single file

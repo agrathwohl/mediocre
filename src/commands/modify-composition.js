@@ -12,42 +12,69 @@ const __dirname = path.dirname(__filename);
 /**
  * Modify an existing composition according to user instructions
  * @param {Object} options - Command options
- * @param {string} options.filename - Filename or base filename of the composition to modify
+ * @param {string} options.abcFile - Direct file path to ABC notation file
  * @param {string} options.instructions - Instructions for modifying the composition
- * @param {string} [options.directory] - Directory containing the original composition
  * @param {string} [options.output] - Output directory for the modified composition
  * @returns {Promise<string>} Path to the modified composition file
  */
 export async function modifyComposition(options) {
-  const directory = options.directory || config.get('outputDir');
-  const outputDir = options.output || directory;
-  const filename = options.filename;
+  const outputDir = options.output || config.get('outputDir');
+  const abcFile = options.abcFile;
   const instructions = options.instructions;
   
-  if (!filename) {
-    throw new Error('Filename is required');
+  if (!abcFile) {
+    throw new Error('ABC file path is required');
   }
   
   if (!instructions) {
     throw new Error('Modification instructions are required');
   }
   
-  console.log(`Loading composition "${filename}"...`);
-  
-  // Get the original composition
-  const originalPiece = getMusicPieceInfo(filename, directory);
-  
-  if (!originalPiece.files || !originalPiece.files.abc) {
-    throw new Error(`Could not find ABC notation for "${filename}"`);
+  if (!fs.existsSync(abcFile)) {
+    throw new Error(`ABC file not found: ${abcFile}`);
   }
   
-  const originalAbc = originalPiece.files.abc.content;
-  const genre = originalPiece.genre || 'Unknown';
+  if (!abcFile.endsWith('.abc')) {
+    throw new Error(`File is not an ABC notation file: ${abcFile}`);
+  }
   
-  // Parse the hybrid genre if applicable
-  const genreComponents = genre.split('_x_');
-  const classicalGenre = genreComponents.length === 2 ? genreComponents[0] : 'Classical';
-  const modernGenre = genreComponents.length === 2 ? genreComponents[1] : 'Contemporary';
+  console.log(`Loading composition "${abcFile}"...`);
+  
+  // Read the ABC content directly
+  const originalAbc = fs.readFileSync(abcFile, 'utf8');
+  
+  // Get the base filename without extension
+  const baseFilename = path.basename(abcFile, '.abc');
+  
+  // Try to find associated description file
+  let genre = 'Unknown';
+  let classicalGenre = 'Classical';
+  let modernGenre = 'Contemporary';
+  
+  // Look for genre in description file if it exists
+  const descPath = path.join(path.dirname(abcFile), `${baseFilename}_description.json`);
+  if (fs.existsSync(descPath)) {
+    try {
+      const descContent = JSON.parse(fs.readFileSync(descPath, 'utf8'));
+      if (descContent.genre) {
+        genre = descContent.genre;
+        // Parse the hybrid genre if applicable
+        const genreComponents = genre.split('_x_');
+        classicalGenre = genreComponents.length === 2 ? genreComponents[0] : 'Classical';
+        modernGenre = genreComponents.length === 2 ? genreComponents[1] : 'Contemporary';
+      }
+    } catch (descError) {
+      console.warn(`Warning: Error reading description file: ${descError.message}`);
+    }
+  }
+  
+  // If no genre from description, try to extract from filename
+  if (genre === 'Unknown' && baseFilename.toLowerCase().includes('_x_')) {
+    genre = baseFilename.split('-score')[0];
+    const genreComponents = genre.split('_x_');
+    classicalGenre = genreComponents.length === 2 ? genreComponents[0] : 'Classical';
+    modernGenre = genreComponents.length === 2 ? genreComponents[1] : 'Contemporary';
+  }
   
   console.log(`Modifying ${genre} composition...`);
   console.log(`Applying instructions: "${instructions}"`);
@@ -112,7 +139,7 @@ export async function modifyComposition(options) {
   const mdContent = `# Modified ${genre} Composition
 
 ## Original Composition
-- Base: ${originalPiece.baseFilename}
+- Source: ${abcFile}
 
 ## Modification Instructions
 ${instructions}
