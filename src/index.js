@@ -222,12 +222,11 @@ program
 program
   .command('info')
   .description('Display detailed information about a composition')
-  .argument('<filename>', 'Filename or base filename of the composition')
-  .option('-d, --directory <directory>', 'Directory to search in', config.get('outputDir'))
+  .argument('<abcFile>', 'Direct file path to ABC notation file')
   .option('--show-full-analysis', 'Display the full composition analysis')
-  .action(async (filename, options) => {
+  .action(async (abcFile, options) => {
     try {
-      displayCompositionInfo({ ...options, filename });
+      displayCompositionInfo({ ...options, abcFile });
     } catch (error) {
       console.error('Error displaying composition info:', error);
     }
@@ -236,18 +235,17 @@ program
 program
   .command('more-like-this')
   .description('Generate more compositions similar to the specified one')
-  .argument('<filename>', 'Filename or base filename of the reference composition')
+  .argument('<abcFile>', 'Direct file path to ABC notation file to use as reference')
   .option('-c, --count <number>', 'Number of compositions to generate', '1')
-  .option('-d, --directory <directory>', 'Directory to search in', config.get('outputDir'))
   .option('-s, --style <string>', 'Music style to apply')
   .option('--creative-names', '[EXPERIMENTAL] Generate creative genre names instead of standard hybrid format (may produce unpredictable results)', false)
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
-  .action(async (filename, options) => {
+  .action(async (abcFile, options) => {
     try {
-      await createMoreLikeThis({ ...options, filename });
+      await createMoreLikeThis({ ...options, abcFile });
     } catch (error) {
       console.error('Error generating similar compositions:', error);
     }
@@ -333,8 +331,8 @@ program
   .command('lyrics')
   .description('Add lyrics to an existing composition using Claude')
   .requiredOption('-m, --midi-file <file>', 'Path to MIDI file to add lyrics to')
+  .requiredOption('-a, --abc-file <file>', 'Direct file path to ABC notation file')
   .requiredOption('-p, --lyrics-prompt <text>', 'Prompt describing what the lyrics should be about')
-  .option('-d, --directory <directory>', 'Directory containing the original MIDI file', config.get('outputDir'))
   .option('-o, --output <directory>', 'Output directory for the file with lyrics')
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
@@ -496,14 +494,14 @@ if (process.argv.length === 2) {
     mediocre generate -g "baroque_x_jazz" --instruments "Violin,Piano,Trumpet"
     mediocre generate -g "baroque_x_jazz" --creative-names # EXPERIMENTAL FEATURE
     mediocre list --sort length --limit 10
-    mediocre info "baroque_x_grunge-score1-1744572129572"
-    mediocre more-like-this "baroque_x_grunge-score1-1744572129572" -c 2 -s "minimalist" --record-label "Warp Records" --solo --instruments "Cello,Synthesizer"
+    mediocre info "/path/to/baroque_x_grunge-score1-1744572129572.abc"
+    mediocre more-like-this "/path/to/baroque_x_grunge-score1-1744572129572.abc" -c 2 -s "minimalist" --record-label "Warp Records" --solo --instruments "Cello,Synthesizer"
     mediocre modify "/home/user/music/baroque_x_grunge-score1-1744572129572.abc" -i "Make it longer with a breakdown section" --solo --instruments "Guitar,Drums,Bass"
     mediocre combine --duration-limit 45 --genres "baroque,romantic" --record-label "Raster Noton" --instruments "Synthesizer,Piano,Violin"
     mediocre mix-and-match -f "/home/user/music/fugue.abc" "/home/user/music/serialism.abc" --instruments "Piano,Violin,Synthesizer"
-    mediocre lyrics -m "baroque_x_jazz-score1.mid" -p "A song about the beauty of nature" --solo --instruments "Piano,Vocals"
+    mediocre lyrics -m "/path/to/baroque_x_jazz-score1.mid" -a "/path/to/baroque_x_jazz-score1.abc" -p "A song about the beauty of nature" --solo --instruments "Piano,Vocals"
     mediocre validate-abc                                 # Process and fix all ABC files in output dir
-    mediocre validate-abc -i "baroque_x_jazz-score1.abc" -o "fixed.abc"  # Process a single file
+    mediocre validate-abc -i "/path/to/baroque_x_jazz-score1.abc" -o "/path/to/fixed.abc"  # Process a single file
     mediocre browse
     
   For more information, run: mediocre --help

@@ -66,6 +66,8 @@ echo "ANTHROPIC_API_KEY=your_key_here" > .env
 
 ## 🎮 Usage Guide
 
+> **Note:** All commands that work with existing music files (like `modify`, `mix-and-match`, `info`, `more-like-this`, etc.) accept direct file paths to ABC notation files, allowing precise control of which files to manipulate.
+
 ### Generate Wild Genre Hybrids
 
 ```bash
@@ -107,7 +109,35 @@ mediocre process -d ./output -e reverb
 
 ```bash
 # Extend or transform existing pieces
-mediocre modify "baroque_x_jazz-score1-1234567890" -i "Add a dramatic breakdown with harpsichord solo"
+mediocre modify "/path/to/baroque_x_jazz-score1-1234567890.abc" -i "Add a dramatic breakdown with harpsichord solo"
+```
+
+### Get Information About a Composition
+
+```bash
+# Display detailed information about a composition
+mediocre info "/path/to/baroque_x_jazz-score1-1234567890.abc"
+```
+
+### Generate More Like an Existing Composition
+
+```bash
+# Create compositions similar to an existing one
+mediocre more-like-this "/path/to/baroque_x_jazz-score1-1234567890.abc" -c 2 --solo
+```
+
+### Mix and Match Compositions
+
+```bash
+# Create a new composition by combining elements from multiple ABC files
+mediocre mix-and-match -f "/path/to/first.abc" "/path/to/second.abc" --instruments "Piano,Violin,Synthesizer"
+```
+
+### Add Lyrics to a Composition
+
+```bash
+# Add lyrics to an existing MIDI file using a corresponding ABC file
+mediocre lyrics -m "/path/to/composition.mid" -a "/path/to/composition.abc" -p "A song about the beauty of nature" --instruments "Piano,Vocals"
 ```
 
 ### Build ML Datasets
@@ -115,6 +145,16 @@ mediocre modify "baroque_x_jazz-score1-1234567890" -i "Add a dramatic breakdown 
 ```bash
 # Create structured dataset
 mediocre dataset -d ./output
+```
+
+### Validate and Fix ABC Notation
+
+```bash
+# Process a single file
+mediocre validate-abc -i "/path/to/composition.abc" -o "/path/to/fixed.abc"
+
+# Process all ABC files in the output directory
+mediocre validate-abc
 ```
 
 ## 🎯 Hybrid Genre System
