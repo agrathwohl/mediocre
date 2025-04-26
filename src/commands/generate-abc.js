@@ -118,6 +118,7 @@ function parseHybridGenre(genreName) {
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
+ * @param {string} [options.people] - Comma-separated list of NON-MUSICIAN names to include in generation context
  * @returns {Promise<string[]>} Array of generated file paths
  */
 export async function generateAbc(options) {
@@ -132,6 +133,7 @@ export async function generateAbc(options) {
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
   const requestedInstruments = options.instruments || '';
+  const people = options.people || '';
   
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
@@ -206,6 +208,7 @@ export async function generateAbc(options) {
         recordLabel: recordLabel,
         producer: producer,
         instruments: requestedInstruments,
+        people: people,
         model: options.ollamaModel
       });
       

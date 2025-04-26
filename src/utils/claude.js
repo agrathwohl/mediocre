@@ -181,6 +181,7 @@ export function getAIGenerator() {
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
+ * @param {string} [options.people] - Comma-separated list of NON-MUSICIAN names to include in generation context
  * @param {number} [options.temperature=0.7] - Temperature for generation
  * @param {string} [options.customSystemPrompt] - Custom system prompt override
  * @param {string} [options.model] - Specific model to use (overrides default)
@@ -196,11 +197,13 @@ export async function generateMusicWithClaude(options) {
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
   const requestedInstruments = options.instruments || '';
+  const people = options.people || '';
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt = options.customSystemPrompt ||
     `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
 Your task is to create a composition that authentically blends elements of both ${classicalGenre} and ${modernGenre} musical traditions.
+${people ? `The following NON-MUSICIAN names are provided: ${people}\nDo with these names whatever you think would be appropriate given your other context.` : ''}
 
 ⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
 The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.

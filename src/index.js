@@ -71,7 +71,8 @@ addOllamaOptions(program
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
-  .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include'))
+  .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
+  .option('--people <list>', 'Comma-separated list of NON-MUSICIAN names to include in generation context'))
   .action(async (options) => {
     try {
       let genres = [];
@@ -155,6 +156,7 @@ addOllamaOptions(program
           recordLabel: options.recordLabel || '',
           producer: options.producer || '',
           instruments: options.instruments || '',
+          people: options.people || '',
           aiProvider: options.aiProvider,
           ollamaModel: options.ollamaModel,
           ollamaEndpoint: options.ollamaEndpoint
@@ -604,6 +606,7 @@ if (process.argv.length === 2) {
     mediocre generate -g "baroque_x_jazz" --record-label "Merge Records"
     mediocre generate -g "baroque_x_jazz" --producer "Phil Spector"
     mediocre generate -g "baroque_x_jazz" --instruments "Violin,Piano,Trumpet"
+    mediocre generate -g "baroque_x_jazz" --people "John Doe,Jane Smith"
     mediocre generate -g "baroque_x_jazz" --creative-names # EXPERIMENTAL FEATURE
     mediocre convert --to midi -d "./output" --stems # Export individual track MIDI files
     mediocre convert --to wav -d "./output" --stems # Export individual instrument WAV files
