@@ -1,11 +1,10 @@
 /**
  * Genre name generation utility
  * Generates hybrid genre names by combining classical/traditional and modern genres
- * Also provides creative genre name generation using Claude AI
+ * Also provides creative genre name generation using configured AI provider
  */
 
-import { getAnthropic } from './claude.js';
-import { generateText } from 'ai';
+import { getAIGenerator } from './claude.js';
 
 /**
  * Generate a hybrid genre name by combining elements from classical and modern genres
@@ -109,11 +108,11 @@ export function parseGenreList(genreString) {
  * @param {string} options.classicalGenre - The classical genre component
  * @param {string} options.modernGenre - The modern genre component
  * @param {number} [options.temperature=0.9] - Temperature for generation (higher = more creative)
+ * @param {string} [options.model] - Specific model to use (overrides default)
  * @returns {Promise<Object>} Object containing creative name and original components
  */
 export async function generateCreativeGenreName(options) {
-  const myAnthropic = getAnthropic();
-  const model = myAnthropic('claude-3-7-sonnet-20250219');
+  const generator = getAIGenerator();
   
   const classicalGenre = options.classicalGenre;
   const modernGenre = options.modernGenre;
@@ -149,8 +148,8 @@ IMPORTANT GUIDELINES:
   const userPrompt = `Create a creative, catchy name for a hybrid genre combining ${classicalGenre} and ${modernGenre}. Make it evocative, original and memorable - not just a simple combination of the two words.`;
 
   // Generate the creative genre name
-  const { text } = await generateText({
-    model,
+  const { text } = await generator({
+    model: options.model,
     system: systemPrompt,
     prompt: userPrompt,
     temperature: options.temperature || 0.9,

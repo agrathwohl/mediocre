@@ -14,6 +14,9 @@ dotenv.config();
 /**
  * @typedef {Object} ConfigSchema
  * @property {string} anthropicApiKey - Anthropic API key
+ * @property {string} ollamaEndpoint - Ollama API endpoint URL
+ * @property {string} aiProvider - AI provider to use ('anthropic' or 'ollama')
+ * @property {string} ollamaModel - Default Ollama model to use
  * @property {string} outputDir - Directory for output files
  * @property {string} tempDir - Directory for temporary files
  * @property {string} datasetDir - Directory for the final dataset
@@ -30,6 +33,19 @@ export const config = new Conf({
     anthropicApiKey: {
       type: 'string',
       default: process.env.ANTHROPIC_API_KEY || ''
+    },
+    ollamaEndpoint: {
+      type: 'string',
+      default: process.env.OLLAMA_ENDPOINT || 'http://localhost:11434'
+    },
+    aiProvider: {
+      type: 'string',
+      enum: ['anthropic', 'ollama'],
+      default: process.env.AI_PROVIDER || 'anthropic' // Always default to anthropic unless explicitly set otherwise
+    },
+    ollamaModel: {
+      type: 'string',
+      default: process.env.OLLAMA_MODEL || 'llama3'
     },
     outputDir: {
       type: 'string',
@@ -64,5 +80,10 @@ const ensureDirectories = () => {
     }
   }
 };
+
+// Ensure the aiProvider is set to anthropic (only run this once at startup)
+if (config.get('aiProvider') !== 'anthropic') {
+  config.set('aiProvider', 'anthropic');
+}
 
 ensureDirectories();

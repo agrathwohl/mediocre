@@ -159,7 +159,8 @@ export async function generateAbc(options) {
           const creativeResult = await generateCreativeGenreName({
             classicalGenre: genreComponents.classical,
             modernGenre: genreComponents.modern,
-            temperature: 0.9
+            temperature: 0.9,
+            model: options.ollamaModel
           });
           
           creativeGenreName = creativeResult.creativeName;
@@ -185,6 +186,14 @@ export async function generateAbc(options) {
         console.log('Using custom system prompt...');
       }
       
+      // Log which AI provider is being used
+      const provider = config.get('aiProvider');
+      if (provider === 'ollama') {
+        console.log(`Using Ollama with model: ${options.ollamaModel || config.get('ollamaModel')}`);
+      } else {
+        console.log('Using Anthropic Claude');
+      }
+      
       const abcNotation = await generateMusicWithClaude({
         genre: creativeGenreName || genre, // Use creative name if available
         classicalGenre: genreComponents.classical,
@@ -196,7 +205,8 @@ export async function generateAbc(options) {
         solo: includeSolo,
         recordLabel: recordLabel,
         producer: producer,
-        instruments: requestedInstruments
+        instruments: requestedInstruments,
+        model: options.ollamaModel
       });
       
       // Extract the instruments used in the composition
@@ -235,7 +245,8 @@ export async function generateAbc(options) {
         genre: creativeGenreName || genre, // Use creative name if available
         classicalGenre: genreComponents.classical,
         modernGenre: genreComponents.modern,
-        style
+        style,
+        model: options.ollamaModel
       });
       
       // Add creative genre name to the description if one was generated

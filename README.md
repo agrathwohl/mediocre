@@ -24,11 +24,12 @@
 ## ✨ Features
 
 - 🎭 **Genre Fusion** - Combine classical and modern elements into unique hybrids
-- 🤖 **AI Composition** - Generate ABC notation using Claude 3.7 Sonnet
+- 🤖 **AI Composition** - Generate ABC notation using Claude 3.7 Sonnet or Ollama
 - 🎼 **Format Conversion** - ABC → MIDI → WAV pipeline with PDF scores
 - 🎛️ **Audio Processing** - Apply reverb, delay, distortion and more
 - 📊 **Dataset Building** - Create structured datasets for ML training
 - 🖥️ **Interactive TUI** - Browse compositions with playback and rating system
+- 🔄 **Model Flexibility** - Switch between Anthropic Claude and Ollama models
 
 ## 🛠️ Installation
 
@@ -38,8 +39,13 @@
 # Global installation
 npm install mediocre-music -g
 
-# Set your API key
+# Using Anthropic Claude
 export ANTHROPIC_API_KEY=your_key_here
+
+# OR Using Ollama (running locally)
+export AI_PROVIDER=ollama
+export OLLAMA_ENDPOINT=http://localhost:11434
+export OLLAMA_MODEL=llama3
 ```
 
 ### Development Setup
@@ -50,14 +56,22 @@ git clone https://github.com/yourusername/mediocre.git
 cd mediocre
 npm install
 
-# Create .env with your API key
+# Create .env with your API key settings
+# For Anthropic:
 echo "ANTHROPIC_API_KEY=your_key_here" > .env
+
+# OR for Ollama:
+echo "AI_PROVIDER=ollama" > .env
+echo "OLLAMA_ENDPOINT=http://localhost:11434" >> .env
+echo "OLLAMA_MODEL=llama3" >> .env
 ```
 
 ## 📦 Requirements
 
 - Node.js 18+
-- Anthropic API key (Claude 3.7 Sonnet recommended)
+- AI Provider (choose one):
+  - Anthropic API key (Claude 3.7 Sonnet recommended)
+  - Ollama with a compatible model (llama3, mistral, etc.)
 - External tools:
   - `abcmidi` - ABC ↔ MIDI conversion
   - `abcm2ps` & `ghostscript` - PDF score generation
@@ -89,6 +103,9 @@ mediocre generate -C "baroque,classical" -M "techno,ambient" -c 3
 
 # Use custom system prompt
 mediocre generate -g "Renaissance_x_Trap" --system-prompt examples/custom-system-prompt.txt
+
+# Use Ollama instead of Anthropic Claude
+mediocre generate -g "Baroque_x_Techno" --ai-provider ollama --ollama-model llama3
 ```
 
 ### Process & Convert
@@ -97,6 +114,9 @@ mediocre generate -g "Renaissance_x_Trap" --system-prompt examples/custom-system
 # Convert ABC → MIDI → WAV
 mediocre convert --to midi -d ./output
 mediocre convert --to wav -d ./output
+
+# Convert to WAV with individual instrument stems
+mediocre convert --to wav -d ./output --stems
 
 # Generate PDF scores
 mediocre convert --to pdf -d ./output
@@ -192,7 +212,7 @@ John Zorn and I think it turned out really great.
 ## 🧠 How It Works
 
 1. **Genre Fusion** - AI combines musical traditions into hybrid forms
-2. **Composition** - Claude creates ABC notation with abc2midi extensions
+2. **Composition** - AI (Claude or Ollama) creates ABC notation with abc2midi extensions
 3. **Conversion** - Pipeline transforms notation into playable formats
 4. **Processing** - Effects chain generates training pairs
 5. **Dataset** - Organized structure with complete metadata

@@ -16,6 +16,7 @@ import { modifyComposition } from './commands/modify-composition.js';
 import { combineCompositions } from './commands/combine-compositions.js';
 import { generateLyrics } from './commands/generate-lyrics.js';
 import { mixAndMatch } from './commands/mix-and-match.js';
+import { rearrangeComposition } from './commands/rearrange.js';
 import { createDatasetBrowser } from './ui/index.js';
 import { validateAbcNotation, cleanAbcNotation } from './utils/claude.js';
 
@@ -25,13 +26,21 @@ program
   .description('CLI tool for generating synthetic music compositions for AI training datasets')
   .version('0.1.0');
 
+// Common Ollama-related options
+const addOllamaOptions = (command) => {
+  return command
+    .option('--ai-provider <provider>', 'AI provider to use (anthropic or ollama)', 'anthropic')
+    .option('--ollama-model <model>', 'Ollama model to use (when ai-provider is ollama)', config.get('ollamaModel'))
+    .option('--ollama-endpoint <url>', 'Ollama API endpoint URL (when ai-provider is ollama)', config.get('ollamaEndpoint'));
+};
+
 // Add commands
-program
+addOllamaOptions(program
   .command('genres')
   .description('Generate hybrid genre names for composition')
   .option('-c, --classical <genres>', 'Comma-separated list of classical/traditional genres')
   .option('-m, --modern <genres>', 'Comma-separated list of modern genres')
-  .option('-n, --count <number>', 'Number of hybrid genres to generate', '5')
+  .option('-n, --count <number>', 'Number of hybrid genres to generate', '5'))
   .action((options) => {
     const classicalGenres = parseGenreList(options.classical);
     const modernGenres = parseGenreList(options.modern);
@@ -47,22 +56,22 @@ program
     });
   });
 
-program
+addOllamaOptions(program
   .command('generate')
-  .description('Generate ABC notation files using Claude')
+  .description('Generate ABC notation files using configured AI provider')
   .option('-c, --count <number>', 'Number of compositions to generate', '1')
   .option('-g, --genre <string>', 'Music genre or hybrid genre (format: classical_x_modern)')
   .option('-s, --style <string>', 'Music style')
   .option('-C, --classical <genres>', 'Comma-separated list of classical/traditional genres for hybrid generation')
   .option('-M, --modern <genres>', 'Comma-separated list of modern genres for hybrid generation')
   .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
-  .option('--system-prompt <file>', 'Path to a file containing a custom system prompt for Claude')
-  .option('--user-prompt <file>', 'Path to a file containing a custom user prompt for Claude')
+  .option('--system-prompt <file>', 'Path to a file containing a custom system prompt')
+  .option('--user-prompt <file>', 'Path to a file containing a custom user prompt')
   .option('--creative-names', '[EXPERIMENTAL] Generate creative genre names instead of standard hybrid format (may produce unpredictable results)', false)
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
-  .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
+  .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include'))
   .action(async (options) => {
     try {
       let genres = [];
@@ -119,6 +128,17 @@ program
         }
       }
       
+      // Set AI provider settings from command line options
+      if (options.aiProvider) {
+        config.set('aiProvider', options.aiProvider);
+      }
+      if (options.ollamaModel) {
+        config.set('ollamaModel', options.ollamaModel);
+      }
+      if (options.ollamaEndpoint) {
+        config.set('ollamaEndpoint', options.ollamaEndpoint);
+      }
+
       // Generate ABC notation for each genre
       const allFiles = [];
       
@@ -134,7 +154,10 @@ program
           solo: options.solo || false,
           recordLabel: options.recordLabel || '',
           producer: options.producer || '',
-          instruments: options.instruments || ''
+          instruments: options.instruments || '',
+          aiProvider: options.aiProvider,
+          ollamaModel: options.ollamaModel,
+          ollamaEndpoint: options.ollamaEndpoint
         };
         
         const files = await generateAbc(genreOptions);
@@ -154,11 +177,15 @@ program
   .option('-d, --directory <directory>', 'Input directory with ABC files')
   .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
   .option('--to <format>', 'Target format (midi, pdf, wav, all)', 'all')
+  .option('--stems', 'Export individual stems for each track/voice (creates separate MIDI files when converting to MIDI, and separate WAV files when converting to WAV)')
   .action(async (options) => {
     try {
       if (options.to === 'midi' || options.to === 'all') {
         const files = await convertToMidi(options);
         console.log(`Converted ${files.length} file(s) to MIDI`);
+        if (options.stems) {
+          console.log('MIDI stem files have been created in the stems/ directory');
+        }
       }
       if (options.to === 'pdf' || options.to === 'all') {
         const files = await convertToPdf(options);
@@ -232,8 +259,8 @@ program
     }
   });
 
-program
-  .command('more-like-this')
+addOllamaOptions(program
+  .command('more-like-this'))
   .description('Generate more compositions similar to the specified one')
   .argument('<abcFile>', 'Direct file path to ABC notation file to use as reference')
   .option('-c, --count <number>', 'Number of compositions to generate', '1')
@@ -245,14 +272,25 @@ program
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .action(async (abcFile, options) => {
     try {
+      // Set AI provider settings from command line options
+      if (options.aiProvider) {
+        config.set('aiProvider', options.aiProvider);
+      }
+      if (options.ollamaModel) {
+        config.set('ollamaModel', options.ollamaModel);
+      }
+      if (options.ollamaEndpoint) {
+        config.set('ollamaEndpoint', options.ollamaEndpoint);
+      }
+      
       await createMoreLikeThis({ ...options, abcFile });
     } catch (error) {
       console.error('Error generating similar compositions:', error);
     }
   });
 
-program
-  .command('modify')
+addOllamaOptions(program
+  .command('modify'))
   .description('Modify an existing composition according to instructions')
   .argument('<abcFile>', 'Direct file path to ABC notation file to modify')
   .option('-i, --instructions <text>', 'Instructions for modifying the composition')
@@ -282,6 +320,17 @@ program
         process.exit(1);
       }
       
+      // Set AI provider settings from command line options
+      if (options.aiProvider) {
+        config.set('aiProvider', options.aiProvider);
+      }
+      if (options.ollamaModel) {
+        config.set('ollamaModel', options.ollamaModel);
+      }
+      if (options.ollamaEndpoint) {
+        config.set('ollamaEndpoint', options.ollamaEndpoint);
+      }
+      
       await modifyComposition({ 
         ...options, 
         abcFile,
@@ -305,8 +354,8 @@ program
     }
   });
 
-program
-  .command('combine')
+addOllamaOptions(program
+  .command('combine'))
   .description('Find short compositions and combine them into new pieces')
   .option('-l, --duration-limit <seconds>', 'Maximum duration in seconds for pieces to combine', '60')
   .option('-f, --date-from <date>', 'Filter pieces created after this date (ISO format)')
@@ -320,6 +369,17 @@ program
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .action(async (options) => {
     try {
+      // Set AI provider settings from command line options
+      if (options.aiProvider) {
+        config.set('aiProvider', options.aiProvider);
+      }
+      if (options.ollamaModel) {
+        config.set('ollamaModel', options.ollamaModel);
+      }
+      if (options.ollamaEndpoint) {
+        config.set('ollamaEndpoint', options.ollamaEndpoint);
+      }
+      
       const files = await combineCompositions(options);
       console.log(`Generated ${files.length} combined composition(s)`);
     } catch (error) {
@@ -327,9 +387,9 @@ program
     }
   });
 
-program
+addOllamaOptions(program
   .command('lyrics')
-  .description('Add lyrics to an existing composition using Claude')
+  .description('Add lyrics to an existing composition using configured AI provider'))
   .requiredOption('-m, --midi-file <file>', 'Path to MIDI file to add lyrics to')
   .requiredOption('-a, --abc-file <file>', 'Direct file path to ABC notation file')
   .requiredOption('-p, --lyrics-prompt <text>', 'Prompt describing what the lyrics should be about')
@@ -340,6 +400,17 @@ program
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .action(async (options) => {
     try {
+      // Set AI provider settings from command line options
+      if (options.aiProvider) {
+        config.set('aiProvider', options.aiProvider);
+      }
+      if (options.ollamaModel) {
+        config.set('ollamaModel', options.ollamaModel);
+      }
+      if (options.ollamaEndpoint) {
+        config.set('ollamaEndpoint', options.ollamaEndpoint);
+      }
+      
       const abcFile = await generateLyrics(options);
       console.log(`ABC notation with lyrics saved to: ${abcFile}`);
       console.log('Convert to PDF to see the score with lyrics using:');
@@ -349,8 +420,8 @@ program
     }
   });
 
-program
-  .command('mix-and-match')
+addOllamaOptions(program
+  .command('mix-and-match'))
   .description('Create a new composition by mixing and matching segments from multiple ABC files')
   .requiredOption('-f, --files <files...>', 'List of direct file paths to ABC notation files')
   .option('-o, --output <directory>', 'Output directory for the mixed composition')
@@ -360,12 +431,52 @@ program
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .action(async (options) => {
     try {
+      // Set AI provider settings from command line options
+      if (options.aiProvider) {
+        config.set('aiProvider', options.aiProvider);
+      }
+      if (options.ollamaModel) {
+        config.set('ollamaModel', options.ollamaModel);
+      }
+      if (options.ollamaEndpoint) {
+        config.set('ollamaEndpoint', options.ollamaEndpoint);
+      }
+      
       const mixedFile = await mixAndMatch(options);
       console.log(`Mixed composition saved to: ${mixedFile}`);
       console.log('Convert to MIDI for playback using:');
       console.log(`mediocre convert --input ${mixedFile} --to midi`);
     } catch (error) {
       console.error('Error mixing compositions:', error);
+    }
+  });
+
+addOllamaOptions(program
+  .command('rearrange'))
+  .description('Rearrange an existing ABC composition with new instrumentation')
+  .argument('<abcFile>', 'Direct file path to ABC notation file to rearrange')
+  .option('-i, --instruments <list>', 'Comma-separated list of instruments for the new arrangement')
+  .option('-s, --style <string>', 'Arrangement style (e.g., "orchestral", "chamber", "jazz", "electronic")', 'standard')
+  .option('-o, --output <directory>', 'Output directory for the rearranged composition')
+  .action(async (abcFile, options) => {
+    try {
+      // Set AI provider settings from command line options
+      if (options.aiProvider) {
+        config.set('aiProvider', options.aiProvider);
+      }
+      if (options.ollamaModel) {
+        config.set('ollamaModel', options.ollamaModel);
+      }
+      if (options.ollamaEndpoint) {
+        config.set('ollamaEndpoint', options.ollamaEndpoint);
+      }
+      
+      const rearrangedFile = await rearrangeComposition({ ...options, abcFile });
+      console.log(`Rearranged composition saved to: ${rearrangedFile}`);
+      console.log('Convert to MIDI for playback using:');
+      console.log(`mediocre convert --input ${rearrangedFile} --to midi`);
+    } catch (error) {
+      console.error('Error rearranging composition:', error);
     }
   });
 
@@ -479,6 +590,7 @@ if (process.argv.length === 2) {
     info           Display detailed information about a composition
     more-like-this Generate more compositions similar to the specified one
     modify         Modify an existing composition according to instructions
+    rearrange      Rearrange an existing composition with new instrumentation
     combine        Find short compositions and combine them into new pieces
     mix-and-match  Create a new composition by mixing and matching segments from multiple ABC files
     lyrics         Add lyrics to an existing composition using Claude
@@ -493,10 +605,13 @@ if (process.argv.length === 2) {
     mediocre generate -g "baroque_x_jazz" --producer "Phil Spector"
     mediocre generate -g "baroque_x_jazz" --instruments "Violin,Piano,Trumpet"
     mediocre generate -g "baroque_x_jazz" --creative-names # EXPERIMENTAL FEATURE
+    mediocre convert --to midi -d "./output" --stems # Export individual track MIDI files
+    mediocre convert --to wav -d "./output" --stems # Export individual instrument WAV files
     mediocre list --sort length --limit 10
     mediocre info "/path/to/baroque_x_grunge-score1-1744572129572.abc"
     mediocre more-like-this "/path/to/baroque_x_grunge-score1-1744572129572.abc" -c 2 -s "minimalist" --record-label "Warp Records" --solo --instruments "Cello,Synthesizer"
     mediocre modify "/home/user/music/baroque_x_grunge-score1-1744572129572.abc" -i "Make it longer with a breakdown section" --solo --instruments "Guitar,Drums,Bass"
+    mediocre rearrange "/home/user/music/baroque_x_grunge-score1.abc" -i "Guitar,Synthesizer,Drums" -s "electronic"
     mediocre combine --duration-limit 45 --genres "baroque,romantic" --record-label "Raster Noton" --instruments "Synthesizer,Piano,Violin"
     mediocre mix-and-match -f "/home/user/music/fugue.abc" "/home/user/music/serialism.abc" --instruments "Piano,Violin,Synthesizer"
     mediocre lyrics -m "/path/to/baroque_x_jazz-score1.mid" -a "/path/to/baroque_x_jazz-score1.abc" -p "A song about the beauty of nature" --solo --instruments "Piano,Vocals"
@@ -505,6 +620,9 @@ if (process.argv.length === 2) {
     mediocre browse
     
   For more information, run: mediocre --help
+  
+  Using Ollama:
+    mediocre generate --ai-provider ollama --ollama-model llama3 --ollama-endpoint http://localhost:11434
   `);
 } else {
   program.parse();

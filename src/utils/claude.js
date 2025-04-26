@@ -1,6 +1,7 @@
 import { anthropic, createAnthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 import { config } from './config.js';
+import { generateTextWithOllama } from './ollama.js';
 
 /**
  * Validates ABC notation for formatting issues that would cause playback problems
@@ -134,7 +135,43 @@ export function getAnthropic() {
 }
 
 /**
- * Generate ABC notation using Claude
+ * Returns the appropriate AI generation function based on the configured provider
+ * @returns {Function} The generation function to use
+ */
+export function getAIGenerator() {
+  const provider = config.get('aiProvider');
+  
+  if (provider === 'ollama') {
+    return async (options) => {
+      const result = await generateTextWithOllama({
+        model: options.model || config.get('ollamaModel'),
+        system: options.system,
+        prompt: options.prompt,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens
+      });
+      return result;
+    };
+  } else {
+    // Default to Anthropic/Claude
+    return async (options) => {
+      const myAnthropic = getAnthropic();
+      const model = myAnthropic(options.model || 'claude-3-7-sonnet-20250219');
+      
+      return generateText({
+        model,
+        system: options.system,
+        prompt: options.prompt,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+        providerOptions: options.providerOptions
+      });
+    };
+  }
+}
+
+/**
+ * Generate ABC notation using configured AI provider
  * @param {Object} options - Generation options
  * @param {string} [options.genre] - Hybrid genre in format "Classical_x_Modern"
  * @param {string} [options.classicalGenre] - Classical component of hybrid genre
@@ -146,10 +183,11 @@ export function getAnthropic() {
  * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
  * @param {number} [options.temperature=0.7] - Temperature for generation
  * @param {string} [options.customSystemPrompt] - Custom system prompt override
+ * @param {string} [options.model] - Specific model to use (overrides default)
  * @returns {Promise<string>} Generated ABC notation
  */
 export async function generateMusicWithClaude(options) {
-  const myAnthropic = getAnthropic();
+  const generator = getAIGenerator();
   const genre = options.genre || 'Classical_x_Contemporary';
   const classicalGenre = options.classicalGenre || 'Classical';
   const modernGenre = options.modernGenre || 'Contemporary';
@@ -158,9 +196,6 @@ export async function generateMusicWithClaude(options) {
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
   const requestedInstruments = options.instruments || '';
-
-  // Use Claude 3.7 Sonnet for best music generation capabilities
-  const model = myAnthropic('claude-3-7-sonnet-20250219');
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt = options.customSystemPrompt ||
@@ -242,9 +277,9 @@ The composition should be a genuine artistic fusion that respects and represents
   const userPrompt = options.customUserPrompt ||
     `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? ' Include a dedicated solo section for the lead instrument.' : ''}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? ` Your composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
 
-  // Generate the ABC notation
-  const { text } = await generateText({
-    model,
+  // Generate the ABC notation using the configured AI provider
+  const { text } = await generator({
+    model: options.model,
     system: systemPrompt,
     prompt: userPrompt,
     temperature: options.temperature || 0.7,
@@ -267,11 +302,11 @@ The composition should be a genuine artistic fusion that respects and represents
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
  * @param {number} [options.temperature=0.7] - Temperature for generation
+ * @param {string} [options.model] - Specific model to use (overrides default)
  * @returns {Promise<string>} Modified ABC notation
  */
 export async function modifyCompositionWithClaude(options) {
-  const myAnthropic = getAnthropic();
-  const model = myAnthropic('claude-3-7-sonnet-20250219');
+  const generator = getAIGenerator();
 
   const abcNotation = options.abcNotation;
   const instructions = options.instructions;
@@ -343,8 +378,8 @@ DO NOT use any unsupported MIDI extensions.
 Your modifications should respect both the user's instructions and the musical integrity of the original piece. If the instructions are unclear or contradictory, prioritize creating a musically coherent result.`;
 
   // Generate the modified ABC notation
-  const { text } = await generateText({
-    model,
+  const { text } = await generator({
+    model: options.model,
     system: systemPrompt,
     prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nModify this composition according to these instructions:\n${instructions}${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? `\n\nYour composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''}\n\nReturn the complete modified ABC notation.`,
     temperature: options.temperature || 0.7,
@@ -365,11 +400,11 @@ Your modifications should respect both the user's instructions and the musical i
  * @param {string} [options.classicalGenre] - Classical component of hybrid genre
  * @param {string} [options.modernGenre] - Modern component of hybrid genre
  * @param {string} [options.style] - Music style
+ * @param {string} [options.model] - Specific model to use (overrides default)
  * @returns {Promise<Object>} Description document
  */
 export async function generateDescription(options) {
-  const myAnthropic = getAnthropic();
-  const model = myAnthropic('claude-3-7-sonnet-20250219');
+  const generator = getAIGenerator();
   const abcNotation = options.abcNotation;
   const genre = options.genre || 'Classical_x_Contemporary';
   const classicalGenre = options.classicalGenre || 'Classical';
@@ -398,8 +433,8 @@ Organize your analysis into these sections:
    * Be specific about which measures or sections might need attention
    * Do not include generic mixing advice - focus only on potential problem areas`;
 
-  const { text } = await generateText({
-    model,
+  const { text } = await generator({
+    model: options.model,
     system: systemPrompt,
     prompt: `Analyze this ${genre} composition that fuses ${classicalGenre} and ${modernGenre}. Pay attention to the musical elements that create this fusion.\n\nIn your analysis, include a section on audio processing suggestions ONLY if you identify specific sections that might have jarring or uncomfortable sound quality. Be very conservative in this assessment - only mention potential problems if they are likely to be significant.\n\n${abcNotation}`,
     temperature: 0.5,
@@ -431,11 +466,11 @@ Organize your analysis into these sections:
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
  * @param {number} [options.temperature=0.7] - Temperature for generation
+ * @param {string} [options.model] - Specific model to use (overrides default)
  * @returns {Promise<string>} ABC notation with lyrics
  */
 export async function addLyricsWithClaude(options) {
-  const myAnthropic = getAnthropic();
-  const model = myAnthropic('claude-3-7-sonnet-20250219');
+  const generator = getAIGenerator();
 
   const abcNotation = options.abcNotation;
   const lyricsPrompt = options.lyricsPrompt;
@@ -492,8 +527,8 @@ CRITICAL FORMATTING RULES:
 Your result should be a singable composition with lyrics that fit both the music and the thematic prompt.`;
 
   // Generate the ABC notation with lyrics
-  const { text } = await generateText({
-    model,
+  const { text } = await generator({
+    model: options.model,
     system: systemPrompt,
     prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nAdd lyrics to this composition based on the following theme/prompt:\n${lyricsPrompt}${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the lyrics to sound like they were written for a release on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the lyrics and musical elements to sound as if they were produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? `\n\nYour composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''}\n\nThe lyrics should fit naturally with the melody and rhythm of the piece. Return the complete ABC notation with lyrics added using the w: syntax.`,
     temperature: options.temperature || 0.9,
