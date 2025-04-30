@@ -1,5 +1,5 @@
 <div align="center">
-  
+
 # 🎵 MEDIOCRE-MUSIC 🎵
 
 **Genre-bending AI music composition toolkit** for LLM training dataset creation.
@@ -18,7 +18,7 @@
 [trombone.webm](https://github.com/user-attachments/assets/46cb7ad7-7d10-40ed-9cd5-aabb389450cc)
 
 [berio.webm](https://github.com/user-attachments/assets/0926e777-8809-41e6-b963-464ed5f33a4f)
-  
+
 [pcmusic.webm](https://github.com/user-attachments/assets/bf2a1b1d-3582-4790-8b4b-8f40a7498944)
 
 ## ✨ Features
@@ -217,6 +217,11 @@ John Zorn and I think it turned out really great.
 4. **Processing** - Effects chain generates training pairs
 5. **Dataset** - Organized structure with complete metadata
 
+## Observations
+
+Read [`OBSERVATIONS.md`](/OBSERVATIONS.md) for some helpful hints about how to most
+effectively utilize the tool.
+
 ## 📁 Project Structure
 
 ```
@@ -225,7 +230,7 @@ mediocre/
 │   ├── commands/     # Command implementations
 │   ├── utils/        # Utility functions
 │   └── index.js      # Entry point
-├── output/           # Generated music files 
+├── output/           # Generated music files
 ├── dataset/          # Final processed dataset
 └── temp/             # Temporary files
 ```
