@@ -5,6 +5,13 @@
 call out a particular style or individual associated with that non-standard time signature.
 For example, to achieve 7/8 you can designate "Venetian Snares" or for 3/4, you could
 request "Waltz".
+- If your composition requirements allow for it, stating something heavily associated with a specific time signature, as
+described above, works most of the time. If that is not going to work for your specific dataset needs, then consider
+the `modify` command. Not ideal but works just about every time!
+- You can use the `modify` command to *demand* that the LLM re-compose the piece in the given time signature,
+using the `-i` input prompt flag. My tests have found that, currently, this method always works.
+- I think the idea that time signature is tough for Claude speaks to something a bit more profound than this
+project intends to be.
 
 ## Arrangement
 - Instrumentation is not always respected because of the differences between an instrument
