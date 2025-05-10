@@ -64,6 +64,7 @@ addOllamaOptions(program
   .option('-s, --style <string>', 'Music style')
   .option('-C, --classical <genres>', 'Comma-separated list of classical/traditional genres for hybrid generation')
   .option('-M, --modern <genres>', 'Comma-separated list of modern genres for hybrid generation')
+  .option('--creative-genre <name>', 'Creative genre name to use as the primary compositional consideration')
   .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
   .option('--system-prompt <file>', 'Path to a file containing a custom system prompt')
   .option('--user-prompt <file>', 'Path to a file containing a custom user prompt')
@@ -77,8 +78,35 @@ addOllamaOptions(program
     try {
       let genres = [];
       
+      // If creative genre is provided, use it as the primary consideration
+      if (options.creativeGenre) {
+        console.log(`\nUsing creative genre name "${options.creativeGenre}" as primary compositional consideration\n`);
+        
+        // Parse provided classical and modern genres if available
+        const classicalGenres = options.classical ? parseGenreList(options.classical) : [];
+        const modernGenres = options.modern ? parseGenreList(options.modern) : [];
+        
+        // Use the creative genre for all compositions, including classical/modern influence if provided
+        for (let i = 0; i < parseInt(options.count || '1', 10); i++) {
+          const genreObj = {
+            name: options.genre || 'Classical_x_Contemporary', // Use default or specified genre as background influence
+            creativeGenre: options.creativeGenre
+          };
+          
+          // If classical and modern genres are provided, select random ones for each composition
+          if (classicalGenres.length > 0) {
+            genreObj.classicalGenre = classicalGenres[Math.floor(Math.random() * classicalGenres.length)];
+          }
+          
+          if (modernGenres.length > 0) {
+            genreObj.modernGenre = modernGenres[Math.floor(Math.random() * modernGenres.length)];
+          }
+          
+          genres.push(genreObj);
+        }
+      }
       // If classical and modern genres are provided, generate hybrid genres
-      if (options.classical || options.modern) {
+      else if (options.classical || options.modern) {
         const classicalGenres = parseGenreList(options.classical);
         const modernGenres = parseGenreList(options.modern);
         const count = parseInt(options.count || '1', 10);
@@ -144,7 +172,13 @@ addOllamaOptions(program
       const allFiles = [];
       
       for (const genre of genres) {
+        // Log the selected genres
+        console.log('Classical genre value:', genre.classicalGenre);
+        console.log('Modern genre value:', genre.modernGenre);
+        
+        // Create options for generateAbc call
         const genreOptions = {
+          
           genre: genre.name,
           style: options.style || 'standard',
           count: 1, // Generate one composition per genre
@@ -152,6 +186,12 @@ addOllamaOptions(program
           systemPrompt: customSystemPrompt,
           userPrompt: customUserPrompt,
           creativeNames: options.creativeNames === true, // Default to false unless explicitly specified
+          creativeGenre: genre.creativeGenre || options.creativeGenre || null, // Pass the creative genre if provided
+          
+          // IMPORTANT: Make sure these values are explicitly passed 
+          classicalGenre: genre.classicalGenre, // This should be a randomly selected genre from the -C list
+          modernGenre: genre.modernGenre, // This should be a randomly selected genre from the -M list
+          
           solo: options.solo || false,
           recordLabel: options.recordLabel || '',
           producer: options.producer || '',
@@ -161,6 +201,7 @@ addOllamaOptions(program
           ollamaModel: options.ollamaModel,
           ollamaEndpoint: options.ollamaEndpoint
         };
+        
         
         const files = await generateAbc(genreOptions);
         allFiles.push(...files);
@@ -607,6 +648,8 @@ if (process.argv.length === 2) {
     mediocre generate -g "baroque_x_jazz" --producer "Phil Spector"
     mediocre generate -g "baroque_x_jazz" --instruments "Violin,Piano,Trumpet"
     mediocre generate -g "baroque_x_jazz" --people "John Doe,Jane Smith"
+    mediocre generate --creative-genre "Space Western" # Uses creative genre as primary consideration
+    mediocre generate --creative-genre "Underwater Disco" -g "baroque_x_jazz" # Creative genre primary with background influences
     mediocre generate -g "baroque_x_jazz" --creative-names # EXPERIMENTAL FEATURE
     mediocre convert --to midi -d "./output" --stems # Export individual track MIDI files
     mediocre convert --to wav -d "./output" --stems # Export individual instrument WAV files

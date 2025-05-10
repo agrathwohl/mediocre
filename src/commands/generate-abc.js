@@ -109,6 +109,7 @@ function parseHybridGenre(genreName) {
  * Generate ABC notation files using Claude
  * @param {Object} options - Command options
  * @param {string} [options.genre] - Music genre (hybrid format preferred: Classical_x_Modern)
+ * @param {string} [options.creativeGenre] - Creative genre name to use as primary compositional consideration
  * @param {string} [options.style] - Music style
  * @param {number} [options.count=1] - Number of compositions to generate
  * @param {string} [options.output] - Output directory
@@ -124,6 +125,7 @@ function parseHybridGenre(genreName) {
 export async function generateAbc(options) {
   const count = parseInt(options.count || '1', 10);
   const genre = options.genre || 'Classical_x_Contemporary';
+  const creativeGenre = options.creativeGenre || null; // Get creative genre if provided
   const style = options.style || 'standard';
   const outputDir = options.output || config.get('outputDir');
   const customSystemPrompt = options.systemPrompt;
@@ -135,7 +137,10 @@ export async function generateAbc(options) {
   const requestedInstruments = options.instruments || '';
   const people = options.people || '';
   
-  // Parse the hybrid genre
+  // Get explicitly passed classical/modern genres or parse from the hybrid genre
+  const explicitClassicalGenre = options.classicalGenre;
+  const explicitModernGenre = options.modernGenre;
+  // Parse the hybrid genre as fallback
   const genreComponents = parseHybridGenre(genre);
   
   // Ensure the output directory exists
@@ -176,12 +181,25 @@ export async function generateAbc(options) {
         }
       }
       
-      // Generate a filename based on genre and style
-      const filename = `${displayGenre}-score${i+1}-${timestamp}`;
+      // If a creative genre is specified, use it for the filename and display
+      const displayCreativeGenre = creativeGenre || creativeGenreName || displayGenre;
       
-      // Generate the ABC notation with special attention to genre fusion
-      console.log(`Generating ${displayGenre} composition in ${style} style...`);
-      console.log(`Fusing ${genreComponents.classical} with ${genreComponents.modern}...`);
+      // Generate a filename based on genre and style
+      const filename = `${displayCreativeGenre}-score${i+1}-${timestamp}`;
+      
+      // Use the explicitly passed classicalGenre and modernGenre from options, 
+      // or fall back to parsed components from the genre string
+      const classicalComponent = explicitClassicalGenre || genreComponents.classical;
+      const modernComponent = explicitModernGenre || genreComponents.modern;
+      
+      // Generate the ABC notation with special attention to genre fusion or creative genre
+      if (creativeGenre) {
+        console.log(`Generating "${creativeGenre}" composition in ${style} style...`);
+        console.log(`(with background elements from ${classicalComponent} and ${modernComponent})`);
+      } else {
+        console.log(`Generating ${displayGenre} composition in ${style} style...`);
+        console.log(`Fusing ${classicalComponent} with ${modernComponent}...`);
+      }
       
       // Log if using a custom system prompt
       if (customSystemPrompt) {
@@ -198,8 +216,9 @@ export async function generateAbc(options) {
       
       const abcNotation = await generateMusicWithClaude({
         genre: creativeGenreName || genre, // Use creative name if available
-        classicalGenre: genreComponents.classical,
-        modernGenre: genreComponents.modern,
+        creativeGenre: creativeGenre, // Pass the creative genre if specified
+        classicalGenre: classicalComponent,
+        modernGenre: modernComponent,
         style,
         temperature: 0.7,
         customSystemPrompt,
@@ -246,14 +265,17 @@ export async function generateAbc(options) {
       const description = await generateDescription({
         abcNotation,
         genre: creativeGenreName || genre, // Use creative name if available
-        classicalGenre: genreComponents.classical,
-        modernGenre: genreComponents.modern,
+        creativeGenre: creativeGenre, // Pass the creative genre if specified
+        classicalGenre: classicalComponent,
+        modernGenre: modernComponent,
         style,
         model: options.ollamaModel
       });
       
-      // Add creative genre name to the description if one was generated
-      if (creativeGenreName) {
+      // Add creative genre name to the description if one was generated or provided
+      if (creativeGenre) {
+        description.creativeGenre = creativeGenre;
+      } else if (creativeGenreName) {
         description.creativeGenreName = creativeGenreName;
       }
       
@@ -262,11 +284,13 @@ export async function generateAbc(options) {
       fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
       
       // Create a markdown file with both the ABC notation and description
-      const mdContent = `# ${creativeGenreName || genre} Composition in ${style} Style
+      let titleGenre = creativeGenre || creativeGenreName || genre;
       
-## Genre Fusion${creativeGenreName ? `\n- Creative Genre Name: "${creativeGenreName}"` : ''}
-- Classical Element: ${genreComponents.classical}
-- Modern Element: ${genreComponents.modern}
+      const mdContent = `# ${titleGenre} Composition in ${style} Style
+      
+## Genre Information${creativeGenre ? `\n- Creative Genre: "${creativeGenre}" (primary compositional consideration)` : ''}${creativeGenreName ? `\n- Creative Genre Name: "${creativeGenreName}"` : ''}
+- Classical Element: ${classicalComponent}
+- Modern Element: ${modernComponent}
 
 ## Instruments
 ${instrumentString}

@@ -221,9 +221,9 @@ export async function combineCompositions(options) {
         return `- ${baseFilename} (${piece.duration.toFixed(2)}s)`;
       }).join('\n');
 
-      const mdContent = `# Combined ${combinedGenre} Composition
+      const mdContent = `# Original ${combinedGenre} Composition
 
-## Source Compositions
+## Inspired By
 ${sourceDetails}
 
 ## ABC Notation
@@ -331,25 +331,26 @@ async function createCombinedPiece(abcNotations, genres, groupIndex, includeSolo
 
   console.log(`Creating combined ${combinedGenre} piece...`);
 
-  const systemPrompt = `You are a creative music composer specializing in combining existing musical fragments into cohesive new compositions.
-Your task is to analyze the provided ABC notation pieces and create a new composition that combines the most interesting elements from each source.
+  const systemPrompt = `You are a creative music composer specializing in creating original compositions inspired by existing musical ideas.
+Your task is to analyze the provided ABC notation pieces and create a NEW, ORIGINAL composition that intelligently incorporates elements from each source.
 
 ⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
 The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
 Every voice declaration, section comment, and other element must be on its own line with NO INDENTATION.
 Failure to follow these formatting rules will result in completely unplayable music files.
 
-Guidelines for combining the compositions:
-1. Create a cohesive piece that feels like a natural fusion of the source materials
-2. Maintain the hybrid genre character (${classicalGenre} x ${modernGenre})
-3. Identify the most interesting motifs, harmonies, or rhythms from each source
-4. Create transitions between sections borrowed from different sources
-5. Ensure the final piece has a complete musical structure with proper beginning, development, and conclusion
+Guidelines for creating this new composition:
+1. THE RESULTS SHOULD NOT BE WHAT IS CONVENTIONALLY KNOWN AS A 'MASH-UP' - it should be a UNIQUE PIECE that makes intelligent use of the facets of both works to make a new piece of SINGULARLY UNIQUE VALUE
+2. Create a cohesive composition that stands on its own as an original work, not merely a combination of existing materials
+3. Maintain the hybrid genre character (${classicalGenre} x ${modernGenre}) while transcending both
+4. Extract the most compelling musical ideas from each source but transform them significantly
+5. Develop these ideas in ways the original composers would not have - add your unique perspective
+6. Ensure the final piece has a complete musical structure with proper beginning, development, and conclusion that feels entirely original
 
 Technical guidelines:
 - Ensure the ABC notation is properly formatted and playable with abc2midi
 - Include appropriate headers (X:1, T:, M:, L:, Q:, K:) at the beginning, before any voice declarations
-- Use the title "Combined ${combinedGenre} Composition ${groupIndex + 1}"
+- Use the title "Original ${combinedGenre} Composition ${groupIndex + 1} (Inspired by Multiple Works)"
 - All notes must belong to a voice (V:1, V:2, etc.)
 - Maintain consistent key signatures and time signatures between voices
 ${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
@@ -378,11 +379,15 @@ Return ONLY the complete ABC notation for the new combined composition, with no 
     `Source Piece ${index + 1}:\n${abc}\n\n`
   ).join('');
 
-  const userPrompt = `Analyze these ${abcNotations.length} compositions and create a new piece combining their most interesting musical elements:
+  const userPrompt = `Analyze these ${abcNotations.length} compositions as sources of musical inspiration for a completely new and original piece:
 
 ${sourcePiecesText}
 
-Create a new composition in ABC notation that combines these pieces into a cohesive whole. The new piece should maintain the character of the ${combinedGenre} genre but feel like a complete, original composition. Select the most interesting motifs, harmonies, or sections from each source piece and weave them together with appropriate transitions.${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${instruments ? `\n\nYour composition MUST include these specific instruments: ${instruments}. Find the most appropriate MIDI program number for each instrument.` : ''}
+Create a BRAND NEW, WHOLLY ORIGINAL composition in ABC notation. This should NOT be a mashup or direct combination of these pieces, but rather a unique creation that shows your understanding of what makes these pieces interesting.
+
+THE RESULTS SHOULD NOT BE WHAT IS CONVENTIONALLY KNOWN AS A 'MASH-UP' - it should be a UNIQUE PIECE that makes intelligent use of the facets of both works to make a new piece of SINGULARLY UNIQUE VALUE.
+
+Extract seed ideas, themes, or structural elements from the source materials, but transform them significantly to create something truly novel. The new piece should maintain the essence of the ${combinedGenre} genre while standing completely on its own as an original artistic creation.${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${instruments ? `\n\nYour composition MUST include these specific instruments: ${instruments}. Find the most appropriate MIDI program number for each instrument.` : ''}
 
 The piece MUST be longer in duration than the combined lengths of each piece you will be combining. It may never be shorter than either piece or all pieces combined.
 

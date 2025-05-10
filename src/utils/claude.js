@@ -156,7 +156,11 @@ export function getAIGenerator() {
     // Default to Anthropic/Claude
     return async (options) => {
       const myAnthropic = getAnthropic();
-      const model = myAnthropic(options.model || 'claude-3-7-sonnet-20250219');
+      // Only use claude models with Anthropic, never Ollama models
+      const modelName = options.model || 'claude-3-7-sonnet-20250219';
+      // Ensure we're using a Claude model
+      const safeModelName = modelName.startsWith('llama') ? 'claude-3-7-sonnet-20250219' : modelName;
+      const model = myAnthropic(safeModelName);
       
       return generateText({
         model,
@@ -174,6 +178,7 @@ export function getAIGenerator() {
  * Generate ABC notation using configured AI provider
  * @param {Object} options - Generation options
  * @param {string} [options.genre] - Hybrid genre in format "Classical_x_Modern"
+ * @param {string} [options.creativeGenre] - Creative genre name to use as primary compositional consideration
  * @param {string} [options.classicalGenre] - Classical component of hybrid genre
  * @param {string} [options.modernGenre] - Modern component of hybrid genre
  * @param {string} [options.style] - Music style
@@ -190,6 +195,7 @@ export function getAIGenerator() {
 export async function generateMusicWithClaude(options) {
   const generator = getAIGenerator();
   const genre = options.genre || 'Classical_x_Contemporary';
+  const creativeGenre = options.creativeGenre || null;
   const classicalGenre = options.classicalGenre || 'Classical';
   const modernGenre = options.modernGenre || 'Contemporary';
   const style = options.style || 'standard';
@@ -201,8 +207,11 @@ export async function generateMusicWithClaude(options) {
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt = options.customSystemPrompt ||
-    `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
-Your task is to create a composition that authentically blends elements of both ${classicalGenre} and ${modernGenre} musical traditions.
+    `You are a music composer specializing in ${creativeGenre ? `creating music in the "${creativeGenre}" genre` : `fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}`}.
+${creativeGenre 
+  ? `Your task is to create a composition that authentically captures the essence of the "${creativeGenre}" genre, while subtly incorporating elements of both ${classicalGenre} and ${modernGenre} musical traditions as background influences.`
+  : `Your task is to create a composition that authentically blends elements of both ${classicalGenre} and ${modernGenre} musical traditions.`
+}
 ${people ? `The following NON-MUSICIAN names are provided: ${people}\nDo with these names whatever you think would be appropriate given your other context.` : ''}
 
 ⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
@@ -212,7 +221,20 @@ Failure to follow these formatting rules will result in completely unplayable mu
 
 Return ONLY the ABC notation format for the composition, with no explanation or additional text.
 
-Guidelines for the ${genre} fusion:
+${creativeGenre 
+  ? `Guidelines for the "${creativeGenre}" composition:
+
+1. The creative genre "${creativeGenre}" should be the PRIMARY compositional consideration.
+   - Interpret what musical elements would best represent this creative genre
+   - Let your imagination explore what this genre name suggests or evokes
+   - Be bold and experimental in your approach
+
+2. As secondary influences, subtly incorporate elements from:
+   - ${classicalGenre}: Perhaps in harmonic choices, form, or melodic development
+   - ${modernGenre}: Perhaps in rhythmic elements, production techniques, or texture
+   
+The composition should primarily feel like an authentic "${creativeGenre}" piece, with the classical and modern elements serving only as subtle background influences.`
+  : `Guidelines for the ${genre} fusion:
 
 1. From ${classicalGenre}, incorporate:
    - Appropriate harmonic structures
@@ -224,7 +246,8 @@ Guidelines for the ${genre} fusion:
    - Rhythmic elements
    - Textural approaches
    - Production aesthetics
-   - Distinctive sounds or techniques
+   - Distinctive sounds or techniques`
+}
 
 3. Technical guidelines:
    - Create a composition that is 64 or more measures long
@@ -278,11 +301,19 @@ The composition should be a genuine artistic fusion that respects and represents
 
   // Use custom user prompt if provided, otherwise use the default
   const userPrompt = options.customUserPrompt ||
-    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? ' Include a dedicated solo section for the lead instrument.' : ''}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? ` Your composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
+    `${creativeGenre 
+      ? `Compose a piece in the "${creativeGenre}" genre, with subtle background influences from ${classicalGenre} and ${modernGenre}.` 
+      : `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.`
+    }${includeSolo ? ' Include a dedicated solo section for the lead instrument.' : ''}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? ` Your composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
 
   // Generate the ABC notation using the configured AI provider
+  const provider = config.get('aiProvider');
+  const model = provider === 'anthropic' 
+    ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
+    : options.model;  // Use provided model for Ollama
+
   const { text } = await generator({
-    model: options.model,
+    model: model,
     system: systemPrompt,
     prompt: userPrompt,
     temperature: options.temperature || 0.7,
@@ -381,8 +412,13 @@ DO NOT use any unsupported MIDI extensions.
 Your modifications should respect both the user's instructions and the musical integrity of the original piece. If the instructions are unclear or contradictory, prioritize creating a musically coherent result.`;
 
   // Generate the modified ABC notation
+  const provider = config.get('aiProvider');
+  const model = provider === 'anthropic' 
+    ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
+    : options.model;  // Use provided model for Ollama
+    
   const { text } = await generator({
-    model: options.model,
+    model: model,
     system: systemPrompt,
     prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nModify this composition according to these instructions:\n${instructions}${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? `\n\nYour composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''}\n\nReturn the complete modified ABC notation.`,
     temperature: options.temperature || 0.7,
@@ -400,6 +436,7 @@ Your modifications should respect both the user's instructions and the musical i
  * @param {Object} options - Generation options
  * @param {string} options.abcNotation - ABC notation of the composition
  * @param {string} [options.genre] - Hybrid genre name
+ * @param {string} [options.creativeGenre] - Creative genre name
  * @param {string} [options.classicalGenre] - Classical component of hybrid genre
  * @param {string} [options.modernGenre] - Modern component of hybrid genre
  * @param {string} [options.style] - Music style
@@ -410,11 +447,43 @@ export async function generateDescription(options) {
   const generator = getAIGenerator();
   const abcNotation = options.abcNotation;
   const genre = options.genre || 'Classical_x_Contemporary';
+  const creativeGenre = options.creativeGenre || null;
   const classicalGenre = options.classicalGenre || 'Classical';
   const modernGenre = options.modernGenre || 'Contemporary';
   const style = options.style || 'standard';
 
-  const systemPrompt = `You are a music analyst specializing in hybrid genre fusion.
+  let systemPrompt = '';
+  let promptText = '';
+  
+  if (creativeGenre) {
+    // System prompt for creative genre
+    systemPrompt = `You are a music analyst specializing in creative and experimental genres.
+Examine the provided ABC notation and analyze how this composition embodies the creative genre "${creativeGenre}".
+
+Please pay special attention to:
+1. The musical structure and form
+2. Harmonic progressions and melodic patterns
+3. How the composition creatively interprets the "${creativeGenre}" concept
+4. Elements that might be subtly influenced by ${classicalGenre} traditions
+5. Elements that might be subtly influenced by ${modernGenre} traditions
+6. What makes this composition unique and interesting
+
+Organize your analysis into these sections:
+1. Overview of the "${creativeGenre}" interpretation
+2. Musical characteristics and notable elements
+3. Subtle background influences (if any) from ${classicalGenre} and ${modernGenre}
+4. Technical elements (instrumentation, structure)
+5. Artistic assessment
+6. Audio processing suggestions - ONLY if needed (be very conservative in this assessment):
+   * Identify any sections that might potentially have jarring or uncomfortable sound quality
+   * Only include this section if there are truly concerning areas that would benefit from audio processing
+   * Be specific about which measures or sections might need attention
+   * Do not include generic mixing advice - focus only on potential problem areas`;
+
+    promptText = `Analyze this "${creativeGenre}" composition with subtle background influences from ${classicalGenre} and ${modernGenre}. Pay attention to how the music interprets and embodies the creative genre concept.\n\nIn your analysis, include a section on audio processing suggestions ONLY if you identify specific sections that might have jarring or uncomfortable sound quality. Be very conservative in this assessment - only mention potential problems if they are likely to be significant.\n\n${abcNotation}`;
+  } else {
+    // System prompt for hybrid genre
+    systemPrompt = `You are a music analyst specializing in hybrid genre fusion.
 Examine the provided ABC notation and explain how this composition fuses elements of ${classicalGenre} and ${modernGenre} to create the hybrid genre ${genre}.
 
 Please pay special attention to:
@@ -436,21 +505,30 @@ Organize your analysis into these sections:
    * Be specific about which measures or sections might need attention
    * Do not include generic mixing advice - focus only on potential problem areas`;
 
+    promptText = `Analyze this ${genre} composition that fuses ${classicalGenre} and ${modernGenre}. Pay attention to the musical elements that create this fusion.\n\nIn your analysis, include a section on audio processing suggestions ONLY if you identify specific sections that might have jarring or uncomfortable sound quality. Be very conservative in this assessment - only mention potential problems if they are likely to be significant.\n\n${abcNotation}`;
+  }
+
+  const provider = config.get('aiProvider');
+  const model = provider === 'anthropic' 
+    ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
+    : options.model;  // Use provided model for Ollama
+    
   const { text } = await generator({
-    model: options.model,
+    model: model,
     system: systemPrompt,
-    prompt: `Analyze this ${genre} composition that fuses ${classicalGenre} and ${modernGenre}. Pay attention to the musical elements that create this fusion.\n\nIn your analysis, include a section on audio processing suggestions ONLY if you identify specific sections that might have jarring or uncomfortable sound quality. Be very conservative in this assessment - only mention potential problems if they are likely to be significant.\n\n${abcNotation}`,
+    prompt: promptText,
     temperature: 0.5,
     maxTokens: 2000,
-    providerOptions: {
+    providerOptions: provider === 'anthropic' ? {
       anthropic: {
         thinking: { type: 'enabled', budgetTokens: 12000 },
       },
-    },
+    } : undefined,
   });
 
   return {
     genre,
+    creativeGenre,
     classicalGenre,
     modernGenre,
     style,
@@ -530,8 +608,13 @@ CRITICAL FORMATTING RULES:
 Your result should be a singable composition with lyrics that fit both the music and the thematic prompt.`;
 
   // Generate the ABC notation with lyrics
+  const provider = config.get('aiProvider');
+  const model = provider === 'anthropic' 
+    ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
+    : options.model;  // Use provided model for Ollama
+    
   const { text } = await generator({
-    model: options.model,
+    model: model,
     system: systemPrompt,
     prompt: `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nAdd lyrics to this composition based on the following theme/prompt:\n${lyricsPrompt}${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the lyrics to sound like they were written for a release on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the lyrics and musical elements to sound as if they were produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? `\n\nYour composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''}\n\nThe lyrics should fit naturally with the melody and rhythm of the piece. Return the complete ABC notation with lyrics added using the w: syntax.`,
     temperature: options.temperature || 0.9,
