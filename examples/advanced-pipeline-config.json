@@ -1,0 +1,73 @@
+{
+  "name": "Advanced Music Creation Pipeline",
+  "description": "Creates multiple compositions, mixes them, rearranges, and adds lyrics",
+  "output_dir": "./advanced_pipeline_output",
+  "steps": [
+    {
+      "name": "Generate First Group of Compositions",
+      "command": "generate",
+      "args": {
+        "creative-genre": "Quantum Baroque",
+        "count": 3,
+        "classical": "Baroque,Renaissance",
+        "modern": "Electronic,Ambient",
+        "style": "intricate"
+      }
+    },
+    {
+      "name": "Generate Second Group of Compositions",
+      "command": "generate",
+      "args": {
+        "creative-genre": "Digital Romanticism",
+        "count": 2,
+        "classical": "Romantic,Impressionist",
+        "modern": "Glitch,IDM",
+        "style": "emotional"
+      }
+    },
+    {
+      "name": "Convert All to Required Formats",
+      "command": "convert",
+      "args": {
+        "to": "all"
+      }
+    },
+    {
+      "name": "Mix and Match Best Elements",
+      "command": "mix-and-match",
+      "abort_on_error": true,
+      "args": {
+        "instruments": "Piano,Violin,Synthesizer,Electric Guitar"
+      }
+    },
+    {
+      "name": "Rearrange Mixed Composition",
+      "command": "rearrange",
+      "args": {
+        "instruments": "Orchestra,Synthesizer,Electric Guitar,Drums",
+        "style": "symphonic"
+      }
+    },
+    {
+      "name": "Convert Rearranged Composition",
+      "command": "convert",
+      "args": {
+        "to": "all"
+      }
+    },
+    {
+      "name": "Add Lyrics",
+      "command": "lyrics",
+      "args": {
+        "lyrics-prompt": "A song about the fusion of classical and electronic music through time and space"
+      }
+    },
+    {
+      "name": "Final Conversion",
+      "command": "convert",
+      "args": {
+        "to": "all"
+      }
+    }
+  ]
+}

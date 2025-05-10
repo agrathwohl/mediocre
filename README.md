@@ -30,6 +30,7 @@
 - 📊 **Dataset Building** - Create structured datasets for ML training
 - 🖥️ **Interactive TUI** - Browse compositions with playback and rating system
 - 🔄 **Model Flexibility** - Switch between Anthropic Claude and Ollama models
+- 🔄 **Command Pipelines** - Run sequences of commands to automate complex workflows
 
 ## 🛠️ Installation
 
@@ -176,6 +177,18 @@ mediocre validate-abc -i "/path/to/composition.abc" -o "/path/to/fixed.abc"
 # Process all ABC files in the output directory
 mediocre validate-abc
 ```
+
+### Run Command Pipelines
+
+```bash
+# Execute a sequence of commands defined in a JSON configuration file
+mediocre pipeline -c "examples/pipeline-config.json"
+
+# Run with specific AI provider
+mediocre pipeline -c "examples/advanced-pipeline-config.json" --ai-provider anthropic
+```
+
+See [PIPELINE.md](docs/PIPELINE.md) for detailed documentation on creating pipeline configurations.
 
 ## 🎯 Hybrid Genre System
 

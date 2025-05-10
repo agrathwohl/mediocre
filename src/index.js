@@ -17,6 +17,7 @@ import { combineCompositions } from './commands/combine-compositions.js';
 import { generateLyrics } from './commands/generate-lyrics.js';
 import { mixAndMatch } from './commands/mix-and-match.js';
 import { rearrangeComposition } from './commands/rearrange.js';
+import { runPipeline } from './commands/pipeline.js';
 import { createDatasetBrowser } from './ui/index.js';
 import { validateAbcNotation, cleanAbcNotation } from './utils/claude.js';
 
@@ -523,6 +524,29 @@ addOllamaOptions(program
     }
   });
 
+addOllamaOptions(program
+  .command('pipeline')
+  .description('Run a sequence of mediocre commands as a pipeline')
+  .requiredOption('-c, --config <file>', 'Path to pipeline configuration JSON file')
+  .action(async (options) => {
+    try {
+      // Set AI provider settings from command line options
+      if (options.aiProvider) {
+        config.set('aiProvider', options.aiProvider);
+      }
+      if (options.ollamaModel) {
+        config.set('ollamaModel', options.ollamaModel);
+      }
+      if (options.ollamaEndpoint) {
+        config.set('ollamaEndpoint', options.ollamaEndpoint);
+      }
+      
+      await runPipeline(options);
+    } catch (error) {
+      console.error('Error executing pipeline:', error.message);
+    }
+  }));
+
 program
   .command('validate-abc')
   .description('Validate and fix formatting issues in ABC notation files')
@@ -639,6 +663,7 @@ if (process.argv.length === 2) {
     lyrics         Add lyrics to an existing composition using Claude
     browse         Launch interactive TUI browser for the music dataset
     validate-abc   Validate and fix formatting issues in ABC notation files
+    pipeline       Run a sequence of mediocre commands as a pipeline
     
   Examples:
     mediocre genres -c "baroque,classical,romantic" -m "techno,ambient,glitch" -n 5
@@ -664,6 +689,7 @@ if (process.argv.length === 2) {
     mediocre validate-abc                                 # Process and fix all ABC files in output dir
     mediocre validate-abc -i "/path/to/baroque_x_jazz-score1.abc" -o "/path/to/fixed.abc"  # Process a single file
     mediocre browse
+    mediocre pipeline -c "/path/to/pipeline-config.json"          # Run a sequence of commands defined in a JSON config
     
   For more information, run: mediocre --help
   

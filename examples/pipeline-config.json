@@ -1,0 +1,46 @@
+{
+  "name": "Example Music Generation Pipeline",
+  "description": "Generates, combines, and refines musical compositions",
+  "output_dir": "./pipeline_output",
+  "steps": [
+    {
+      "name": "Generate Initial Compositions",
+      "command": "generate",
+      "args": {
+        "creative-genre": "Cosmic Jazz",
+        "count": 2,
+        "classical": "Baroque,Classical",
+        "modern": "Jazz,Ambient",
+        "style": "experimental"
+      }
+    },
+    {
+      "name": "Convert to MIDI and WAV",
+      "command": "convert",
+      "args": {
+        "to": "all"
+      }
+    },
+    {
+      "name": "Combine Compositions",
+      "command": "combine",
+      "args": {
+        "duration-limit": 120
+      }
+    },
+    {
+      "name": "Modify Result",
+      "command": "modify",
+      "args": {
+        "instructions": "Add a dramatic finale section with crescendo"
+      }
+    },
+    {
+      "name": "Convert Modified Composition",
+      "command": "convert",
+      "args": {
+        "to": "all"
+      }
+    }
+  ]
+}
