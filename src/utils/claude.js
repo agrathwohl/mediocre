@@ -2,79 +2,139 @@ import { anthropic, createAnthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 import { config } from './config.js';
 import { generateTextWithOllama } from './ollama.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
- * Validates ABC notation for formatting issues that would cause playback problems
+ * Validates ABC notation using abc2midi -c for real validation
  * @param {string} abcNotation - ABC notation to validate
- * @returns {Object} Validation results with issues array and isValid flag
+ * @param {number} [maxRetries=3] - Maximum number of fix attempts
+ * @returns {Promise<Object>} Validation results with issues array and isValid flag
  */
-export function validateAbcNotation(abcNotation) {
+export async function validateAbcNotation(abcNotation, maxRetries = 3) {
   // Initialize result object
   const result = {
     isValid: true,
     issues: [],
     lineIssues: [],
-    fixedNotation: null
+    fixedNotation: null,
+    abc2midiErrors: []
   };
 
-  // Split the notation into lines for analysis
-  const lines = abcNotation.split('\n');
+  // First do basic formatting validation
+  const basicValidation = validateBasicAbcFormatting(abcNotation);
+  result.issues = [...basicValidation.issues];
+  result.lineIssues = [...basicValidation.lineIssues];
+  result.isValid = basicValidation.isValid;
+
+  // Clean the notation first
+  let currentNotation = cleanAbcNotation(abcNotation);
   
-  // Check for basic header fields
+  // Now test with abc2midi -c
+  let attempts = 0;
+  while (attempts < maxRetries) {
+    const abc2midiValidation = await validateWithAbc2midi(currentNotation);
+    
+    if (abc2midiValidation.isValid) {
+      // Success! abc2midi accepts it
+      result.isValid = true;
+      result.fixedNotation = currentNotation;
+      result.abc2midiErrors = [];
+      break;
+    } else {
+      // abc2midi found errors
+      result.isValid = false;
+      result.abc2midiErrors = abc2midiValidation.errors;
+      result.abc2midiRawOutput = abc2midiValidation.rawOutput;  // Store raw output
+      
+      if (attempts < maxRetries - 1) {
+        // Try to fix with Claude 4
+        console.log(`ABC validation failed, attempting fix (attempt ${attempts + 1}/${maxRetries})...`);
+        try {
+          currentNotation = await fixAbcWithClaude(currentNotation, abc2midiValidation.errors);
+        } catch (error) {
+          console.error('Error fixing ABC with Claude:', error.message);
+          break;
+        }
+      } else {
+        // Max retries reached
+        result.fixedNotation = currentNotation;
+        break;
+      }
+    }
+    attempts++;
+  }
+
+  return result;
+}
+
+/**
+ * Basic ABC formatting validation (original logic)
+ * @param {string} abcNotation - ABC notation to validate
+ * @returns {Object} Basic validation results
+ */
+function validateBasicAbcFormatting(abcNotation) {
+  const result = {
+    isValid: true,
+    issues: [],
+    lineIssues: []
+  };
+
+  const lines = abcNotation.split('\n');
   const requiredHeaders = ['X:', 'T:', 'M:', 'K:'];
   const foundHeaders = [];
-  
-  // Detect pattern issues
-  let inVoiceSection = false;
   let prevLine = '';
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineNum = i + 1;
-    
-    // Check for blank lines (completely empty or just whitespace)
+
+    // Check for blank lines
     if (line.trim() === '') {
-      result.issues.push(`Line ${lineNum}: Blank line detected - will cause ABC parsing errors`);
+      result.issues.push(`Line ${lineNum}: Blank line detected`);
       result.lineIssues.push(lineNum);
       result.isValid = false;
     }
-    
-    // Check for indentation (line starts with whitespace)
-    if (line !== '' && line.startsWith(' ') || line.startsWith('\t')) {
-      result.issues.push(`Line ${lineNum}: Line starts with whitespace - may cause ABC parsing errors`);
+
+    // Check for indentation
+    if (line !== '' && (line.startsWith(' ') || line.startsWith('\t'))) {
+      result.issues.push(`Line ${lineNum}: Line starts with whitespace`);
       result.lineIssues.push(lineNum);
       result.isValid = false;
     }
-    
+
     // Check for voice declarations not at start of line
     if (line.match(/\s+\[?V:/)) {
       result.issues.push(`Line ${lineNum}: Voice declaration not at start of line`);
       result.lineIssues.push(lineNum);
       result.isValid = false;
     }
-    
+
     // Check for required headers
     for (const header of requiredHeaders) {
       if (line.startsWith(header)) {
         foundHeaders.push(header);
       }
     }
-    
+
     // Check for lyrics lines not following melody lines
     if (line.startsWith('w:') && !prevLine.match(/^\[?V:/)) {
-      // This is a heuristic - not 100% reliable but catches obvious issues
       const prevLineHasNotes = prevLine.match(/[A-Ga-g]/) !== null;
       if (!prevLineHasNotes) {
-        result.issues.push(`Line ${lineNum}: Lyrics line (w:) not immediately following a melody line`);
+        result.issues.push(`Line ${lineNum}: Lyrics line not following melody line`);
         result.lineIssues.push(lineNum);
         result.isValid = false;
       }
     }
-    
-    // Store current line for next iteration
+
     prevLine = line;
   }
-  
+
   // Check for missing required headers
   for (const header of requiredHeaders) {
     if (!foundHeaders.includes(header)) {
@@ -82,13 +142,160 @@ export function validateAbcNotation(abcNotation) {
       result.isValid = false;
     }
   }
+
+  return result;
+}
+
+/**
+ * Validates ABC notation using abc2midi -c command
+ * @param {string} abcNotation - ABC notation to validate
+ * @returns {Promise<Object>} abc2midi validation results
+ */
+async function validateWithAbc2midi(abcNotation) {
+  const tempDir = path.join(__dirname, '../../temp');
   
-  // Fix the ABC notation if issues were found
-  if (!result.isValid) {
-    result.fixedNotation = cleanAbcNotation(abcNotation);
+  // Ensure temp directory exists
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
   }
   
-  return result;
+  const tempFile = path.join(tempDir, `validation_${Date.now()}.abc`);
+  
+  try {
+    // Write ABC to temp file
+    fs.writeFileSync(tempFile, abcNotation);
+    
+    // Run abc2midi -c for validation only
+    const result = execSync(`abc2midi "${tempFile}" -c`, { 
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'] 
+    });
+    
+    // If we get here, abc2midi succeeded
+    return {
+      isValid: true,
+      errors: []
+    };
+    
+  } catch (error) {
+    // abc2midi failed - parse the error output
+    const errorOutput = error.stderr || error.stdout || error.message;
+    const errors = parseAbc2midiErrors(errorOutput);
+    
+    return {
+      isValid: false,
+      errors: errors,
+      rawOutput: errorOutput  // Include raw abc2midi output
+    };
+  } finally {
+    // Clean up temp file
+    try {
+      if (fs.existsSync(tempFile)) {
+        fs.unlinkSync(tempFile);
+      }
+    } catch (cleanupError) {
+      console.warn('Failed to clean up temp file:', cleanupError.message);
+    }
+  }
+}
+
+/**
+ * Parse abc2midi error messages into structured format
+ * @param {string} errorOutput - Raw error output from abc2midi
+ * @returns {Array} Parsed error objects
+ */
+function parseAbc2midiErrors(errorOutput) {
+  const errors = [];
+  const lines = errorOutput.split('\n');
+  
+  for (const line of lines) {
+    if (line.includes('Error in line-char')) {
+      // Parse format: "Error in line-char 25-74 : Bad pitch specifier ' after note C"
+      const match = line.match(/Error in line-char (\d+)-(\d+) : (.+)/);
+      if (match) {
+        errors.push({
+          type: 'error',
+          line: parseInt(match[1]),
+          char: parseInt(match[2]),
+          message: match[3]
+        });
+      }
+    } else if (line.includes('Warning in line-char')) {
+      // Parse warnings too
+      const match = line.match(/Warning in line-char (\d+)-(\d+) : (.+)/);
+      if (match) {
+        errors.push({
+          type: 'warning',
+          line: parseInt(match[1]),
+          char: parseInt(match[2]),
+          message: match[3]
+        });
+      }
+    }
+  }
+  
+  return errors;
+}
+
+/**
+ * Use Claude 4 to fix ABC notation based on abc2midi errors
+ * @param {string} abcNotation - Original ABC notation
+ * @param {Array} errors - Errors from abc2midi
+ * @returns {Promise<string>} Fixed ABC notation
+ */
+async function fixAbcWithClaude(abcNotation, errors) {
+  const generator = getAIGenerator();
+  
+  const errorSummary = errors.map(err => 
+    `Line ${err.line}, Char ${err.char}: ${err.message}`
+  ).join('\n');
+  
+  const systemPrompt = `You are an ABC notation expert specializing in fixing abc2midi compatibility issues.
+
+Your task is to fix ABC notation so that it passes abc2midi validation without errors.
+
+⚠️ CRITICAL REQUIREMENTS ⚠️
+1. Return ONLY the corrected ABC notation with no explanation
+2. Preserve the musical intent as much as possible
+3. Fix ALL abc2midi errors reported
+4. Ensure proper ABC formatting with NO blank lines between sections
+5. Limit octave markers to reasonable ranges (maximum 3 octaves: ''', minimum 3 octaves: ,,,)
+6. Use only valid abc2midi syntax extensions
+
+Common fixes needed:
+- Remove excessive octave markers (more than 3 ' or , characters)
+- Fix invalid pitch specifiers
+- Ensure proper bar line placement
+- Fix timing/rhythm issues
+- Correct chord notation
+- Fix voice declaration problems
+
+The output must be valid ABC notation that abc2midi can process without errors.`;
+  
+  const userPrompt = `Fix the following ABC notation to resolve these abc2midi errors:
+
+ERRORS:
+${errorSummary}
+
+ABC NOTATION TO FIX:
+${abcNotation}
+
+Return the corrected ABC notation:`;
+  
+  const provider = config.get('aiProvider');
+  const model = provider === 'anthropic' 
+    ? 'claude-4-sonnet-20250514'  // Use Claude 4 for fixing
+    : config.get('ollamaModel');
+  
+  const { text } = await generator({
+    model: model,
+    system: systemPrompt,
+    prompt: userPrompt,
+    temperature: 0.3,  // Lower temperature for more conservative fixes
+    maxTokens: 20000
+  });
+  
+  return cleanAbcNotation(text);
 }
 
 /**
@@ -100,20 +307,20 @@ export function cleanAbcNotation(abcNotation) {
   let cleanedText = abcNotation
     // Remove ALL blank lines between ANY content (most aggressive approach)
     .replace(/\n\s*\n/g, '\n')
-    
+
     // Ensure proper voice, lyric, and section formatting
     .replace(/\n\s*(\[V:)/g, '\n$1')      // Fix spacing before bracketed voice declarations
     .replace(/\n\s*(V:)/g, '\nV:')        // Fix spacing before unbracketed voice declarations
     .replace(/\n\s*(%\s*Section)/g, '\n$1')  // Fix spacing before section comments
     .replace(/\n\s*(w:)/g, '\nw:')        // Fix spacing before lyrics lines
-    
+
     // Fix common notation issues
     .replace(/\]\s*\n\s*\[/g, ']\n[')     // Ensure clean line breaks between bracketed elements
     .replace(/\n\s+/g, '\n')              // Remove leading whitespace on any line
     .replace(/\[Q:([^\]]+)\]/g, 'Q:$1')   // Fix Q: tempo markings
     .replace(/%%MIDI\s+program\s+(\d+)\s+(\d+)/g, '%%MIDI program $1 $2') // Fix MIDI program spacing
     .trim();                               // Remove any trailing whitespace
-    
+
   // Ensure the file ends with a single newline
   return cleanedText + '\n';
 }
@@ -140,7 +347,7 @@ export function getAnthropic() {
  */
 export function getAIGenerator() {
   const provider = config.get('aiProvider');
-  
+
   if (provider === 'ollama') {
     return async (options) => {
       const result = await generateTextWithOllama({
@@ -157,11 +364,12 @@ export function getAIGenerator() {
     return async (options) => {
       const myAnthropic = getAnthropic();
       // Only use claude models with Anthropic, never Ollama models
-      const modelName = options.model || 'claude-3-7-sonnet-20250219';
+      const modelName = options.model || 'claude-4-opus-20250514';
       // Ensure we're using a Claude model
-      const safeModelName = modelName.startsWith('llama') ? 'claude-3-7-sonnet-20250219' : modelName;
+      const safeModelName = modelName.startsWith('llama') ? 'claude-4-opus-20250514' : modelName;
       const model = myAnthropic(safeModelName);
-      
+
+      console.log('USING THIS MODEL', safeModelName)
       return generateText({
         model,
         system: options.system,
@@ -204,24 +412,56 @@ export async function generateMusicWithClaude(options) {
   const producer = options.producer || '';
   const requestedInstruments = options.instruments || '';
   const people = options.people || '';
+  
+  // Detect if this is a beat-driven genre that requires drums
+  const beatDrivenGenres = [
+    'house', 'techno', 'garage', 'future garage', 'trap', 'dubstep', 'drum & bass', 'drum and bass',
+    'breakbeat', 'hip-hop', 'hip hop', 'rap', 'rock', 'metal', 'funk', 'jazz', 'latin',
+    'pop', 'r&b', 'rnb', 'electronic', 'edm', 'dance', 'disco', 'trance', 'ambient',
+    'downtempo', 'trip-hop', 'trip hop', 'jungle', 'hardstyle', 'hardcore', 'gabber'
+  ];
+  
+  const requiresDrums = beatDrivenGenres.some(beatGenre => 
+    modernGenre.toLowerCase().includes(beatGenre) || 
+    genre.toLowerCase().includes(beatGenre) ||
+    (creativeGenre && creativeGenre.toLowerCase().includes(beatGenre))
+  );
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt = options.customSystemPrompt ||
     `You are a music composer specializing in ${creativeGenre ? `creating music in the "${creativeGenre}" genre` : `fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}`}.
-${creativeGenre 
+${creativeGenre
   ? `Your task is to create a composition that authentically captures the essence of the "${creativeGenre}" genre, while subtly incorporating elements of both ${classicalGenre} and ${modernGenre} musical traditions as background influences.`
   : `Your task is to create a composition that authentically blends elements of both ${classicalGenre} and ${modernGenre} musical traditions.`
 }
 ${people ? `The following NON-MUSICIAN names are provided: ${people}\nDo with these names whatever you think would be appropriate given your other context.` : ''}
 
-⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
-The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
-Every voice declaration, section comment, and other element must be on its own line with NO INDENTATION.
-Failure to follow these formatting rules will result in completely unplayable music files.
+🎵 PRODUCTION PIPELINE INFORMATION 🎵
+Your ABC notation will be processed through this exact pipeline:
+1. abc2midi infile.abc -OCC -HARP → Convert ABC to MIDI
+2. timidity infile.mid -E wpvseozt -a --output-stereo -Ow infile.mid.wav → Convert MIDI to WAV
+
+The -OCC flag enables old chord convention and -HARP makes ornaments=roll for harpist.
+The timidity command uses high-quality effects processing for stereo output.
+
+⚠️ CRITICAL ABC2MIDI COMPATIBILITY REQUIREMENTS ⚠️
+Your ABC notation MUST be compatible with abc2midi. Violations will cause generation failure.
+
+AUDIBILITY REQUIREMENTS:
+- All notes must be audible to the average human auditory system (roughly 20Hz to 20kHz)
+- Stay within practical ranges for real instruments when possible
+- Avoid extreme octave markings that would create inaudible frequencies
+- Consider that very high notes may sound shrill and very low notes may be muddy
+
+FORMATTING RULES:
+- NO BLANK LINES between ANY elements
+- Each voice/section on its own line with NO INDENTATION
+- Voice declarations: [V:1], [V:2], etc.
+- Section comments: % Section A
 
 Return ONLY the ABC notation format for the composition, with no explanation or additional text.
 
-${creativeGenre 
+${creativeGenre
   ? `Guidelines for the "${creativeGenre}" composition:
 
 1. The creative genre "${creativeGenre}" should be the PRIMARY compositional consideration.
@@ -232,7 +472,7 @@ ${creativeGenre
 2. As secondary influences, subtly incorporate elements from:
    - ${classicalGenre}: Perhaps in harmonic choices, form, or melodic development
    - ${modernGenre}: Perhaps in rhythmic elements, production techniques, or texture
-   
+
 The composition should primarily feel like an authentic "${creativeGenre}" piece, with the classical and modern elements serving only as subtle background influences.`
   : `Guidelines for the ${genre} fusion:
 
@@ -241,7 +481,7 @@ The composition should primarily feel like an authentic "${creativeGenre}" piece
    - Melodic patterns and motifs
    - Formal structures
    - Typical instrumentation choices
-   
+
 2. From ${modernGenre}, incorporate:
    - Rhythmic elements
    - Textural approaches
@@ -257,58 +497,101 @@ The composition should primarily feel like an authentic "${creativeGenre}" piece
    ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
    ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
    ${requestedInstruments ? `- Your composition MUST include these specific instruments: ${requestedInstruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
+   ${requiresDrums ? `- ⚠️ CRITICAL: This genre (${modernGenre}) is BEAT-DRIVEN and MUST include substantial drum patterns using %%MIDI drum commands. The rhythm and groove are ESSENTIAL to the genre's identity.` : ''}
    - Ensure the ABC notation is properly formatted and playable
-   - Use ONLY the following well-supported abc2midi syntax extensions:
 
-CRITICAL FORMATTING RULES:
-- NEVER include blank lines between voice sections in your ABC notation
-- Each voice section ([V:1], [V:2], etc.) should be on its own line with no blank lines before or after
-- Each section comment (% Section A, etc.) can be on its own line with no blank lines before or after
-- When voice sections follow each other, they must be immediately adjacent with no blank lines between them
-- This is EXTREMELY IMPORTANT for proper parsing by abc2midi
+🎼 ABC2MIDI SYNTAX EXTENSIONS (USE THESE CREATIVELY!) 🎼
 
-ONLY USE THESE SUPPORTED EXTENSIONS:
+CHANNEL & PROGRAM CONTROL:
+- %%MIDI channel n                     (select channel 1-16)
+- %%MIDI program [channel] n           (select instrument 0-127)
 
-1. Channel and Program selection:
-   - %%MIDI program [channel] n   
-     Example: %%MIDI program 1 40
-   
-2. Dynamics:
-   - Use standard ABC dynamics notation: !p!, !f!, etc.
-   - %%MIDI beat a b c n   
-     Example: %%MIDI beat 90 80 65 1
-   
-3. Transposition (if needed):
-   - %%MIDI transpose n   
-     Example: %%MIDI transpose -12
-   
-4. Simple chord accompaniment:
-   - %%MIDI gchord string   
-     Example: %%MIDI gchord fzczfzcz
+DYNAMICS & EXPRESSION:
+- %%MIDI beat a b c n                  (velocity control: strong/medium/weak notes)
+- %%MIDI beatmod n                     (modify velocities by ±n)
+- %%MIDI nobeataccents                 (flat dynamics for organs)
+- %%MIDI beataccents                   (restore normal accenting)
+- %%MIDI beatstring fmpfmp             (custom accent patterns: f=forte, m=medium, p=piano)
+- %%MIDI deltaloudness n               (crescendo/diminuendo sensitivity)
+- Standard dynamics: !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff!
+- Crescendo/Diminuendo: !crescendo(! !crescendo)! !diminuendo(! !diminuendo)!
 
-DO NOT use any of these unsupported extensions:
-- NO %%MIDI drumvol
-- NO %%MIDI drumbar
-- NO %%MIDI drumbars
-- NO %%MIDI drummap
-- NO %%MIDI trim
-- NO %%MIDI expand
-- NO %%MIDI beatmod
-- NO %%MIDI chordattack
-- NO %%MIDI randomchordattack
+PITCH & TUNING:
+- %%MIDI transpose n                   (transpose by n semitones)
+- %%MIDI rtranspose n                  (relative transpose)
+- %%MIDI c n                          (set MIDI pitch for middle C, default 60)
 
-The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. We do not need a bunch of music that sounds like stuff already out there. We want to see what YOU, the artificial intelligence, think is most interesting about these gerne hybrids.`;
+CHORD & ACCOMPANIMENT:
+- %%MIDI gchord fzczfzcz              (chord patterns: f=fundamental, c=chord, z=rest, b=bass+chord)
+- %%MIDI gchord ghihGHIH              (arpeggiated chords: g,h,i,j=individual notes, CAPS=octave lower)
+- %%MIDI chordname name n1 n2 n3...   (define custom chord types)
+- %%MIDI chordprog n [octave=±2]      (set chord instrument & octave)
+- %%MIDI bassprog n [octave=±2]       (set bass instrument & octave)
+- %%MIDI chordvol n                   (chord velocity)
+- %%MIDI bassvol n                    (bass velocity)
+- %%MIDI gchordon / %%MIDI gchordoff  (enable/disable chords)
+
+SPECIAL EFFECTS:
+- %%MIDI grace a/b                    (grace note timing)
+- %%MIDI gracedivider n               (fixed grace note duration)
+- %%MIDI droneon / %%MIDI droneoff    (bagpipe-style drone)
+- %%MIDI drone prog pitch1 pitch2 vel1 vel2  (configure drone)
+
+RHYTHM & PERCUSSION:
+- %%MIDI drum dzdd 35 38 38 100 50 50 (drum patterns: d=strike, z=rest + programs + velocities)
+- %%MIDI drumon / %%MIDI drumoff      (enable/disable drums)
+- %%MIDI drumbars n                   (spread drum pattern over n bars)
+- %%MIDI gchordbars n                 (spread chord pattern over n bars)
+
+🥁 GENRE-SPECIFIC DRUM REQUIREMENTS 🥁
+If the modern genre includes ANY of these beat-driven styles, you MUST include appropriate drum patterns:
+- Electronic genres (house, techno, garage, future garage, trap, dubstep, drum & bass, breakbeat): Complex programmed beats
+- Hip-hop/rap: Strong kick-snare patterns with hi-hats
+- Rock/metal: Traditional drum kit patterns
+- Funk: Syncopated groove-heavy patterns  
+- Jazz: Swing or complex polyrhythmic patterns
+- Latin: Appropriate cultural rhythm patterns
+- Pop: Four-on-the-floor or contemporary pop beats
+- R&B: Groove-oriented with emphasis on the pocket
+
+For beat-driven genres, use %%MIDI drum patterns extensively and make rhythm a PRIMARY compositional element, not an afterthought!
+
+COMMON DRUM PATTERN EXAMPLES:
+- Four-on-the-floor: "dddd 36 36 36 36 127 127 127 127" (kick every beat)
+- Hip-hop: "dzdz 36 42 36 42 127 100 127 100" (kick-snare alternating)
+- Breakbeat: "dzddzddd 36 42 36 36 42 36 36 36 127 100 127 100 100 127 100 100"
+- Garage shuffle: "dzddzd 36 42 36 36 42 36 127 100 100 127 100 127"
+
+Use General MIDI drum map (Channel 10):
+- 36: Kick drum, 38: Snare, 42: Hi-hat closed, 46: Hi-hat open
+- 49: Crash cymbal, 51: Ride cymbal, 35: Acoustic bass drum
+- 40: Electric snare, 44: Pedal hi-hat
+
+TIME SIGNATURES AUTO-SET GCHORD DEFAULTS:
+- 2/4, 4/4: fzczfzcz
+- 3/4: fzczcz  
+- 6/8: fzcfzc
+- 9/8: fzcfzcfzc
+
+CREATIVE USAGE ENCOURAGEMENT:
+- Use these extensions to create rich, layered compositions
+- Experiment with custom chord patterns and drum rhythms
+- Try different velocity patterns for expressive dynamics
+- Use drones for atmospheric effects
+- Create complex arrangements with multiple voices and accompaniment
+
+The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. Make full use of abc2midi's capabilities to create rich, dynamic compositions.`;
 
   // Use custom user prompt if provided, otherwise use the default
   const userPrompt = options.customUserPrompt ||
-    `${creativeGenre 
-      ? `Compose a piece in the "${creativeGenre}" genre, with subtle background influences from ${classicalGenre} and ${modernGenre}.` 
+    `${creativeGenre
+      ? `Compose a piece in the "${creativeGenre}" genre, with subtle background influences from ${classicalGenre} and ${modernGenre}.`
       : `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.`
     }${includeSolo ? ' Include a dedicated solo section for the lead instrument.' : ''}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? ` Your composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
 
   // Generate the ABC notation using the configured AI provider
   const provider = config.get('aiProvider');
-  const model = provider === 'anthropic' 
+  const model = provider === 'anthropic'
     ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
     : options.model;  // Use provided model for Ollama
 
@@ -391,20 +674,20 @@ CRITICAL FORMATTING RULES:
 ONLY USE THESE SUPPORTED EXTENSIONS:
 
 1. Channel and Program selection:
-   - %%MIDI program [channel] n   
+   - %%MIDI program [channel] n
      Example: %%MIDI program 1 40
-   
+
 2. Dynamics:
    - Use standard ABC dynamics notation: !p!, !f!, etc.
-   - %%MIDI beat a b c n   
+   - %%MIDI beat a b c n
      Example: %%MIDI beat 90 80 65 1
-   
+
 3. Transposition (if needed):
-   - %%MIDI transpose n   
+   - %%MIDI transpose n
      Example: %%MIDI transpose -12
-   
+
 4. Simple chord accompaniment:
-   - %%MIDI gchord string   
+   - %%MIDI gchord string
      Example: %%MIDI gchord fzczfzcz
 
 DO NOT use any unsupported MIDI extensions.
@@ -413,10 +696,10 @@ Your modifications should respect both the user's instructions and the musical i
 
   // Generate the modified ABC notation
   const provider = config.get('aiProvider');
-  const model = provider === 'anthropic' 
+  const model = provider === 'anthropic'
     ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
     : options.model;  // Use provided model for Ollama
-    
+
   const { text } = await generator({
     model: model,
     system: systemPrompt,
@@ -454,7 +737,7 @@ export async function generateDescription(options) {
 
   let systemPrompt = '';
   let promptText = '';
-  
+
   if (creativeGenre) {
     // System prompt for creative genre
     systemPrompt = `You are a music analyst specializing in creative and experimental genres.
@@ -509,10 +792,10 @@ Organize your analysis into these sections:
   }
 
   const provider = config.get('aiProvider');
-  const model = provider === 'anthropic' 
+  const model = provider === 'anthropic'
     ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
     : options.model;  // Use provided model for Ollama
-    
+
   const { text } = await generator({
     model: model,
     system: systemPrompt,
@@ -609,10 +892,10 @@ Your result should be a singable composition with lyrics that fit both the music
 
   // Generate the ABC notation with lyrics
   const provider = config.get('aiProvider');
-  const model = provider === 'anthropic' 
-    ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
+  const model = provider === 'anthropic'
+    ? (options.model || 'claude-4-sonnet-20250514')  // Use Claude model for Anthropic provider
     : options.model;  // Use provided model for Ollama
-    
+
   const { text } = await generator({
     model: model,
     system: systemPrompt,

@@ -415,17 +415,32 @@ IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure a
     // First pass: clean the notation
     notation = cleanAbcNotation(notation);
     
-    // Validate the ABC notation
-    const validation = validateAbcNotation(notation);
+    // Validate the ABC notation with abc2midi
+    console.log('Validating ABC notation with abc2midi...');
+    const validation = await validateAbcNotation(notation);
     
     // If there are issues, log and use the fixed version
     if (!validation.isValid) {
       console.warn(`⚠️ WARNING: ABC notation validation issues found:`);
-      validation.issues.forEach(issue => console.warn(`  - ${issue}`));
-      console.warn(`Auto-fixing ${validation.issues.length} issues...`);
-      notation = validation.fixedNotation;
+      if (validation.issues.length > 0) {
+        validation.issues.forEach(issue => console.warn(`  - ${issue}`));
+      }
+      if (validation.abc2midiErrors.length > 0) {
+        console.warn(`abc2midi errors:`);
+        validation.abc2midiErrors.forEach(err => 
+          console.warn(`  - Line ${err.line}: ${err.message}`)
+        );
+      }
+      if (validation.abc2midiRawOutput) {
+        console.warn(`Raw abc2midi -c output:`);
+        console.warn(validation.abc2midiRawOutput);
+      }
+      if (validation.fixedNotation) {
+        console.warn(`Auto-fixed ABC notation using Claude 4`);
+        notation = validation.fixedNotation;
+      }
     } else {
-      console.log(`✅ ABC notation validation passed`);
+      console.log(`✅ ABC notation validation passed with abc2midi`);
     }
 
     return notation;
