@@ -95,33 +95,18 @@ export async function generateLyrics(options) {
     instruments: options.instruments || ''
   });
   
-  // Validate the ABC notation with abc2midi
-  console.log('Validating ABC notation with abc2midi...');
-  const validation = await validateAbcNotation(abcWithLyrics);
+  // Validate the ABC notation
+  const validation = validateAbcNotation(abcWithLyrics);
   
   // If there are issues, log and use the fixed version
   let finalAbc = abcWithLyrics;
   if (!validation.isValid) {
     console.warn(`⚠️ WARNING: ABC notation validation issues found:`);
-    if (validation.issues.length > 0) {
-      validation.issues.forEach(issue => console.warn(`  - ${issue}`));
-    }
-    if (validation.abc2midiErrors.length > 0) {
-      console.warn(`abc2midi errors:`);
-      validation.abc2midiErrors.forEach(err => 
-        console.warn(`  - Line ${err.line}: ${err.message}`)
-      );
-    }
-    if (validation.abc2midiRawOutput) {
-      console.warn(`Raw abc2midi -c output:`);
-      console.warn(validation.abc2midiRawOutput);
-    }
-    if (validation.fixedNotation) {
-      console.warn(`Auto-fixed ABC notation using Claude 4`);
-      finalAbc = validation.fixedNotation;
-    }
+    validation.issues.forEach(issue => console.warn(`  - ${issue}`));
+    console.warn(`Auto-fixing ${validation.issues.length} issues...`);
+    finalAbc = validation.fixedNotation;
   } else {
-    console.log(`✅ ABC notation validation passed with abc2midi`);
+    console.log(`✅ ABC notation validation passed`);
   }
   
   // Extract the instruments used in the composition
