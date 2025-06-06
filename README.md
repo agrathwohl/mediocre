@@ -2,7 +2,7 @@
 
 # 🎵 MEDIOCRE-MUSIC 🎵
 
-**Genre-bending AI music composition toolkit** for LLM training dataset creation.
+**AI music composition toolkit** for LLM training dataset creation.
 
 ![](./screenshot.png)
 
