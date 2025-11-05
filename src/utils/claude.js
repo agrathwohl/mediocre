@@ -220,6 +220,7 @@ Every voice declaration, section comment, and other element must be on its own l
 Failure to follow these formatting rules will result in completely unplayable music files.
 
 Return ONLY the ABC notation format for the composition, with no explanation or additional text.
+DO NOT wrap the output in markdown code fences (no \`\`\`abc or \`\`\`). Return raw ABC notation only.
 
 ${creativeGenre 
   ? `Guidelines for the "${creativeGenre}" composition:
@@ -293,9 +294,15 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
 
 4. DRUMS (Essential for modern genres!):
    %%MIDI drum string [programs] [velocities] - Add drum patterns
+     CRITICAL: String must be continuous with NO SPACES (e.g., "d2zdd" not "d2 zd d")
+     String uses: d=drum hit, z=rest, optional length numbers (d2 = double length)
+     Provide one MIDI program number for each 'd' in the string
+     Provide one velocity (0-127) for each 'd' in the string
+     Example: %%MIDI drum d2zdd 35 38 38 100 50 50
+       String "d2zdd" has 3 drums, so 3 programs (35,38,38) and 3 velocities (100,50,50)
    %%MIDI drumbars n - Spread drum pattern over n bars for variation
    %%MIDI drummap note midipitch - Custom drum sound mapping
-   Example: %%MIDI drum d2zdd 35 38 38 100 50 50  (kick-snare pattern)
+   Common drum sounds: 35=kick, 36=kick, 38=snare, 42=hihat closed, 46=hihat open
    USE DRUMS PROMINENTLY for: Techno, Hip-Hop, EDM, Dance, Electronic hybrids
 
 5. GUITAR CHORDS & BASS:
@@ -399,6 +406,7 @@ Every voice declaration, section comment, and other element must be on its own l
 Failure to follow these formatting rules will result in completely unplayable music files.
 
 Return ONLY the complete modified ABC notation, with no explanation or additional text.
+DO NOT wrap the output in markdown code fences (no \`\`\`abc or \`\`\`). Return raw ABC notation only.
 
 Guidelines for modifying the composition:
 
@@ -438,7 +446,10 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
    %%MIDI trim x/y, %%MIDI expand x/y, %%MIDI chordattack n, %%MIDI randomchordattack n
 
 4. DRUMS:
-   %%MIDI drum string [programs] [velocities], %%MIDI drumbars n, %%MIDI drummap
+   %%MIDI drum string [programs] [velocities] - String must be continuous NO SPACES
+     Count 'd' characters to determine how many programs/velocities needed
+     Example: "d2zdd" has 3 drums = 3 programs, 3 velocities
+   %%MIDI drumbars n, %%MIDI drummap
 
 5. GUITAR CHORDS & BASS:
    %%MIDI gchord (including ghijGHIJ arpeggios), %%MIDI gchordbars, %%MIDI chordprog,
@@ -614,6 +625,7 @@ Lyrics lines (w:) must immediately follow their corresponding melody lines with 
 Failure to follow these formatting rules will result in completely unplayable music files.
 
 Return ONLY the complete ABC notation with lyrics added, with no explanation or additional text.
+DO NOT wrap the output in markdown code fences (no \`\`\`abc or \`\`\`). Return raw ABC notation only.
 
 Guidelines for adding lyrics:
 
