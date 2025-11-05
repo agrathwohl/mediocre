@@ -294,14 +294,30 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
 
 4. DRUMS (Essential for modern genres!):
    %%MIDI drum string [programs] [velocities] - Add drum patterns
-     CRITICAL: String must be continuous with NO SPACES (e.g., "d2zdd" not "d2 zd d")
-     String uses: d=drum hit, z=rest, optional length numbers (d2 = double length)
-     Provide one MIDI program number for each 'd' in the string
-     Provide one velocity (0-127) for each 'd' in the string
-     Example: %%MIDI drum d2zdd 35 38 38 100 50 50
-       String "d2zdd" has 3 drums, so 3 programs (35,38,38) and 3 velocities (100,50,50)
+
+     CRITICAL COUNTING RULE:
+     - Count ONLY the letter 'd' in the string (ignore numbers and 'z')
+     - Numbers (1-9) are length modifiers, NOT separate drums
+     - 'z' means rest, NOT a drum
+     - Provide exactly that many program numbers AND velocity numbers
+
+     String syntax: Continuous, NO SPACES
+     - d = drum hit
+     - z = rest (silent)
+     - Numbers = length multipliers (d2 = drum twice as long, z3 = rest 3x long)
+
+     EXAMPLES WITH COUNTING:
+     %%MIDI drum dzdz 36 38 100 80
+       String: d-z-d-z → Count 'd': 2 drums → Need 2 programs, 2 velocities
+
+     %%MIDI drum d2zdd 35 38 38 100 50 50
+       String: d-2-z-d-d → Count 'd': 3 drums → Need 3 programs, 3 velocities
+       (The '2' is NOT a drum, it makes the first 'd' longer)
+
+     %%MIDI drum ddzddzd 36 38 42 38 100 80 60 80
+       String: d-d-z-d-d-z-d → Count 'd': 5 drums → Need 5 programs, 5 velocities
+
    %%MIDI drumbars n - Spread drum pattern over n bars for variation
-   %%MIDI drummap note midipitch - Custom drum sound mapping
    Common drum sounds: 35=kick, 36=kick, 38=snare, 42=hihat closed, 46=hihat open
    USE DRUMS PROMINENTLY for: Techno, Hip-Hop, EDM, Dance, Electronic hybrids
 
@@ -446,9 +462,9 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
    %%MIDI trim x/y, %%MIDI expand x/y, %%MIDI chordattack n, %%MIDI randomchordattack n
 
 4. DRUMS:
-   %%MIDI drum string [programs] [velocities] - String must be continuous NO SPACES
-     Count 'd' characters to determine how many programs/velocities needed
-     Example: "d2zdd" has 3 drums = 3 programs, 3 velocities
+   %%MIDI drum - Count ONLY 'd' letters (ignore numbers/z) for program/velocity count
+     Example: "d2zdd" → d,d,d = 3 drums → need 3 programs, 3 velocities
+     Example: "dzdz" → d,d = 2 drums → need 2 programs, 2 velocities
    %%MIDI drumbars n, %%MIDI drummap
 
 5. GUITAR CHORDS & BASS:
