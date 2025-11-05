@@ -157,9 +157,9 @@ export function getAIGenerator() {
     return async (options) => {
       const myAnthropic = getAnthropic();
       // Only use claude models with Anthropic, never Ollama models
-      const modelName = options.model || 'claude-3-7-sonnet-20250219';
+      const modelName = options.model || 'claude-sonnet-4-5-20250929';
       // Ensure we're using a Claude model
-      const safeModelName = modelName.startsWith('llama') ? 'claude-3-7-sonnet-20250219' : modelName;
+      const safeModelName = modelName.startsWith('llama') ? 'claude-sonnet-4-5-20250929' : modelName;
       const model = myAnthropic(safeModelName);
       
       return generateText({
@@ -308,8 +308,8 @@ The composition should be a genuine artistic fusion that respects and represents
 
   // Generate the ABC notation using the configured AI provider
   const provider = config.get('aiProvider');
-  const model = provider === 'anthropic' 
-    ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
+  const model = provider === 'anthropic'
+    ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
     : options.model;  // Use provided model for Ollama
 
   const { text } = await generator({
@@ -413,8 +413,8 @@ Your modifications should respect both the user's instructions and the musical i
 
   // Generate the modified ABC notation
   const provider = config.get('aiProvider');
-  const model = provider === 'anthropic' 
-    ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
+  const model = provider === 'anthropic'
+    ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
     : options.model;  // Use provided model for Ollama
     
   const { text } = await generator({
@@ -509,10 +509,10 @@ Organize your analysis into these sections:
   }
 
   const provider = config.get('aiProvider');
-  const model = provider === 'anthropic' 
-    ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
+  const model = provider === 'anthropic'
+    ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
     : options.model;  // Use provided model for Ollama
-    
+
   const { text } = await generator({
     model: model,
     system: systemPrompt,
@@ -609,10 +609,10 @@ Your result should be a singable composition with lyrics that fit both the music
 
   // Generate the ABC notation with lyrics
   const provider = config.get('aiProvider');
-  const model = provider === 'anthropic' 
-    ? (options.model || 'claude-3-7-sonnet-20250219')  // Use Claude model for Anthropic provider
+  const model = provider === 'anthropic'
+    ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
     : options.model;  // Use provided model for Ollama
-    
+
   const { text } = await generator({
     model: model,
     system: systemPrompt,
