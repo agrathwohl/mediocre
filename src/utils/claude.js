@@ -258,7 +258,7 @@ The composition should primarily feel like an authentic "${creativeGenre}" piece
    ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
    ${requestedInstruments ? `- Your composition MUST include these specific instruments: ${requestedInstruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
    - Ensure the ABC notation is properly formatted and playable
-   - Use ONLY the following well-supported abc2midi syntax extensions:
+   - Use abc2midi extensions creatively to bring your composition to life
 
 CRITICAL FORMATTING RULES:
 - NEVER include blank lines between voice sections in your ABC notation
@@ -267,35 +267,72 @@ CRITICAL FORMATTING RULES:
 - When voice sections follow each other, they must be immediately adjacent with no blank lines between them
 - This is EXTREMELY IMPORTANT for proper parsing by abc2midi
 
-ONLY USE THESE SUPPORTED EXTENSIONS:
+SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
 
-1. Channel and Program selection:
-   - %%MIDI program [channel] n   
-     Example: %%MIDI program 1 40
-   
-2. Dynamics:
-   - Use standard ABC dynamics notation: !p!, !f!, etc.
-   - %%MIDI beat a b c n   
-     Example: %%MIDI beat 90 80 65 1
-   
-3. Transposition (if needed):
-   - %%MIDI transpose n   
-     Example: %%MIDI transpose -12
-   
-4. Simple chord accompaniment:
-   - %%MIDI gchord string   
-     Example: %%MIDI gchord fzczfzcz
+1. INSTRUMENTS & CHANNELS:
+   %%MIDI program [channel] n - Select instruments (0-127 General MIDI)
+   %%MIDI channel n - Route voices to specific channels (1-16)
+   Example: %%MIDI program 1 40  (violin on channel 1)
 
-DO NOT use any of these unsupported extensions:
-- NO %%MIDI drumvol
-- NO %%MIDI drumbar
-- NO %%MIDI drumbars
-- NO %%MIDI drummap
-- NO %%MIDI trim
-- NO %%MIDI expand
-- NO %%MIDI beatmod
-- NO %%MIDI chordattack
-- NO %%MIDI randomchordattack
+2. DYNAMICS & EXPRESSION (Make your music breathe!):
+   !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff! - Standard dynamic markings
+   %%MIDI beat a b c n - Set base velocities for strong/weak beats
+   %%MIDI beatmod n - Add/subtract velocity for crescendo/diminuendo effects
+   %%MIDI beatstring fmpfmp - Precise forte/mezzo/piano stress patterns
+   %%MIDI deltaloudness n - Configure crescendo/diminuendo intensity
+   %%MIDI nobeataccents - For organ/pad sounds with even dynamics
+   %%MIDI beataccents - Return to normal accent patterns
+   Example: %%MIDI beat 90 80 65 1 followed by %%MIDI beatmod 15 for crescendo
+
+3. ARTICULATION (Shape your phrases!):
+   %%MIDI trim x/y - Create separation between notes (staccato effect)
+   %%MIDI expand x/y - Overlap notes for smooth legato
+   %%MIDI chordattack n - Humanize chords with slight note delays
+   %%MIDI randomchordattack n - Natural variation in chord rolls
+   Example: %%MIDI trim 1/32 for crisp attacks, %%MIDI expand 1/16 for flowing melodies
+
+4. DRUMS (Essential for modern genres!):
+   %%MIDI drum string [programs] [velocities] - Add drum patterns
+   %%MIDI drumbars n - Spread drum pattern over n bars for variation
+   %%MIDI drummap note midipitch - Custom drum sound mapping
+   Example: %%MIDI drum d2zdd 35 38 38 100 50 50  (kick-snare pattern)
+   USE DRUMS PROMINENTLY for: Techno, Hip-Hop, EDM, Dance, Electronic hybrids
+
+5. GUITAR CHORDS & BASS:
+   %%MIDI gchord string - Chord/bass patterns (f=fundamental, c=chord, z=rest)
+   %%MIDI gchord ghijGHIJ - Arpeggiate chords (g=lowest note, h=next, etc.)
+   %%MIDI gchordbars n - Spread gchord pattern over n bars
+   %%MIDI chordprog n [octave=±2] - Set instrument for chords
+   %%MIDI bassprog n [octave=±2] - Set instrument for bass
+   %%MIDI chordvol n - Chord velocity (0-127)
+   %%MIDI bassvol n - Bass velocity (0-127)
+   %%MIDI chordname name n1 n2 n3 n4 n5 n6 - Define custom chord voicings
+   %%MIDI gchordon / %%MIDI gchordoff - Toggle chord generation
+   Example: %%MIDI gchord ghih for arpeggiated patterns
+
+6. TRANSPOSITION & PITCH:
+   %%MIDI transpose n - Transpose by n semitones
+   %%MIDI rtranspose n - Relative transpose (cumulative)
+   Example: Use for dramatic key changes between sections
+
+7. SPECIAL EFFECTS:
+   %%MIDI droneon / %%MIDI droneoff - Continuous drone (bagpipes, ambient)
+   %%MIDI drone prog pitch1 pitch2 vel1 vel2 - Configure drone parameters
+   %%MIDI grace a/b - Grace note articulation fraction
+   %%MIDI gracedivider n - Fixed grace note duration
+   Example: %%MIDI droneon for ambient/experimental sections
+
+GENRE-SPECIFIC GUIDANCE:
+- Baroque/Classical + Techno/EDM: Use drums prominently, trim for sharp attacks, beatmod for builds
+- Renaissance + Ambient: Use drones, expand for smooth textures, nobeataccents for pads
+- Classical + Hip-Hop: Use drum patterns, beatmod dynamics, trim for rhythmic precision
+- Opera + IDM/Glitch: Use chordattack for expression, complex beatstrings, randomchordattack
+- Jazz + Electronic: Use gchordbars for chord spreads, chordprog for synth textures
+- Folk + Dance: Use drum patterns, gchord arpeggios (ghij), dynamic beatstrings
+
+⚠️ AVOID these complex/file-dependent features:
+- %%MIDI ptstress filename (requires external files)
+- %%MIDI stressmodel (complex override system)
 
 The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. We do not need a bunch of music that sounds like stuff already out there. We want to see what YOU, the artificial intelligence, think is most interesting about these gerne hybrids.`;
 
@@ -304,7 +341,7 @@ The composition should be a genuine artistic fusion that respects and represents
     `${creativeGenre 
       ? `Compose a piece in the "${creativeGenre}" genre, with subtle background influences from ${classicalGenre} and ${modernGenre}.` 
       : `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.`
-    }${includeSolo ? ' Include a dedicated solo section for the lead instrument.' : ''}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? ` Your composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
+    }${includeSolo ? ' Include a dedicated solo section for the lead instrument.' : ''}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? ` Your composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''} Use ABC notation with abc2midi extensions creatively to create dynamic, expressive music. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
 
   // Generate the ABC notation using the configured AI provider
   const provider = config.get('aiProvider');
@@ -377,7 +414,7 @@ ${includeSolo ? '- Include a dedicated solo section for the lead instrument, cle
 ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
 ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
 ${requestedInstruments ? `- Your composition MUST include these specific instruments: ${requestedInstruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
-- Use ONLY the following well-supported abc2midi syntax extensions:
+- Use abc2midi extensions creatively to enhance the composition
 
 CRITICAL FORMATTING RULES:
 - NEVER include blank lines between voice sections in your ABC notation
@@ -388,26 +425,32 @@ CRITICAL FORMATTING RULES:
 - When fixing existing music, carefully remove any blank lines between voice sections
 - Output the corrected ABC notation with proper formatting
 
-ONLY USE THESE SUPPORTED EXTENSIONS:
+SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
 
-1. Channel and Program selection:
-   - %%MIDI program [channel] n   
-     Example: %%MIDI program 1 40
-   
-2. Dynamics:
-   - Use standard ABC dynamics notation: !p!, !f!, etc.
-   - %%MIDI beat a b c n   
-     Example: %%MIDI beat 90 80 65 1
-   
-3. Transposition (if needed):
-   - %%MIDI transpose n   
-     Example: %%MIDI transpose -12
-   
-4. Simple chord accompaniment:
-   - %%MIDI gchord string   
-     Example: %%MIDI gchord fzczfzcz
+1. INSTRUMENTS & CHANNELS:
+   %%MIDI program [channel] n, %%MIDI channel n
 
-DO NOT use any unsupported MIDI extensions.
+2. DYNAMICS & EXPRESSION:
+   !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff!, %%MIDI beat, %%MIDI beatmod, %%MIDI beatstring,
+   %%MIDI deltaloudness, %%MIDI nobeataccents, %%MIDI beataccents
+
+3. ARTICULATION:
+   %%MIDI trim x/y, %%MIDI expand x/y, %%MIDI chordattack n, %%MIDI randomchordattack n
+
+4. DRUMS:
+   %%MIDI drum string [programs] [velocities], %%MIDI drumbars n, %%MIDI drummap
+
+5. GUITAR CHORDS & BASS:
+   %%MIDI gchord (including ghijGHIJ arpeggios), %%MIDI gchordbars, %%MIDI chordprog,
+   %%MIDI bassprog, %%MIDI chordvol, %%MIDI bassvol, %%MIDI chordname, %%MIDI gchordon/off
+
+6. TRANSPOSITION & PITCH:
+   %%MIDI transpose n, %%MIDI rtranspose n
+
+7. SPECIAL EFFECTS:
+   %%MIDI droneon/droneoff, %%MIDI drone, %%MIDI grace, %%MIDI gracedivider
+
+⚠️ AVOID: %%MIDI ptstress, %%MIDI stressmodel
 
 Your modifications should respect both the user's instructions and the musical integrity of the original piece. If the instructions are unclear or contradictory, prioritize creating a musically coherent result.`;
 
