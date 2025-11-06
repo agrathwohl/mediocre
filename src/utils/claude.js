@@ -217,6 +217,14 @@ export function cleanAbcNotation(abcNotation) {
     .replace(/\n\s+/g, '\n')              // Remove leading whitespace on any line
     .replace(/\[Q:([^\]]+)\]/g, 'Q:$1')   // Fix Q: tempo markings
     .replace(/%%MIDI\s+program\s+(\d+)\s+(\d+)/g, '%%MIDI program $1 $2') // Fix MIDI program spacing
+
+    // Fix invalid pitch specifiers - remove commas after notes
+    .replace(/([A-Ga-g][',]*),/g, '$1')    // Remove commas after notes with octave marks
+
+    // Fix invalid dynamic markings (max is !fff!)
+    .replace(/!f{4,}!/g, '!fff!')          // Replace !ffff!, !fffff!, !ffffff!, etc. with !fff!
+    .replace(/!p{4,}!/g, '!ppp!')          // Replace !pppp!, !ppppp!, etc. with !ppp!
+
     .trim();                               // Remove any trailing whitespace
 
   // Fix drum syntax errors
@@ -448,6 +456,13 @@ CRITICAL FORMATTING RULES:
 - When voice sections follow each other, they must be immediately adjacent with no blank lines between them
 - This is EXTREMELY IMPORTANT for proper parsing by abc2midi
 
+⚠️ CRITICAL SYNTAX RULES:
+- NEVER put commas after notes (e.g., "e,g,b," is WRONG - use "egb" or "e g b")
+- Commas and apostrophes are ONLY for octave changes (e.g., "C," = lower octave, "c'" = higher octave)
+- Notes in chords should be in brackets with NO commas: [CEG] not [C,E,G]
+- Maximum dynamic is !fff! - NEVER use !ffff! or more f's
+- Minimum dynamic is !ppp! - NEVER use !pppp! or more p's
+
 SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
 
 1. INSTRUMENTS & CHANNELS:
@@ -460,6 +475,10 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
 
 2. DYNAMICS & EXPRESSION (Make your music breathe!):
    !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff! - Standard dynamic markings
+   ⚠️ CRITICAL: The MAXIMUM dynamic is !fff! and MINIMUM is !ppp!
+   NEVER use !ffff!, !fffff!, !ffffff!, !pppp!, !ppppp!, or any extended versions
+   These are INVALID and will cause errors!
+
    %%MIDI beat a b c n - Set base velocities for strong/weak beats
    %%MIDI beatmod n - Add/subtract velocity for crescendo/diminuendo effects
    %%MIDI beatstring fmpfmp - Precise forte/mezzo/piano stress patterns
@@ -695,6 +714,13 @@ CRITICAL FORMATTING RULES:
 - Each section comment (% Section A, etc.) can be on its own line with no blank lines before or after
 - When voice sections follow each other, they must be immediately adjacent with no blank lines between them
 - This is EXTREMELY IMPORTANT for proper parsing by abc2midi
+
+⚠️ CRITICAL SYNTAX RULES:
+- NEVER put commas after notes (e.g., "e,g,b," is WRONG - use "egb" or "e g b")
+- Commas and apostrophes are ONLY for octave changes (e.g., "C," = lower octave, "c'" = higher octave)
+- Notes in chords should be in brackets with NO commas: [CEG] not [C,E,G]
+- Maximum dynamic is !fff! - NEVER use !ffff! or more f's
+- Minimum dynamic is !ppp! - NEVER use !pppp! or more p's
 - When fixing existing music, carefully remove any blank lines between voice sections
 - Output the corrected ABC notation with proper formatting
 
