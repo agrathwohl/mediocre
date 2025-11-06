@@ -295,27 +295,54 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
 4. DRUMS (Essential for modern genres!):
    %%MIDI drum string [programs] [velocities] - Add drum patterns
 
-     CRITICAL COUNTING RULE:
-     - Count ONLY the letter 'd' in the string (ignore numbers and 'z')
-     - Numbers (1-9) are length modifiers, NOT separate drums
-     - 'z' means rest, NOT a drum
-     - Provide exactly that many program numbers AND velocity numbers
+     ALGORITHM FOR COUNTING:
+     Step 1: Look at your drum string (e.g., "ddzddzdd")
+     Step 2: Go through each character one by one
+     Step 3: If character is 'd', add 1 to your count. Otherwise add 0.
+     Step 4: Ignore 'z' (it's a rest, not a drum)
+     Step 5: Ignore all numbers 0-9 (they modify length, not add drums)
+     Step 6: Your final count = number of programs needed = number of velocities needed
 
      String syntax: Continuous, NO SPACES
-     - d = drum hit
-     - z = rest (silent)
-     - Numbers = length multipliers (d2 = drum twice as long, z3 = rest 3x long)
+     - d = drum hit (THIS COUNTS)
+     - z = rest (DOES NOT COUNT)
+     - Numbers 0-9 = length modifiers (DOES NOT COUNT)
 
-     EXAMPLES WITH COUNTING:
-     %%MIDI drum dzdz 36 38 100 80
-       String: d-z-d-z → Count 'd': 2 drums → Need 2 programs, 2 velocities
+     WORKED EXAMPLES:
 
-     %%MIDI drum d2zdd 35 38 38 100 50 50
-       String: d-2-z-d-d → Count 'd': 3 drums → Need 3 programs, 3 velocities
-       (The '2' is NOT a drum, it makes the first 'd' longer)
+     Example 1: "dzdz"
+     - Character 1: d → COUNT IT (total: 1)
+     - Character 2: z → skip (total: 1)
+     - Character 3: d → COUNT IT (total: 2)
+     - Character 4: z → skip (total: 2)
+     - FINAL COUNT: 2 drums
+     - %%MIDI drum dzdz 36 38 100 80
+       (2 programs: 36 38)
+       (2 velocities: 100 80)
 
-     %%MIDI drum ddzddzd 36 38 42 38 100 80 60 80
-       String: d-d-z-d-d-z-d → Count 'd': 5 drums → Need 5 programs, 5 velocities
+     Example 2: "d2zdd"
+     - Character 1: d → COUNT IT (total: 1)
+     - Character 2: 2 → skip, it's a number (total: 1)
+     - Character 3: z → skip (total: 1)
+     - Character 4: d → COUNT IT (total: 2)
+     - Character 5: d → COUNT IT (total: 3)
+     - FINAL COUNT: 3 drums
+     - %%MIDI drum d2zdd 35 38 38 100 50 50
+       (3 programs: 35 38 38)
+       (3 velocities: 100 50 50)
+
+     Example 3: "ddzddzd"
+     - Char 1: d → COUNT (1)
+     - Char 2: d → COUNT (2)
+     - Char 3: z → skip (2)
+     - Char 4: d → COUNT (3)
+     - Char 5: d → COUNT (4)
+     - Char 6: z → skip (4)
+     - Char 7: d → COUNT (5)
+     - FINAL COUNT: 5 drums
+     - %%MIDI drum ddzddzd 36 38 42 38 46 100 80 60 80 70
+       (5 programs: 36 38 42 38 46)
+       (5 velocities: 100 80 60 80 70)
 
    %%MIDI drumbars n - Spread drum pattern over n bars for variation
    Common drum sounds: 35=kick, 36=kick, 38=snare, 42=hihat closed, 46=hihat open
@@ -462,10 +489,12 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
    %%MIDI trim x/y, %%MIDI expand x/y, %%MIDI chordattack n, %%MIDI randomchordattack n
 
 4. DRUMS:
-   %%MIDI drum - Count ONLY 'd' letters (ignore numbers/z) for program/velocity count
-     Example: "d2zdd" → d,d,d = 3 drums → need 3 programs, 3 velocities
-     Example: "dzdz" → d,d = 2 drums → need 2 programs, 2 velocities
-   %%MIDI drumbars n, %%MIDI drummap
+   %%MIDI drum - Count each 'd' character individually (ignore z and numbers 0-9)
+     Count algorithm: Go through string, count=0, if char=='d' then count++
+     Example: "ddzddzdd" → count each 'd': 1,2,skip,3,4,skip,5,6 → 6 drums total
+     Example: "d2zdd" → count: 1,skip,skip,2,3 → 3 drums total
+     Provide exactly that many programs and velocities
+   %%MIDI drumbars n
 
 5. GUITAR CHORDS & BASS:
    %%MIDI gchord (including ghijGHIJ arpeggios), %%MIDI gchordbars, %%MIDI chordprog,
