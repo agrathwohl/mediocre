@@ -293,59 +293,91 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
    Example: %%MIDI trim 1/32 for crisp attacks, %%MIDI expand 1/16 for flowing melodies
 
 4. DRUMS (Essential for modern genres!):
-   %%MIDI drum string [programs] [velocities] - Add drum patterns
+   ⚠️ CRITICAL: The %%MIDI drum syntax is VERY PRECISE. You MUST count correctly! ⚠️
 
-     ALGORITHM FOR COUNTING:
-     Step 1: Look at your drum string (e.g., "ddzddzdd")
-     Step 2: Go through each character one by one
-     Step 3: If character is 'd', add 1 to your count. Otherwise add 0.
-     Step 4: Ignore 'z' (it's a rest, not a drum)
-     Step 5: Ignore all numbers 0-9 (they modify length, not add drums)
-     Step 6: Your final count = number of programs needed = number of velocities needed
+   FORMAT: %%MIDI drum <pattern> <prog1> <prog2>... <vol1> <vol2>... <bars>
 
-     String syntax: Continuous, NO SPACES
-     - d = drum hit (THIS COUNTS)
-     - z = rest (DOES NOT COUNT)
-     - Numbers 0-9 = length modifiers (DOES NOT COUNT)
+   🔢 COUNTING ALGORITHM (FOLLOW THIS EXACTLY):
 
-     WORKED EXAMPLES:
+   Step 1: Write down your pattern string (e.g., "ddzddzdd")
+   Step 2: Go through each character and count ONLY the 'd' characters
+   Step 3: This count is N
+   Step 4: You need EXACTLY N program numbers
+   Step 5: You need EXACTLY N velocity numbers
+   Step 6: Add 1 final number for the bar count
 
-     Example 1: "dzdz"
-     - Character 1: d → COUNT IT (total: 1)
-     - Character 2: z → skip (total: 1)
-     - Character 3: d → COUNT IT (total: 2)
-     - Character 4: z → skip (total: 2)
-     - FINAL COUNT: 2 drums
-     - %%MIDI drum dzdz 36 38 100 80
-       (2 programs: 36 38)
-       (2 velocities: 100 80)
+   ❌ COMMON MISTAKES TO AVOID:
+   - DON'T count 'z' (it's a rest, not a drum hit)
+   - DON'T count numbers 0-9 (they modify duration, not add drums)
+   - DON'T provide more programs than you have 'd' characters
+   - DON'T provide more velocities than you have 'd' characters
+   - The LAST number is the bar count, NOT a velocity
 
-     Example 2: "d2zdd"
-     - Character 1: d → COUNT IT (total: 1)
-     - Character 2: 2 → skip, it's a number (total: 1)
-     - Character 3: z → skip (total: 1)
-     - Character 4: d → COUNT IT (total: 2)
-     - Character 5: d → COUNT IT (total: 3)
-     - FINAL COUNT: 3 drums
-     - %%MIDI drum d2zdd 35 38 38 100 50 50
-       (3 programs: 35 38 38)
-       (3 velocities: 100 50 50)
+   ✅ VALIDATION CHECKLIST:
+   1. Count the 'd' characters in your pattern → this is N
+   2. Count your program numbers → must equal N
+   3. Count your velocity numbers → must equal N
+   4. Verify last number is the bar count (usually 1)
 
-     Example 3: "ddzddzd"
-     - Char 1: d → COUNT (1)
-     - Char 2: d → COUNT (2)
-     - Char 3: z → skip (2)
-     - Char 4: d → COUNT (3)
-     - Char 5: d → COUNT (4)
-     - Char 6: z → skip (4)
-     - Char 7: d → COUNT (5)
-     - FINAL COUNT: 5 drums
-     - %%MIDI drum ddzddzd 36 38 42 38 46 100 80 60 80 70
-       (5 programs: 36 38 42 38 46)
-       (5 velocities: 100 80 60 80 70)
+   📝 WORKED EXAMPLES:
+
+   Example 1: "dzdz"
+   Step 1: Pattern is "dzdz"
+   Step 2: Count 'd' only:
+           d (1), z (skip), d (2), z (skip)
+   Step 3: N = 2
+   Step 4: Need 2 programs
+   Step 5: Need 2 velocities
+
+   ✅ CORRECT: %%MIDI drum dzdz 36 38 100 80 1
+                             ^^^^  ^^^^^ ^^^^^^ ^
+                             pattern prog  vel  bars
+                                    (N=2) (N=2)
+
+   ❌ WRONG: %%MIDI drum dzdz 36 38 42 46 100 80 90 95 1
+             (4 programs and 4 velocities, but only 2 'd' chars!)
+
+   Example 2: "d2zdd"
+   Step 1: Pattern is "d2zdd"
+   Step 2: Count 'd' only:
+           d (1), 2 (skip-number), z (skip), d (2), d (3)
+   Step 3: N = 3
+   Step 4: Need 3 programs
+   Step 5: Need 3 velocities
+
+   ✅ CORRECT: %%MIDI drum d2zdd 35 38 42 100 90 85 1
+                             ^^^^^  ^^^^^^^^ ^^^^^^^^^ ^
+                             pattern prog(3) vel(3)   bars
+
+   Example 3: "ddzddzdd"
+   Step 1: Pattern is "ddzddzdd"
+   Step 2: Count 'd' only:
+           d (1), d (2), z (skip), d (3), d (4), z (skip), d (5), d (6)
+   Step 3: N = 6
+   Step 4: Need 6 programs
+   Step 5: Need 6 velocities
+
+   ✅ CORRECT: %%MIDI drum ddzddzdd 36 38 42 38 46 49 110 105 100 95 90 85 1
+                             ^^^^^^^^  ^^^^^^^^^^^^^^^^ ^^^^^^^^^^^^^^^^^^ ^
+                             pattern   programs (N=6)   velocities (N=6) bars
+
+   ❌ WRONG: %%MIDI drum ddzddzdd 36 36 38 38 42 42 46 49 110 105 120 115 90 85 100 95 1
+             (8 programs and 8 velocities, but only 6 'd' chars!)
+
+   Example 4: "ddd"
+   Step 1: Pattern is "ddd"
+   Step 2: Count 'd' only: d (1), d (2), d (3)
+   Step 3: N = 3
+
+   ✅ CORRECT: %%MIDI drum ddd 36 38 42 120 100 90 1
+   ❌ WRONG: %%MIDI drum ddd 36 38 42 46 120 100 90 85 1
 
    %%MIDI drumbars n - Spread drum pattern over n bars for variation
-   Common drum sounds: 35=kick, 36=kick, 38=snare, 42=hihat closed, 46=hihat open
+
+   Common drum sounds (MIDI note numbers):
+   35=acoustic bass drum, 36=bass drum 1, 38=acoustic snare,
+   42=closed hi-hat, 44=pedal hi-hat, 46=open hi-hat, 49=crash cymbal
+
    USE DRUMS PROMINENTLY for: Techno, Hip-Hop, EDM, Dance, Electronic hybrids
 
 5. GUITAR CHORDS & BASS:
@@ -489,11 +521,25 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
    %%MIDI trim x/y, %%MIDI expand x/y, %%MIDI chordattack n, %%MIDI randomchordattack n
 
 4. DRUMS:
-   %%MIDI drum - Count each 'd' character individually (ignore z and numbers 0-9)
-     Count algorithm: Go through string, count=0, if char=='d' then count++
-     Example: "ddzddzdd" → count each 'd': 1,2,skip,3,4,skip,5,6 → 6 drums total
-     Example: "d2zdd" → count: 1,skip,skip,2,3 → 3 drums total
-     Provide exactly that many programs and velocities
+   ⚠️ CRITICAL: %%MIDI drum syntax requires EXACT counting! ⚠️
+
+   FORMAT: %%MIDI drum <pattern> <prog1> <prog2>... <vol1> <vol2>... <bars>
+
+   COUNTING RULE: Count ONLY 'd' characters in pattern
+   - 'd' = drum hit → COUNT IT
+   - 'z' = rest → DON'T COUNT
+   - '0-9' = duration modifier → DON'T COUNT
+
+   If pattern has N 'd' characters, provide:
+   - EXACTLY N program numbers
+   - EXACTLY N velocity numbers
+   - Plus 1 final number for bar count
+
+   Example: "ddzddzdd" has 6 'd' chars
+   ✅ CORRECT: %%MIDI drum ddzddzdd 36 38 42 38 46 49 110 105 100 95 90 85 1
+                                    ^^^^^^^^  ^^^^^^^^^^^^^^^^ ^^^^^^^^^^^^^^^^^^ ^
+                                    pattern   6 programs       6 velocities       bars
+
    %%MIDI drumbars n
 
 5. GUITAR CHORDS & BASS:
