@@ -348,6 +348,26 @@ The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
 Every voice declaration, section comment, and other element must be on its own line with NO INDENTATION.
 Failure to follow these formatting rules will result in completely unplayable music files.
 
+⚠️ CRITICAL TIMING AND RHYTHM INSTRUCTIONS ⚠️
+1. EVERY BAR must have EXACTLY the correct number of beats for the time signature
+   - M:4/4 = 16 sixteenth notes per bar (if L:1/16)
+   - M:4/4 = 8 eighth notes per bar (if L:1/8)
+   - M:3/4 = 12 sixteenth notes per bar (if L:1/16)
+   - M:7/8 = 14 sixteenth notes per bar (if L:1/16)
+
+2. COUNT YOUR NOTES IN EACH BAR CAREFULLY
+   - Use 'z' for rests to fill bars to the correct length
+   - NEVER have bars with too many or too few notes
+   - Double-check EVERY bar before moving to the next
+
+3. ALL VOICES must have the SAME number of bars
+   - If voice 1 has 64 bars, ALL other voices must have 64 bars
+   - Pad shorter voices with rest bars (z16 for whole bar of 16ths)
+
+4. NO SUSTAINED NOTES BEYOND TRACK END
+   - All notes must resolve before the composition ends
+   - The last bar of each voice should end cleanly
+
 Return ONLY the ABC notation format for the composition, with no explanation or additional text.
 DO NOT wrap the output in markdown code fences (no \`\`\`abc or \`\`\`). Return raw ABC notation only.
 
@@ -613,6 +633,12 @@ The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
 Every voice declaration, section comment, and other element must be on its own line with NO INDENTATION.
 Failure to follow these formatting rules will result in completely unplayable music files.
 
+⚠️ CRITICAL TIMING AND RHYTHM INSTRUCTIONS ⚠️
+1. EVERY BAR must have EXACTLY the correct number of beats for the time signature
+2. COUNT YOUR NOTES carefully - use 'z' rests to fill bars to correct length
+3. ALL VOICES must have the SAME number of bars
+4. NO SUSTAINED NOTES BEYOND TRACK END
+
 Return ONLY the complete modified ABC notation, with no explanation or additional text.
 DO NOT wrap the output in markdown code fences (no \`\`\`abc or \`\`\`). Return raw ABC notation only.
 
@@ -849,6 +875,10 @@ The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
 Every voice declaration, section comment, lyrics line (w:), and other element must be on its own line with NO INDENTATION.
 Lyrics lines (w:) must immediately follow their corresponding melody lines with NO blank lines between them.
 Failure to follow these formatting rules will result in completely unplayable music files.
+
+⚠️ CRITICAL: DO NOT MODIFY THE EXISTING RHYTHM OR TIMING ⚠️
+Keep all bars exactly as they are - do not add or remove notes.
+All bars must maintain their correct beat counts.
 
 Return ONLY the complete ABC notation with lyrics added, with no explanation or additional text.
 DO NOT wrap the output in markdown code fences (no \`\`\`abc or \`\`\`). Return raw ABC notation only.
