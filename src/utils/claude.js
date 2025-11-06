@@ -92,6 +92,80 @@ export function validateAbcNotation(abcNotation) {
 }
 
 /**
+ * Validates and fixes %%MIDI drum syntax
+ * @param {string} abcNotation - ABC notation to fix
+ * @returns {string} ABC notation with corrected drum syntax
+ */
+export function fixDrumSyntax(abcNotation) {
+  // Regex to match %%MIDI drum lines
+  // Format: %%MIDI drum <pattern> <numbers...> <bar_count>
+  const drumRegex = /%%MIDI\s+drum\s+([a-z0-9]+)\s+([\d\s]+)/gi;
+
+  return abcNotation.replace(drumRegex, (match, pattern, numbers) => {
+    // Count the number of 'd' characters in the pattern
+    const drumCount = (pattern.match(/d/g) || []).length;
+
+    // Split the numbers into an array
+    const nums = numbers.trim().split(/\s+/).map(n => parseInt(n, 10));
+
+    if (nums.length === 0) {
+      console.warn(`⚠️ Warning: %%MIDI drum line has no numbers: ${match}`);
+      return match;
+    }
+
+    // The last number should be the bar count
+    const barCount = nums[nums.length - 1];
+
+    // The remaining numbers should be programs and velocities
+    // We need drumCount programs + drumCount velocities
+    const expectedCount = drumCount * 2;
+    const actualCount = nums.length - 1; // Exclude bar count
+
+    if (actualCount !== expectedCount) {
+      console.warn(`⚠️ Fixing %%MIDI drum syntax error:`);
+      console.warn(`   Pattern "${pattern}" has ${drumCount} 'd' characters`);
+      console.warn(`   Expected ${drumCount} programs + ${drumCount} velocities = ${expectedCount} numbers`);
+      console.warn(`   Found ${actualCount} numbers (before bar count)`);
+
+      // Extract programs and velocities (everything except the last number)
+      let values = nums.slice(0, -1);
+
+      if (actualCount < expectedCount) {
+        // Not enough numbers - pad with defaults
+        const needed = expectedCount - actualCount;
+        console.warn(`   Padding with ${needed} default values`);
+
+        // If we have fewer than drumCount, pad programs
+        if (values.length < drumCount) {
+          const defaultProgram = 38; // Acoustic snare
+          while (values.length < drumCount) {
+            values.push(defaultProgram);
+          }
+        }
+
+        // Pad velocities
+        const defaultVelocity = 100;
+        while (values.length < expectedCount) {
+          values.push(defaultVelocity);
+        }
+      } else {
+        // Too many numbers - truncate to the correct count
+        console.warn(`   Truncating to ${expectedCount} values`);
+        values = values.slice(0, expectedCount);
+      }
+
+      // Reconstruct the line
+      const fixed = `%%MIDI drum ${pattern} ${values.join(' ')} ${barCount}`;
+      console.warn(`   Fixed: ${fixed}`);
+      return fixed;
+    }
+
+    // Syntax is correct
+    return match;
+  });
+}
+
+/**
  * Cleans up ABC notation to ensure proper formatting for abc2midi
  * @param {string} abcNotation - ABC notation to clean
  * @returns {string} Cleaned ABC notation
@@ -100,20 +174,23 @@ export function cleanAbcNotation(abcNotation) {
   let cleanedText = abcNotation
     // Remove ALL blank lines between ANY content (most aggressive approach)
     .replace(/\n\s*\n/g, '\n')
-    
+
     // Ensure proper voice, lyric, and section formatting
     .replace(/\n\s*(\[V:)/g, '\n$1')      // Fix spacing before bracketed voice declarations
     .replace(/\n\s*(V:)/g, '\nV:')        // Fix spacing before unbracketed voice declarations
     .replace(/\n\s*(%\s*Section)/g, '\n$1')  // Fix spacing before section comments
     .replace(/\n\s*(w:)/g, '\nw:')        // Fix spacing before lyrics lines
-    
+
     // Fix common notation issues
     .replace(/\]\s*\n\s*\[/g, ']\n[')     // Ensure clean line breaks between bracketed elements
     .replace(/\n\s+/g, '\n')              // Remove leading whitespace on any line
     .replace(/\[Q:([^\]]+)\]/g, 'Q:$1')   // Fix Q: tempo markings
     .replace(/%%MIDI\s+program\s+(\d+)\s+(\d+)/g, '%%MIDI program $1 $2') // Fix MIDI program spacing
     .trim();                               // Remove any trailing whitespace
-    
+
+  // Fix drum syntax errors
+  cleanedText = fixDrumSyntax(cleanedText);
+
   // Ensure the file ends with a single newline
   return cleanedText + '\n';
 }
