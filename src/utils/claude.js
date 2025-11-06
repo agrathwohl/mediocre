@@ -98,7 +98,7 @@ export function validateAbcNotation(abcNotation) {
  */
 export function fixDrumSyntax(abcNotation) {
   // Regex to match %%MIDI drum lines
-  // Format: %%MIDI drum <pattern> <numbers...> <bar_count>
+  // Format: %%MIDI drum <pattern> <programs...> <velocities...> [bar_count]
   const drumRegex = /%%MIDI\s+drum\s+([a-z0-9]+)\s+([\d\s]+)/gi;
 
   return abcNotation.replace(drumRegex, (match, pattern, numbers) => {
@@ -113,46 +113,76 @@ export function fixDrumSyntax(abcNotation) {
       return match;
     }
 
-    // The last number should be the bar count
-    const barCount = nums[nums.length - 1];
+    // Determine if there's a bar count at the end
+    // Bar count is typically 1-4, while velocities are 60-127
+    // If the last number is <= 10, it's likely a bar count
+    let barCount = 1; // default
+    let values = nums;
 
-    // The remaining numbers should be programs and velocities
+    if (nums.length > drumCount * 2 && nums[nums.length - 1] <= 10) {
+      barCount = nums[nums.length - 1];
+      values = nums.slice(0, -1);
+    } else if (nums.length === drumCount * 2) {
+      // No bar count provided, that's fine
+      barCount = 1;
+      values = nums;
+    } else {
+      // Ambiguous - could be with or without bar count
+      // Check if treating last number as bar count makes the math work
+      if ((nums.length - 1) === drumCount * 2) {
+        barCount = nums[nums.length - 1];
+        values = nums.slice(0, -1);
+      } else {
+        // No valid bar count, use default
+        barCount = 1;
+        values = nums;
+      }
+    }
+
     // We need drumCount programs + drumCount velocities
     const expectedCount = drumCount * 2;
-    const actualCount = nums.length - 1; // Exclude bar count
+    const actualCount = values.length;
 
     if (actualCount !== expectedCount) {
       console.warn(`⚠️ Fixing %%MIDI drum syntax error:`);
       console.warn(`   Pattern "${pattern}" has ${drumCount} 'd' characters`);
       console.warn(`   Expected ${drumCount} programs + ${drumCount} velocities = ${expectedCount} numbers`);
-      console.warn(`   Found ${actualCount} numbers (before bar count)`);
+      console.warn(`   Found ${actualCount} numbers`);
 
-      // Extract programs and velocities (everything except the last number)
-      let values = nums.slice(0, -1);
+      // Split into programs and velocities
+      // The structure is: [prog1, prog2, ..., progN, vel1, vel2, ..., velN]
+      const halfway = Math.floor(actualCount / 2);
+      let programs = values.slice(0, halfway);
+      let velocities = values.slice(halfway);
 
-      if (actualCount < expectedCount) {
-        // Not enough numbers - pad with defaults
-        const needed = expectedCount - actualCount;
-        console.warn(`   Padding with ${needed} default values`);
+      console.warn(`   Detected ${programs.length} programs, ${velocities.length} velocities`);
 
-        // If we have fewer than drumCount, pad programs
-        if (values.length < drumCount) {
-          const defaultProgram = 38; // Acoustic snare
-          while (values.length < drumCount) {
-            values.push(defaultProgram);
-          }
+      // Adjust programs
+      if (programs.length > drumCount) {
+        console.warn(`   Truncating programs from ${programs.length} to ${drumCount}`);
+        programs = programs.slice(0, drumCount);
+      } else if (programs.length < drumCount) {
+        const needed = drumCount - programs.length;
+        console.warn(`   Padding programs with ${needed} default values (38=snare)`);
+        while (programs.length < drumCount) {
+          programs.push(38); // Acoustic snare
         }
-
-        // Pad velocities
-        const defaultVelocity = 100;
-        while (values.length < expectedCount) {
-          values.push(defaultVelocity);
-        }
-      } else {
-        // Too many numbers - truncate to the correct count
-        console.warn(`   Truncating to ${expectedCount} values`);
-        values = values.slice(0, expectedCount);
       }
+
+      // Adjust velocities
+      if (velocities.length > drumCount) {
+        console.warn(`   Truncating velocities from ${velocities.length} to ${drumCount}`);
+        velocities = velocities.slice(0, drumCount);
+      } else if (velocities.length < drumCount) {
+        const needed = drumCount - velocities.length;
+        console.warn(`   Padding velocities with ${needed} default values (100)`);
+        while (velocities.length < drumCount) {
+          velocities.push(100);
+        }
+      }
+
+      // Recombine
+      values = [...programs, ...velocities];
 
       // Reconstruct the line
       const fixed = `%%MIDI drum ${pattern} ${values.join(' ')} ${barCount}`;
@@ -160,8 +190,9 @@ export function fixDrumSyntax(abcNotation) {
       return fixed;
     }
 
-    // Syntax is correct
-    return match;
+    // Syntax is correct - but ensure bar count is present
+    const fixed = `%%MIDI drum ${pattern} ${values.join(' ')} ${barCount}`;
+    return fixed;
   });
 }
 
