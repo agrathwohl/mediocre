@@ -191,8 +191,60 @@ export function cleanAbcNotation(abcNotation) {
   // Fix drum syntax errors
   cleanedText = fixDrumSyntax(cleanedText);
 
+  // Remove directives that cause abc2midi segfaults
+  cleanedText = removeCrashTriggers(cleanedText);
+
   // Ensure the file ends with a single newline
   return cleanedText + '\n';
+}
+
+/**
+ * Remove MIDI directives that are known to cause abc2midi crashes
+ * @param {string} abcNotation - ABC notation to clean
+ * @returns {string} Safer ABC notation
+ */
+function removeCrashTriggers(abcNotation) {
+  let cleaned = abcNotation;
+
+  // 1. Remove %%MIDI transpose (common segfault trigger)
+  const transposeMatches = cleaned.match(/%%MIDI\s+(r)?transpose\s+-?\d+/g);
+  if (transposeMatches && transposeMatches.length > 0) {
+    console.warn(`⚠️ Removing ${transposeMatches.length} %%MIDI transpose directive(s) (known to cause crashes)`);
+    cleaned = cleaned.replace(/%%MIDI\s+(r)?transpose\s+-?\d+\s*\n/g, '');
+  }
+
+  // 2. Remove %%MIDI nobeataccents/beataccents toggling (can cause crashes)
+  const beatAccentMatches = cleaned.match(/%%MIDI\s+(no)?beataccents/g);
+  if (beatAccentMatches && beatAccentMatches.length > 0) {
+    console.warn(`⚠️ Removing ${beatAccentMatches.length} %%MIDI (no)beataccents directive(s) (known to cause crashes)`);
+    cleaned = cleaned.replace(/%%MIDI\s+(no)?beataccents\s*\n/g, '');
+  }
+
+  // 3. Remove mid-score %%MIDI program changes (keep only header ones)
+  const lines = cleaned.split('\n');
+  let inHeader = true;
+  let removedProgChanges = 0;
+
+  const safeLines = lines.map(line => {
+    // After we see first voice section, we're out of header
+    if (line.match(/^\[V:\d+\]/)) {
+      inHeader = false;
+    }
+
+    // Remove MIDI program changes that appear after header
+    if (!inHeader && line.match(/^%%MIDI\s+program\s+/)) {
+      removedProgChanges++;
+      return null; // Mark for removal
+    }
+
+    return line;
+  }).filter(line => line !== null);
+
+  if (removedProgChanges > 0) {
+    console.warn(`⚠️ Removed ${removedProgChanges} mid-score %%MIDI program change(s) (can cause crashes)`);
+  }
+
+  return safeLines.join('\n');
 }
 
 /**
@@ -352,15 +404,19 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
    %%MIDI channel n - Route voices to specific channels (1-16)
    Example: %%MIDI program 1 40  (violin on channel 1)
 
+   ⚠️ IMPORTANT: Set ALL %%MIDI program directives in the HEADER (before voice sections)
+   NEVER change %%MIDI program in the middle of the score - this can crash abc2midi
+
 2. DYNAMICS & EXPRESSION (Make your music breathe!):
    !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff! - Standard dynamic markings
    %%MIDI beat a b c n - Set base velocities for strong/weak beats
    %%MIDI beatmod n - Add/subtract velocity for crescendo/diminuendo effects
    %%MIDI beatstring fmpfmp - Precise forte/mezzo/piano stress patterns
    %%MIDI deltaloudness n - Configure crescendo/diminuendo intensity
-   %%MIDI nobeataccents - For organ/pad sounds with even dynamics
-   %%MIDI beataccents - Return to normal accent patterns
    Example: %%MIDI beat 90 80 65 1 followed by %%MIDI beatmod 15 for crescendo
+
+   ⚠️ AVOID: %%MIDI nobeataccents and %%MIDI beataccents - toggling these can crash abc2midi
+   Use %%MIDI beat with even values instead if you need consistent dynamics
 
 3. ARTICULATION (Shape your phrases!):
    %%MIDI trim x/y - Create separation between notes (staccato effect)
@@ -470,9 +526,9 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
    Example: %%MIDI gchord ghih for arpeggiated patterns
 
 6. TRANSPOSITION & PITCH:
-   %%MIDI transpose n - Transpose by n semitones
-   %%MIDI rtranspose n - Relative transpose (cumulative)
-   Example: Use for dramatic key changes between sections
+   ⚠️ WARNING: %%MIDI transpose can cause abc2midi to crash (segfault)
+   AVOID using %%MIDI transpose and %%MIDI rtranspose
+   If you need different octaves, write the notes in the correct octave instead
 
 7. SPECIAL EFFECTS:
    %%MIDI droneon / %%MIDI droneoff - Continuous drone (bagpipes, ambient)
@@ -589,10 +645,12 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
 
 1. INSTRUMENTS & CHANNELS:
    %%MIDI program [channel] n, %%MIDI channel n
+   ⚠️ Set program directives in HEADER only - never mid-score
 
 2. DYNAMICS & EXPRESSION:
    !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff!, %%MIDI beat, %%MIDI beatmod, %%MIDI beatstring,
-   %%MIDI deltaloudness, %%MIDI nobeataccents, %%MIDI beataccents
+   %%MIDI deltaloudness
+   ⚠️ AVOID nobeataccents/beataccents toggling - can crash abc2midi
 
 3. ARTICULATION:
    %%MIDI trim x/y, %%MIDI expand x/y, %%MIDI chordattack n, %%MIDI randomchordattack n
@@ -624,7 +682,7 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
    %%MIDI bassprog, %%MIDI chordvol, %%MIDI bassvol, %%MIDI chordname, %%MIDI gchordon/off
 
 6. TRANSPOSITION & PITCH:
-   %%MIDI transpose n, %%MIDI rtranspose n
+   ⚠️ AVOID %%MIDI transpose - causes abc2midi crashes
 
 7. SPECIAL EFFECTS:
    %%MIDI droneon/droneoff, %%MIDI drone, %%MIDI grace, %%MIDI gracedivider

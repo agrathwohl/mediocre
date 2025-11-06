@@ -1,0 +1,10 @@
+X:1
+T:Minimal Test
+M:4/4
+L:1/16
+Q:1/4=160
+K:Dmin
+%%MIDI program 1 80
+%%MIDI channel 1 1
+%%MIDI drum ddzddzdd 36 38 42 46 36 38 110 105 100 95 90 85 1
+[V:1] d16 | f16 | a16 | d'16 |
