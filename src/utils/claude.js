@@ -103,6 +103,13 @@ export function fixDrumSyntax(abcNotation) {
   const drumRegex = /%%MIDI\s+drum\s+([a-z0-9]+)\s+([\d\s]+?)(?=\s*%%MIDI|\s*\n|$)/gi;
 
   return abcNotation.replace(drumRegex, (match, pattern, numbers) => {
+    // CRITICAL: Limit pattern length to prevent absurdly long patterns
+    const MAX_PATTERN_LENGTH = 64; // Reasonable max for drum patterns
+    if (pattern.length > MAX_PATTERN_LENGTH) {
+      console.warn(`⚠️ Drum pattern too long (${pattern.length} chars) - truncating to ${MAX_PATTERN_LENGTH}`);
+      pattern = pattern.substring(0, MAX_PATTERN_LENGTH);
+    }
+
     // Count the number of 'd' characters in the pattern
     const drumCount = (pattern.match(/d/g) || []).length;
 
@@ -506,6 +513,10 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
    ⚠️ CRITICAL: The %%MIDI drum syntax is VERY PRECISE. You MUST count correctly! ⚠️
 
    FORMAT: %%MIDI drum <pattern> <prog1> <prog2>... <vol1> <vol2>... <bars>
+
+   ⚠️ PATTERN LENGTH LIMIT: MAXIMUM 32 characters for the pattern string!
+   NEVER create patterns longer than 32 characters (e.g., "ddzddzdd" = 8 chars is good)
+   DO NOT repeat patterns endlessly - keep it SHORT and CONCISE!
 
    🔢 COUNTING ALGORITHM (FOLLOW THIS EXACTLY):
 
