@@ -273,7 +273,15 @@ function removeCrashTriggers(abcNotation) {
     cleaned = cleaned.replace(/%%MIDI\s+(no)?beataccents\s*\n/g, '');
   }
 
-  // 3. Remove mid-score %%MIDI program changes (keep only header ones)
+  // 3. Remove %%MIDI program changes on channel 10 (drum channel)
+  // Channel 10 is reserved for drums and doesn't support program changes
+  const channel10ProgMatches = cleaned.match(/%%MIDI\s+program\s+10\s+\d+/g);
+  if (channel10ProgMatches && channel10ProgMatches.length > 0) {
+    console.warn(`⚠️ Removing ${channel10ProgMatches.length} %%MIDI program directive(s) on channel 10 (drum channel - programs not allowed)`);
+    cleaned = cleaned.replace(/%%MIDI\s+program\s+10\s+\d+\s*\n/g, '');
+  }
+
+  // 4. Remove mid-score %%MIDI program changes (keep only header ones)
   const lines = cleaned.split('\n');
   let inHeader = true;
   let removedProgChanges = 0;
@@ -483,6 +491,10 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
    %%MIDI program [channel] n - Select instruments (0-127 General MIDI)
    %%MIDI channel n - Route voices to specific channels (1-16)
    Example: %%MIDI program 1 40  (violin on channel 1)
+
+   ⚠️ CRITICAL: NEVER set %%MIDI program on channel 10!
+   Channel 10 is RESERVED FOR DRUMS ONLY - it does NOT support instrument programs
+   Valid channels for instruments: 1-9, 11-16 (skip 10!)
 
    ⚠️ IMPORTANT: Set ALL %%MIDI program directives in the HEADER (before voice sections)
    NEVER change %%MIDI program in the middle of the score - this can crash abc2midi
@@ -746,6 +758,8 @@ SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
 
 1. INSTRUMENTS & CHANNELS:
    %%MIDI program [channel] n, %%MIDI channel n
+   ⚠️ NEVER set %%MIDI program on channel 10 (drum channel - programs not allowed)
+   Valid channels: 1-9, 11-16 (skip 10!)
    ⚠️ Set program directives in HEADER only - never mid-score
 
 2. DYNAMICS & EXPRESSION:
