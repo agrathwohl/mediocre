@@ -645,6 +645,40 @@ GENRE-SPECIFIC GUIDANCE:
 - Jazz + Electronic: Use gchordbars for chord spreads, chordprog for synth textures
 - Folk + Dance: Use drum patterns, gchord arpeggios (ghij), dynamic beatstrings
 
+🎵 EDM DROP REQUIREMENT (POST-2008 ELECTRONIC GENRES):
+⚠️ CRITICAL: If composing with ANY electronic music genre that rose to prominence around 2008 or later
+(Dubstep, Trap, Future Bass, Brostep, Moombahton, Tropical House, Future House, etc.),
+you MUST include at least one EDM-style DROP in your composition!
+
+What is a DROP?
+- The climactic moment after a buildup where the beat/bass intensifies dramatically
+- Typically occurs after tension-building section with increasing dynamics and reduced instrumentation
+- Features maximum energy, full instrumentation, prominent bass, aggressive drums
+
+How to structure a DROP in ABC notation:
+1. BUILDUP section (8-16 bars before drop):
+   - Gradually reduce notes/voices (thin out texture)
+   - Increase dynamics from !mf! → !f! → !ff!
+   - Use %%MIDI beatmod increasing values (5 → 10 → 15)
+   - Optional: Add rising pitch sequences
+   - End with dramatic pause or minimal texture (1-2 bars of mostly rests)
+
+2. THE DROP section (16-32 bars):
+   - IMMEDIATELY hit with !fff! dynamics
+   - Full drum pattern with aggressive velocities (110-127)
+   - Deep bass line (low notes, strong presence)
+   - All voices active simultaneously
+   - Use %%MIDI trim 1/32 for sharp, aggressive attacks
+   - Maximum rhythmic intensity
+
+Example structure:
+% Section A - Intro (16 bars)
+% Section B - Buildup (16 bars, increasing tension)
+% Section C - THE DROP (32 bars, maximum energy) ← CRITICAL!
+% Section D - Breakdown (16 bars, reduced energy)
+% Section E - Second Drop (24 bars, return to intensity)
+% Section F - Outro (8 bars)
+
 ⚠️ AVOID these complex/file-dependent features:
 - %%MIDI ptstress filename (requires external files)
 - %%MIDI stressmodel (complex override system)
