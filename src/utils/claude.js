@@ -99,7 +99,8 @@ export function validateAbcNotation(abcNotation) {
 export function fixDrumSyntax(abcNotation) {
   // Regex to match %%MIDI drum lines
   // Format: %%MIDI drum <pattern> <programs...> <velocities...> [bar_count]
-  const drumRegex = /%%MIDI\s+drum\s+([a-z0-9]+)\s+([\d\s]+)/gi;
+  // Capture everything up to the end of the numbers, but not subsequent %%MIDI directives
+  const drumRegex = /%%MIDI\s+drum\s+([a-z0-9]+)\s+([\d\s]+?)(?=\s*%%MIDI|\s*\n|$)/gi;
 
   return abcNotation.replace(drumRegex, (match, pattern, numbers) => {
     // Count the number of 'd' characters in the pattern
@@ -184,14 +185,14 @@ export function fixDrumSyntax(abcNotation) {
       // Recombine
       values = [...programs, ...velocities];
 
-      // Reconstruct the line
-      const fixed = `%%MIDI drum ${pattern} ${values.join(' ')} ${barCount}`;
+      // Reconstruct the line with newline
+      const fixed = `%%MIDI drum ${pattern} ${values.join(' ')} ${barCount}\n`;
       console.warn(`   Fixed: ${fixed}`);
       return fixed;
     }
 
-    // Syntax is correct - but ensure bar count is present
-    const fixed = `%%MIDI drum ${pattern} ${values.join(' ')} ${barCount}`;
+    // Syntax is correct - but ensure bar count is present and add newline
+    const fixed = `%%MIDI drum ${pattern} ${values.join(' ')} ${barCount}\n`;
     return fixed;
   });
 }
@@ -203,6 +204,9 @@ export function fixDrumSyntax(abcNotation) {
  */
 export function cleanAbcNotation(abcNotation) {
   let cleanedText = abcNotation
+    // First, ensure %%MIDI directives that are on the same line are separated
+    .replace(/(%%MIDI[^\n]+)(\s*)(%%MIDI)/g, '$1\n$3')
+
     // Remove ALL blank lines between ANY content (most aggressive approach)
     .replace(/\n\s*\n/g, '\n')
 
@@ -232,6 +236,9 @@ export function cleanAbcNotation(abcNotation) {
 
   // Remove directives that cause abc2midi segfaults
   cleanedText = removeCrashTriggers(cleanedText);
+
+  // Remove any duplicate blank lines that may have been introduced
+  cleanedText = cleanedText.replace(/\n\s*\n/g, '\n');
 
   // Ensure the file ends with a single newline
   return cleanedText + '\n';
