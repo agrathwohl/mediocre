@@ -3,10 +3,9 @@
  * Uses multi-agent system to compose music
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { MusicOrchestrator } from '../agents/orchestrator.js';
-import { getConfig } from '../utils/config.js';
-import { cleanAbcNotation } from '../utils/claude.js';
+import { config } from '../utils/config.js';
+import { getAnthropic, cleanAbcNotation } from '../utils/claude.js';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -14,22 +13,14 @@ import fs from 'fs/promises';
  * Orchestrate music composition using specialist agents
  */
 export async function orchestrate(options) {
-  const config = getConfig();
 
   // Validate AI provider
-  if (config.aiProvider !== 'anthropic') {
+  if (config.get('aiProvider') !== 'anthropic') {
     throw new Error('Orchestrate command currently only supports Anthropic AI provider');
   }
 
-  // Initialize Anthropic
-  const apiKey = process.env.ANTHROPIC_API_KEY || config.anthropicApiKey;
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY not found. Please set it in your environment or config.');
-  }
-
-  const anthropic = new Anthropic({
-    apiKey: apiKey
-  });
+  // Initialize Anthropic using Vercel AI SDK
+  const anthropic = getAnthropic();
 
   // Parse genre
   const genre = options.genre || 'chorale_x_metalheadz';
