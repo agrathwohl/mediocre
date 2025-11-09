@@ -57,12 +57,13 @@ export class BaseAgent {
     const model = this.anthropic(modelName);
 
     // Use generateText from Vercel AI SDK
+    // Default to 16000 tokens to handle detailed agent responses
     const result = await generateText({
       model,
       system: systemPrompt,
       prompt: userPrompt,
       temperature: options.temperature || 0.7,
-      maxTokens: options.maxTokens || 8000
+      maxTokens: options.maxTokens || 16000
     });
 
     return result.text;
@@ -79,14 +80,29 @@ export class BaseAgent {
     const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (codeBlockMatch) {
       jsonText = codeBlockMatch[1];
+    } else if (text.startsWith('```')) {
+      // Truncated response - missing closing fence
+      // Try to extract JSON starting after the opening fence
+      const lines = text.split('\n');
+      if (lines[0].match(/```json?/)) {
+        lines.shift(); // Remove the opening fence line
+        jsonText = lines.join('\n');
+      }
     }
 
     try {
       return JSON.parse(jsonText);
     } catch (error) {
-      console.error(`Failed to parse JSON from ${this.name}:`, error);
-      console.error('Raw text:', text);
-      throw new Error(`${this.name} returned invalid JSON`);
+      // Check if response was truncated
+      if (text.includes('```json') && !text.endsWith('```')) {
+        console.error(`\n⚠️  ${this.name} response appears truncated (hit token limit)`);
+        console.error(`   Response length: ${text.length} characters`);
+        console.error(`   Consider increasing maxTokens or simplifying agent prompt\n`);
+      }
+
+      console.error(`Failed to parse JSON from ${this.name}:`, error.message);
+      console.error('Raw text preview:', text.substring(0, 500) + '...');
+      throw new Error(`${this.name} returned invalid JSON: ${error.message}`);
     }
   }
 }

@@ -29,9 +29,6 @@ EXPECTED SPECIFICATIONS:
 - Time signature: ${formContext.time_signature || 'unknown'}
 - Total measures: ${formContext.total_measures || 'unknown'}
 
-ABC NOTATION TO REVIEW:
-${compositionContext.abc_notation}
-
 Your output MUST be valid JSON with this structure:
 {
   "validation_status": "pass" or "fail",
@@ -77,12 +74,17 @@ BE SPECIFIC. If you find issues, identify EXACTLY where they are and which agent
 
 Output ONLY the JSON object, no other text.`;
 
-    const prompt = `Review the ABC notation for errors and quality issues.`;
+    const prompt = `Review the following ABC notation for errors and quality issues.
+
+ABC NOTATION TO REVIEW:
+${compositionContext.abc_notation}
+
+Provide your analysis as a JSON object following the specified structure.`;
 
     try {
       const response = await this.callLLM(systemPrompt, prompt, {
         temperature: 0.3, // Lower temperature for analytical task
-        maxTokens: 8000
+        maxTokens: 12000  // Increased for detailed validation output
       });
 
       const parsed = this.parseJSONResponse(response);
