@@ -232,6 +232,12 @@ export function cleanAbcNotation(abcNotation) {
     // Fix invalid pitch specifiers - remove commas after notes
     .replace(/([A-Ga-g][',]*),/g, '$1')    // Remove commas after notes with octave marks
 
+    // Fix invalid octave notation - uppercase letters with apostrophes
+    .replace(/([A-G])([']+)/g, (match, note, apostrophes) => {
+      // Convert uppercase+apostrophe to lowercase+apostrophe (e.g., B' -> b')
+      return note.toLowerCase() + apostrophes;
+    })
+
     // Fix invalid dynamic markings (max is !fff!)
     .replace(/!f{4,}!/g, '!fff!')          // Replace !ffff!, !fffff!, !ffffff!, etc. with !fff!
     .replace(/!p{4,}!/g, '!ppp!')          // Replace !pppp!, !ppppp!, etc. with !ppp!
