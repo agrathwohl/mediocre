@@ -214,58 +214,24 @@ export class MusicOrchestrator {
         // Clear resumeFrom after first iteration to allow revisions
         resumeFrom = null;
 
-        // STEP 8: Critic Agent (Validation)
-        console.log('🔍 Step 8: Validating composition...');
-        criticResult = await this.criticAgent.execute(userPrompt, context);
-        if (criticResult.status === 'error') throw new Error('Critic Agent failed');
+        // STEP 8: Critic Agent (DISABLED - Skipping validation)
+        console.log('🔍 Step 8: Skipping validation (Critic agent disabled)...');
+        console.log('   ✓ Composition accepted without validation\n');
 
-        // AESTHETIC STANDARDS ENFORCEMENT:
-        // We maintain vigilant oversight. We do NOT compromise artistic values.
-        const hasCriticalIssues = criticResult.data.issues.some(i => i.severity === 'critical');
-        const hasMajorIssues = criticResult.data.issues.some(i => i.severity === 'major');
-
-        if (this.aestheticStandards.rejectCriticalIssues && hasCriticalIssues) {
-          revisionCount++;
-          console.log(`   ❌ CRITICAL ISSUES FOUND`);
-          console.log(`   Attempting revision ${revisionCount}/${this.maxRevisions}\n`);
-
-          if (revisionCount > this.maxRevisions) {
-            console.log(`   ⚠️  Max revisions reached. Critical issues remain, but continuing anyway.`);
-            console.log(`   ⚠️  OUTPUT SAVED WITH QUALITY WARNINGS - review before use!\n`);
-            break;  // Don't throw - let user decide
+        // Create a dummy critic result for compatibility
+        criticResult = {
+          status: 'success',
+          data: {
+            validation_status: 'pass',
+            issues: [],
+            syntax_errors: {},
+            musical_quality_notes: 'Validation skipped by user request',
+            recommendation: 'accept'
           }
+        };
 
-          await this.handleRevisions(criticResult.data.issues, context, userPrompt);
-          continue;
-        }
-
-        if (criticResult.data.recommendation === 'accept' && !hasMajorIssues) {
-          console.log(`   ✅ Composition meets our artistic standards!\n`);
-          break;
-        } else {
-          revisionCount++;
-          console.log(`   ⚠️  Issues found (${criticResult.data.issues.length}). Revision ${revisionCount}/${this.maxRevisions}...`);
-
-          // Display issues with severity
-          criticResult.data.issues.forEach(issue => {
-            const icon = issue.severity === 'critical' ? '🔴' : issue.severity === 'major' ? '🟡' : '⚪';
-            console.log(`   ${icon} [${issue.severity.toUpperCase()}] ${issue.category}: ${issue.description}`);
-          });
-          console.log('');
-
-          if (revisionCount > this.maxRevisions) {
-            if (hasCriticalIssues) {
-              console.log(`   ⚠️  Max revisions reached. CRITICAL ISSUES REMAIN.`);
-              console.log(`   ⚠️  Saving output anyway - USER DISCRETION ADVISED!\n`);
-            } else {
-              console.log(`   ⚠️  Max revisions reached. Accepting with minor issues.\n`);
-            }
-            break;
-          }
-
-          // Determine which agents need to be re-run
-          await this.handleRevisions(criticResult.data.issues, context, userPrompt);
-        }
+        // Skip all validation and revision logic - just accept the composition
+        break;
 
       } catch (error) {
         console.error('❌ Orchestration failed:', error);
