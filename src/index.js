@@ -20,6 +20,7 @@ import { rearrangeComposition } from './commands/rearrange.js';
 import { runPipeline } from './commands/pipeline.js';
 import { createDatasetBrowser } from './ui/index.js';
 import { validateAbcNotation, cleanAbcNotation } from './utils/claude.js';
+import { orchestrate } from './commands/orchestrate.js';
 
 // Set up the CLI program
 program
@@ -211,6 +212,36 @@ addOllamaOptions(program
       console.log(`\nGenerated ${allFiles.length} composition(s) total`);
     } catch (error) {
       console.error('Error generating compositions:', error);
+    }
+  });
+
+// Orchestrate command - multi-agent composition system
+addOllamaOptions(program
+  .command('orchestrate')
+  .description('Use multi-agent system to compose music')
+  .option('-g, --genre <string>', 'Music genre (format: classical_x_modern, e.g., chorale_x_metalheadz)', 'chorale_x_metalheadz')
+  .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
+  .option('--solo', 'Include a musical solo section for the lead instrument')
+  .option('--record-label <name>', 'Style it like it was released on the given record label')
+  .option('--producer <name>', 'Style it as if produced by the given producer')
+  .option('--instruments <list>', 'Comma-separated list of instruments to include'))
+  .action(async (options) => {
+    try {
+      // Set AI provider settings from command line options
+      if (options.aiProvider) {
+        config.set('aiProvider', options.aiProvider);
+      }
+      if (options.ollamaModel) {
+        config.set('ollamaModel', options.ollamaModel);
+      }
+      if (options.ollamaEndpoint) {
+        config.set('ollamaEndpoint', options.ollamaEndpoint);
+      }
+
+      await orchestrate(options);
+    } catch (error) {
+      console.error('Error during orchestration:', error);
+      process.exit(1);
     }
   });
 
