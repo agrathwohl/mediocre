@@ -71,16 +71,60 @@ export class MusicOrchestrator {
   }
 
   /**
+   * Find the latest checkpoint for resumption
+   */
+  async findLatestCheckpoint(sessionId) {
+    try {
+      const files = await fs.readdir(this.intermediateOutputDir);
+      const sessionFiles = files
+        .filter(f => f.startsWith(`${sessionId}_`) && f.endsWith('.json'))
+        .sort()
+        .reverse();
+
+      if (sessionFiles.length === 0) {
+        return null;
+      }
+
+      const latestFile = sessionFiles[0];
+      const step = latestFile.replace(`${sessionId}_`, '').replace('.json', '');
+      const content = await fs.readFile(
+        path.join(this.intermediateOutputDir, latestFile),
+        'utf-8'
+      );
+
+      return {
+        step,
+        context: JSON.parse(content),
+        file: latestFile
+      };
+    } catch (error) {
+      console.warn(`   ⚠️  Failed to load checkpoint: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Main orchestration method
    */
   async orchestrate(userPrompt, options = {}) {
     console.log('🎼 Starting Music Composition Orchestration...\n');
     console.log(`💾 Session ID: ${this.sessionId}\n`);
 
-    const context = {
+    let context = {
       user_prompt: userPrompt,
       options: options
     };
+
+    // Check for existing checkpoint
+    const checkpoint = await this.findLatestCheckpoint(this.sessionId);
+    let resumeFrom = null;
+
+    if (checkpoint) {
+      console.log(`🔄 Found checkpoint: ${checkpoint.step}`);
+      console.log(`   Resuming from: ${checkpoint.file}\n`);
+      context = checkpoint.context;
+      resumeFrom = checkpoint.step;
+    }
 
     let revisionCount = 0;
     let criticResult = null;
@@ -88,60 +132,87 @@ export class MusicOrchestrator {
     while (revisionCount <= this.maxRevisions) {
       try {
         // STEP 2: Creative Genre Name Agent
-        console.log('📝 Step 2: Generating creative genre name...');
-        const genreResult = await this.creativeGenreNameAgent.execute(userPrompt, context);
-        if (genreResult.status === 'error') throw new Error('Creative Genre Name Agent failed');
-        context.creative_genre_name = genreResult;
-        console.log(`   ✓ Genre: "${genreResult.data.genre_name}"`);
-        await this.saveIntermediateOutput('01_creative_genre_name', context);
-        console.log();
+        if (!resumeFrom || resumeFrom < '01_creative_genre_name') {
+          console.log('📝 Step 2: Generating creative genre name...');
+          const genreResult = await this.creativeGenreNameAgent.execute(userPrompt, context);
+          if (genreResult.status === 'error') throw new Error('Creative Genre Name Agent failed');
+          context.creative_genre_name = genreResult;
+          console.log(`   ✓ Genre: "${genreResult.data.genre_name}"`);
+          await this.saveIntermediateOutput('01_creative_genre_name', context);
+          console.log();
+        } else {
+          console.log('📝 Step 2: ✓ Loaded from checkpoint');
+        }
 
         // STEP 3: Music History Agent
-        console.log('📚 Step 3: Analyzing music history context...');
-        const historyResult = await this.musicHistoryAgent.execute(userPrompt, context);
-        if (historyResult.status === 'error') throw new Error('Music History Agent failed');
-        context.music_history = historyResult;
-        console.log(`   ✓ Historical analysis complete`);
-        await this.saveIntermediateOutput('02_music_history', context);
-        console.log();
+        if (!resumeFrom || resumeFrom < '02_music_history') {
+          console.log('📚 Step 3: Analyzing music history context...');
+          const historyResult = await this.musicHistoryAgent.execute(userPrompt, context);
+          if (historyResult.status === 'error') throw new Error('Music History Agent failed');
+          context.music_history = historyResult;
+          console.log(`   ✓ Historical analysis complete`);
+          await this.saveIntermediateOutput('02_music_history', context);
+          console.log();
+        } else {
+          console.log('📚 Step 3: ✓ Loaded from checkpoint');
+        }
 
         // STEP 4: Arrangement + Compositional Form (IN TANDEM)
-        console.log('🎹 Step 4: Arrangement & Compositional Form (working in tandem)...');
-        const tandemResult = await this.runArrangementFormTandem(userPrompt, context);
-        context.arrangement = tandemResult.arrangement;
-        context.compositional_form = tandemResult.compositional_form;
-        console.log(`   ✓ ${context.arrangement.data.total_voices} voices arranged`);
-        console.log(`   ✓ ${context.compositional_form.data.total_measures} measure structure created`);
-        await this.saveIntermediateOutput('03_arrangement_and_form', context);
-        console.log();
+        if (!resumeFrom || resumeFrom < '03_arrangement_and_form') {
+          console.log('🎹 Step 4: Arrangement & Compositional Form (working in tandem)...');
+          const tandemResult = await this.runArrangementFormTandem(userPrompt, context);
+          context.arrangement = tandemResult.arrangement;
+          context.compositional_form = tandemResult.compositional_form;
+          console.log(`   ✓ ${context.arrangement.data.total_voices} voices arranged`);
+          console.log(`   ✓ ${context.compositional_form.data.total_measures} measure structure created`);
+          await this.saveIntermediateOutput('03_arrangement_and_form', context);
+          console.log();
+        } else {
+          console.log('🎹 Step 4: ✓ Loaded from checkpoint');
+        }
 
         // STEP 5: Melodic Agent
-        console.log('🎵 Step 5: Creating melodic themes...');
-        const melodicResult = await this.melodicAgent.execute(userPrompt, context);
-        if (melodicResult.status === 'error') throw new Error('Melodic Agent failed');
-        context.melodic = melodicResult;
-        console.log(`   ✓ Melodic themes created`);
-        await this.saveIntermediateOutput('04_melodic', context);
-        console.log();
+        if (!resumeFrom || resumeFrom < '04_melodic') {
+          console.log('🎵 Step 5: Creating melodic themes...');
+          const melodicResult = await this.melodicAgent.execute(userPrompt, context);
+          if (melodicResult.status === 'error') throw new Error('Melodic Agent failed');
+          context.melodic = melodicResult;
+          console.log(`   ✓ Melodic themes created`);
+          await this.saveIntermediateOutput('04_melodic', context);
+          console.log();
+        } else {
+          console.log('🎵 Step 5: ✓ Loaded from checkpoint');
+        }
 
         // STEP 6: Timbrel + Dynamics (IN TANDEM)
-        console.log('🎚️  Step 6: Timbrel & Dynamics (working in tandem)...');
-        const timbrelDynamicsTandem = await this.runTimbrelDynamicsTandem(userPrompt, context);
-        context.timbrel = timbrelDynamicsTandem.timbrel;
-        context.dynamics = timbrelDynamicsTandem.dynamics;
-        console.log(`   ✓ MIDI configuration complete`);
-        console.log(`   ✓ Dynamic arc designed`);
-        await this.saveIntermediateOutput('05_timbrel_and_dynamics', context);
-        console.log();
+        if (!resumeFrom || resumeFrom < '05_timbrel_and_dynamics') {
+          console.log('🎚️  Step 6: Timbrel & Dynamics (working in tandem)...');
+          const timbrelDynamicsTandem = await this.runTimbrelDynamicsTandem(userPrompt, context);
+          context.timbrel = timbrelDynamicsTandem.timbrel;
+          context.dynamics = timbrelDynamicsTandem.dynamics;
+          console.log(`   ✓ MIDI configuration complete`);
+          console.log(`   ✓ Dynamic arc designed`);
+          await this.saveIntermediateOutput('05_timbrel_and_dynamics', context);
+          console.log();
+        } else {
+          console.log('🎚️  Step 6: ✓ Loaded from checkpoint');
+        }
 
         // STEP 7: Composition Agent (ABC Assembly)
-        console.log('🎼 Step 7: Assembling ABC notation...');
-        const compositionResult = await this.compositionAgent.execute(userPrompt, context);
-        if (compositionResult.status === 'error') throw new Error('Composition Agent failed');
-        context.composition = compositionResult;
-        console.log(`   ✓ ABC notation generated`);
-        await this.saveIntermediateOutput('06_composition', context);
-        console.log();
+        if (!resumeFrom || resumeFrom < '06_composition') {
+          console.log('🎼 Step 7: Assembling ABC notation...');
+          const compositionResult = await this.compositionAgent.execute(userPrompt, context);
+          if (compositionResult.status === 'error') throw new Error('Composition Agent failed');
+          context.composition = compositionResult;
+          console.log(`   ✓ ABC notation generated`);
+          await this.saveIntermediateOutput('06_composition', context);
+          console.log();
+        } else {
+          console.log('🎼 Step 7: ✓ Loaded from checkpoint');
+        }
+
+        // Clear resumeFrom after first iteration to allow revisions
+        resumeFrom = null;
 
         // STEP 8: Critic Agent (Validation)
         console.log('🔍 Step 8: Validating composition...');

@@ -48,10 +48,15 @@ export async function orchestrate(options) {
   if (options.recordLabel) console.log(`Record Label: ${options.recordLabel}`);
   if (options.producer) console.log(`Producer: ${options.producer}`);
   if (options.instruments) console.log(`Instruments: ${options.instruments}`);
+  if (options.resume) console.log(`Resume Session: ${options.resume}`);
   console.log('═══════════════════════════════════════════════════════\n');
 
   // Create orchestrator
-  const orchestrator = new MusicOrchestrator(anthropic);
+  const orchestratorOptions = {
+    saveIntermediateOutputs: true,
+    sessionId: options.resume || Date.now()
+  };
+  const orchestrator = new MusicOrchestrator(anthropic, orchestratorOptions);
 
   try {
     // Run orchestration

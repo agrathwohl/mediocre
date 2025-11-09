@@ -221,6 +221,7 @@ addOllamaOptions(program
   .description('Use multi-agent system to compose music')
   .option('-g, --genre <string>', 'Music genre (format: classical_x_modern, e.g., chorale_x_metalheadz)', 'chorale_x_metalheadz')
   .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
+  .option('--resume <sessionId>', 'Resume from a previous session (use session ID from checkpoint)')
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Style it like it was released on the given record label')
   .option('--producer <name>', 'Style it as if produced by the given producer')
