@@ -66,7 +66,9 @@ CRITICAL RULES:
 - Consider genre-appropriate dynamic ranges
 - Use %%MIDI beat and beatmod settings for subtle dynamic shaping
 
-Output ONLY the JSON object, no other text.`;
+IMPORTANT: You MUST output ONLY valid JSON. Do not include markdown, explanations, or any text outside the JSON object.
+Do not wrap the JSON in markdown code fences.
+Start your response with { and end with }`;
 
     const prompt = `${userPrompt}
 
@@ -74,12 +76,12 @@ ${genreContext.genre_name ? `Genre: "${genreContext.genre_name}"
 ` : ''}${formContext.sections ? `Sections: ${JSON.stringify(formContext.sections.map(s => ({name: s.name, measures: s.measures, texture: s.texture})), null, 2)}
 ` : ''}${melodicContext.melodic_development_strategy ? `Melodic Development: ${melodicContext.melodic_development_strategy}
 ` : ''}
-Design the dynamic arc and expression markings for this composition.`;
+Design the dynamic arc and expression markings for this composition. Return ONLY the JSON object.`;
 
     try {
       const response = await this.callLLM(systemPrompt, prompt, {
         temperature: 0.7,
-        maxTokens: 3000
+        maxTokens: 16000  // Increased to handle detailed section dynamics
       });
 
       const parsed = this.parseJSONResponse(response);

@@ -84,7 +84,7 @@ Provide your analysis as a JSON object following the specified structure.`;
     try {
       const response = await this.callLLM(systemPrompt, prompt, {
         temperature: 0.3, // Lower temperature for analytical task
-        maxTokens: 12000  // Increased for detailed validation output
+        maxTokens: 16000  // Large ABC files need detailed validation
       });
 
       const parsed = this.parseJSONResponse(response);

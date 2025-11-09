@@ -3,6 +3,8 @@
  * Coordinates all specialist agents to create complete musical compositions
  */
 
+import fs from 'fs/promises';
+import path from 'path';
 import { CreativeGenreNameAgent } from './creative-genre-name.js';
 import { MusicHistoryAgent } from './music-history.js';
 import { ArrangementAgent } from './arrangement.js';
@@ -14,8 +16,11 @@ import { CompositionAgent } from './composition.js';
 import { CriticAgent } from './critic.js';
 
 export class MusicOrchestrator {
-  constructor(anthropic) {
+  constructor(anthropic, options = {}) {
     this.anthropic = anthropic;
+    this.saveIntermediateOutputs = options.saveIntermediateOutputs !== false; // Default true
+    this.intermediateOutputDir = options.intermediateOutputDir || './temp/orchestrator';
+    this.sessionId = options.sessionId || Date.now();
 
     // ARTISTIC PHILOSOPHY:
     // This orchestrator is an uncompromising artistic director, not a passive coordinator.
@@ -47,10 +52,30 @@ export class MusicOrchestrator {
   }
 
   /**
+   * Save intermediate outputs to disk for resumption on failure
+   */
+  async saveIntermediateOutput(step, context) {
+    if (!this.saveIntermediateOutputs) return;
+
+    try {
+      await fs.mkdir(this.intermediateOutputDir, { recursive: true });
+      const outputPath = path.join(
+        this.intermediateOutputDir,
+        `${this.sessionId}_${step}.json`
+      );
+      await fs.writeFile(outputPath, JSON.stringify(context, null, 2));
+      console.log(`   💾 Saved checkpoint: ${step}`);
+    } catch (error) {
+      console.warn(`   ⚠️  Failed to save intermediate output: ${error.message}`);
+    }
+  }
+
+  /**
    * Main orchestration method
    */
   async orchestrate(userPrompt, options = {}) {
     console.log('🎼 Starting Music Composition Orchestration...\n');
+    console.log(`💾 Session ID: ${this.sessionId}\n`);
 
     const context = {
       user_prompt: userPrompt,
@@ -67,14 +92,18 @@ export class MusicOrchestrator {
         const genreResult = await this.creativeGenreNameAgent.execute(userPrompt, context);
         if (genreResult.status === 'error') throw new Error('Creative Genre Name Agent failed');
         context.creative_genre_name = genreResult;
-        console.log(`   ✓ Genre: "${genreResult.data.genre_name}"\n`);
+        console.log(`   ✓ Genre: "${genreResult.data.genre_name}"`);
+        await this.saveIntermediateOutput('01_creative_genre_name', context);
+        console.log();
 
         // STEP 3: Music History Agent
         console.log('📚 Step 3: Analyzing music history context...');
         const historyResult = await this.musicHistoryAgent.execute(userPrompt, context);
         if (historyResult.status === 'error') throw new Error('Music History Agent failed');
         context.music_history = historyResult;
-        console.log(`   ✓ Historical analysis complete\n`);
+        console.log(`   ✓ Historical analysis complete`);
+        await this.saveIntermediateOutput('02_music_history', context);
+        console.log();
 
         // STEP 4: Arrangement + Compositional Form (IN TANDEM)
         console.log('🎹 Step 4: Arrangement & Compositional Form (working in tandem)...');
@@ -82,14 +111,18 @@ export class MusicOrchestrator {
         context.arrangement = tandemResult.arrangement;
         context.compositional_form = tandemResult.compositional_form;
         console.log(`   ✓ ${context.arrangement.data.total_voices} voices arranged`);
-        console.log(`   ✓ ${context.compositional_form.data.total_measures} measure structure created\n`);
+        console.log(`   ✓ ${context.compositional_form.data.total_measures} measure structure created`);
+        await this.saveIntermediateOutput('03_arrangement_and_form', context);
+        console.log();
 
         // STEP 5: Melodic Agent
         console.log('🎵 Step 5: Creating melodic themes...');
         const melodicResult = await this.melodicAgent.execute(userPrompt, context);
         if (melodicResult.status === 'error') throw new Error('Melodic Agent failed');
         context.melodic = melodicResult;
-        console.log(`   ✓ Melodic themes created\n`);
+        console.log(`   ✓ Melodic themes created`);
+        await this.saveIntermediateOutput('04_melodic', context);
+        console.log();
 
         // STEP 6: Timbrel + Dynamics (IN TANDEM)
         console.log('🎚️  Step 6: Timbrel & Dynamics (working in tandem)...');
@@ -97,14 +130,18 @@ export class MusicOrchestrator {
         context.timbrel = timbrelDynamicsTandem.timbrel;
         context.dynamics = timbrelDynamicsTandem.dynamics;
         console.log(`   ✓ MIDI configuration complete`);
-        console.log(`   ✓ Dynamic arc designed\n`);
+        console.log(`   ✓ Dynamic arc designed`);
+        await this.saveIntermediateOutput('05_timbrel_and_dynamics', context);
+        console.log();
 
         // STEP 7: Composition Agent (ABC Assembly)
         console.log('🎼 Step 7: Assembling ABC notation...');
         const compositionResult = await this.compositionAgent.execute(userPrompt, context);
         if (compositionResult.status === 'error') throw new Error('Composition Agent failed');
         context.composition = compositionResult;
-        console.log(`   ✓ ABC notation generated\n`);
+        console.log(`   ✓ ABC notation generated`);
+        await this.saveIntermediateOutput('06_composition', context);
+        console.log();
 
         // STEP 8: Critic Agent (Validation)
         console.log('🔍 Step 8: Validating composition...');
@@ -199,12 +236,22 @@ export class MusicOrchestrator {
         formResult ? formResult.data : null
       );
 
+      // Check for errors
+      if (arrangementResult.status === 'error') {
+        throw new Error(`Arrangement Agent failed: ${arrangementResult.data.error}`);
+      }
+
       // Form agent gets arrangement context
       formResult = await this.compositionalFormAgent.execute(
         userPrompt,
         context,
         arrangementResult.data
       );
+
+      // Check for errors
+      if (formResult.status === 'error') {
+        throw new Error(`Compositional Form Agent failed: ${formResult.data.error}`);
+      }
 
       // After first round, agents have each other's context
     }
@@ -233,12 +280,22 @@ export class MusicOrchestrator {
         timbrelResult ? timbrelResult.data : null
       );
 
+      // Check for errors
+      if (dynamicsResult.status === 'error') {
+        throw new Error(`Dynamics Agent failed: ${dynamicsResult.data.error}`);
+      }
+
       // Timbrel agent gets dynamics context
       timbrelResult = await this.timbrelAgent.execute(
         userPrompt,
         context,
         dynamicsResult.data
       );
+
+      // Check for errors
+      if (timbrelResult.status === 'error') {
+        throw new Error(`Timbrel Agent failed: ${timbrelResult.data.error}`);
+      }
     }
 
     return {
