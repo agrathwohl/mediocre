@@ -118,11 +118,13 @@ export class MusicOrchestrator {
 
         if (this.aestheticStandards.rejectCriticalIssues && hasCriticalIssues) {
           revisionCount++;
-          console.log(`   ❌ CRITICAL ISSUES FOUND - UNACCEPTABLE`);
-          console.log(`   Artistic standards demand revision ${revisionCount}/${this.maxRevisions}\n`);
+          console.log(`   ❌ CRITICAL ISSUES FOUND`);
+          console.log(`   Attempting revision ${revisionCount}/${this.maxRevisions}\n`);
 
           if (revisionCount > this.maxRevisions) {
-            throw new Error('Failed to meet aesthetic standards after maximum revisions. Composition rejected.');
+            console.log(`   ⚠️  Max revisions reached. Critical issues remain, but continuing anyway.`);
+            console.log(`   ⚠️  OUTPUT SAVED WITH QUALITY WARNINGS - review before use!\n`);
+            break;  // Don't throw - let user decide
           }
 
           await this.handleRevisions(criticResult.data.issues, context, userPrompt);
@@ -145,9 +147,11 @@ export class MusicOrchestrator {
 
           if (revisionCount > this.maxRevisions) {
             if (hasCriticalIssues) {
-              throw new Error('Composition has critical issues and cannot be accepted.');
+              console.log(`   ⚠️  Max revisions reached. CRITICAL ISSUES REMAIN.`);
+              console.log(`   ⚠️  Saving output anyway - USER DISCRETION ADVISED!\n`);
+            } else {
+              console.log(`   ⚠️  Max revisions reached. Accepting with minor issues.\n`);
             }
-            console.log(`   ⚠️  Max revisions reached. Accepting with minor issues only.\n`);
             break;
           }
 
@@ -161,12 +165,19 @@ export class MusicOrchestrator {
       }
     }
 
+    // Determine quality status for filename tagging
+    const hasCriticalIssues = criticResult?.data.issues.some(i => i.severity === 'critical') || false;
+    const hasMajorIssues = criticResult?.data.issues.some(i => i.severity === 'major') || false;
+
     return {
       abc_notation: context.composition.data.abc_notation,
       metadata: context.composition.data.metadata,
       genre_name: context.creative_genre_name.data.genre_name,
       full_context: context,
-      validation: criticResult ? criticResult.data : null
+      validation: criticResult ? criticResult.data : null,
+      quality_warnings: hasCriticalIssues || hasMajorIssues,
+      has_critical_issues: hasCriticalIssues,
+      has_major_issues: hasMajorIssues
     };
   }
 

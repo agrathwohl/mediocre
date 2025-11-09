@@ -67,7 +67,17 @@ export async function orchestrate(options) {
     const result = await orchestrator.orchestrate(userPrompt, options);
 
     // Clean ABC notation
-    const cleanedAbc = cleanAbcNotation(result.abc_notation);
+    let cleanedAbc = cleanAbcNotation(result.abc_notation);
+
+    // ADDITIONAL VALIDATION: Strip orphaned MIDI declarations
+    cleanedAbc = stripOrphanedMIDIDeclarations(cleanedAbc);
+
+    // Validate final ABC
+    const validationWarnings = validateFinalABC(cleanedAbc);
+    if (validationWarnings.length > 0) {
+      console.log('\n⚠️  ABC Validation Warnings:');
+      validationWarnings.forEach(warning => console.log(`   - ${warning}`));
+    }
 
     // Generate output filename
     const outputDir = options.output || './output';
@@ -75,7 +85,12 @@ export async function orchestrate(options) {
 
     const timestamp = Date.now();
     const genreName = result.genre_name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    const baseFilename = `${genreName}-${timestamp}`;
+
+    // Add quality warning suffix if needed
+    const qualitySuffix = result.has_critical_issues ? '_CRITICAL_ISSUES' :
+                         result.has_major_issues ? '_QUALITY_WARNINGS' : '';
+
+    const baseFilename = `${genreName}-${timestamp}${qualitySuffix}`;
 
     const abcPath = path.join(outputDir, `${baseFilename}.abc`);
     const jsonPath = path.join(outputDir, `${baseFilename}.json`);
