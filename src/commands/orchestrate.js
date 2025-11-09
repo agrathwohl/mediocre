@@ -155,6 +155,63 @@ function buildUserPrompt(options) {
 }
 
 /**
+ * Strip orphaned MIDI declarations (safety check)
+ * Removes MIDI program/channel declarations for voices that don't exist
+ */
+function stripOrphanedMIDIDeclarations(abc) {
+  // Extract all voice declarations (V:1, V:2, etc.)
+  const voiceMatches = abc.match(/\[V:(\d+)\]/g) || [];
+  const voiceNumbers = new Set(voiceMatches.map(v => parseInt(v.match(/\d+/)[0])));
+
+  if (voiceNumbers.size === 0) {
+    return abc; // No voices found, return as-is
+  }
+
+  // Remove MIDI declarations for voices that don't exist
+  const lines = abc.split('\n');
+  const filteredLines = lines.filter(line => {
+    const midiMatch = line.match(/%%MIDI\s+(program|channel)\s+(\d+)/);
+    if (midiMatch) {
+      const voiceNum = parseInt(midiMatch[2]);
+      // Keep line only if this voice number exists
+      return voiceNumbers.has(voiceNum);
+    }
+    return true; // Keep all non-MIDI lines
+  });
+
+  return filteredLines.join('\n');
+}
+
+/**
+ * Validate final ABC notation (returns warnings, doesn't modify)
+ */
+function validateFinalABC(abc) {
+  const warnings = [];
+
+  // Check for uppercase letters with apostrophes (should be caught by cleanAbcNotation)
+  const uppercaseApostrophes = abc.match(/[A-G][']/g);
+  if (uppercaseApostrophes) {
+    warnings.push(`Found uppercase letters with apostrophes: ${uppercaseApostrophes.join(', ')} (should use lowercase)`);
+  }
+
+  // Check for invalid dynamics
+  const invalidDynamics = abc.match(/!(f{4,}|p{4,})!/g);
+  if (invalidDynamics) {
+    warnings.push(`Found invalid dynamics: ${invalidDynamics.join(', ')} (max is !fff! or !ppp!)`);
+  }
+
+  // Count voices and MIDI declarations
+  const voiceDeclarations = (abc.match(/\[V:\d+\]/g) || []).length;
+  const midiProgramDeclarations = (abc.match(/%%MIDI program \d+/g) || []).length;
+
+  if (voiceDeclarations !== midiProgramDeclarations) {
+    warnings.push(`Voice/MIDI mismatch: ${voiceDeclarations} voices but ${midiProgramDeclarations} MIDI program declarations`);
+  }
+
+  return warnings;
+}
+
+/**
  * Create markdown summary of the composition
  */
 function createMarkdownSummary(result, abc) {
