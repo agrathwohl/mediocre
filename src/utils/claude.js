@@ -796,9 +796,17 @@ CRITICAL FORMATTING RULES:
 ⚠️ CRITICAL SYNTAX RULES:
 - NEVER put commas after notes (e.g., "e,g,b," is WRONG - use "egb" or "e g b")
 - Commas and apostrophes are ONLY for octave changes (e.g., "C," = lower octave, "c'" = higher octave)
+- ⚠️ OCTAVE NOTATION RULE: Apostrophes (') ONLY work with LOWERCASE letters (a-g)
+  - CORRECT: c' d' e' f' g' a' b'  (lowercase + apostrophe = higher octave)
+  - WRONG: C' D' E' F' G' A' B'  (uppercase + apostrophe is INVALID SYNTAX!)
+  - For uppercase notes, use COMMAS to go DOWN: C, D, E, (lower octave)
 - Notes in chords should be in brackets with NO commas: [CEG] not [C,E,G]
 - Maximum dynamic is !fff! - NEVER use !ffff! or more f's
 - Minimum dynamic is !ppp! - NEVER use !pppp! or more p's
+- ⚠️ VOICE DECLARATION RULE: ONLY declare voices in the header that you ACTUALLY USE in the music
+  - If you use [V:1] through [V:5] in your music, ONLY declare %%MIDI program/channel 1-5
+  - DO NOT declare %%MIDI program 6, 7, 8, etc. if you don't use [V:6], [V:7], [V:8] in your score
+  - Count your voices BEFORE writing the header!
 - When fixing existing music, carefully remove any blank lines between voice sections
 - Output the corrected ABC notation with proper formatting
 
