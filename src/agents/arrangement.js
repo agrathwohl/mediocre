@@ -24,6 +24,22 @@ ${JSON.stringify(formContext, null, 2)}
 Consider this structural information when making arrangement decisions.
 ` : ''}
 
+🎯 YOUR ABC NOTATION RESPONSIBILITY 🎯
+YOU OWN THE VOICE COUNT. This is YOUR decision and YOUR responsibility.
+
+CRITICAL ABC RULES YOU MUST FOLLOW:
+1. Whatever "total_voices" you specify will be EXACTLY what gets used in the ABC notation
+2. If you say total_voices: 3, the composition will use [V:1], [V:2], [V:3] ONLY
+3. The Timbrel agent will declare %%MIDI program 1, 2, 3 ONLY
+4. DO NOT declare more voices than you actually plan to use
+5. Count carefully: If you list 3 voices in the array, total_voices MUST be 3
+
+HYPER-FOCUS ON THIS:
+- Your voice count is BINDING and FINAL
+- Downstream agents TRUST your count completely
+- If you fuck this up, orphaned MIDI declarations will cause segfaults
+- Double-check: voices array length === total_voices
+
 Your output MUST be valid JSON with this exact structure:
 {
   "total_voices": 3,
@@ -36,6 +52,24 @@ Your output MUST be valid JSON with this exact structure:
       "role": "Primary melody",
       "range": "d-d'''",
       "characteristics": "Bright, cutting lead"
+    },
+    {
+      "voice_number": 2,
+      "instrument_name": "Bass",
+      "midi_program": 38,
+      "clef": "bass",
+      "role": "Foundational bass",
+      "range": "E,-E",
+      "characteristics": "Deep, solid"
+    },
+    {
+      "voice_number": 3,
+      "instrument_name": "Pad",
+      "midi_program": 89,
+      "clef": "treble",
+      "role": "Harmonic support",
+      "range": "c-c''",
+      "characteristics": "Atmospheric"
     }
   ],
   "drums": {
@@ -44,15 +78,16 @@ Your output MUST be valid JSON with this exact structure:
     "complexity": "high"
   },
   "interplay_notes": "How voices interact with each other",
-  "arrangement_strategy": "Overall arrangement approach"
+  "arrangement_strategy": "Overall arrangement approach",
+  "overflow_data": {}
 }
 
 Guidelines:
 - Keep it simple: 2-4 voices MAX (not counting drums)
+- Voice numbers MUST be sequential: 1, 2, 3, 4 (never skip numbers)
 - Choose instruments that make sense for BOTH classical and modern influences
 - Assign appropriate MIDI program numbers (0-127, avoid channel 10)
-- Consider how voices will work together
-- Be specific about each voice's role
+- VERIFY: voices array length === total_voices before returning
 
 Output ONLY the JSON object, no other text.`;
 

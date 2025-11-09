@@ -32,32 +32,58 @@ ${JSON.stringify({
   dynamics: dynamicsContext
 }, null, 2)}
 
-⚠️ CRITICAL ABC SYNTAX RULES ⚠️
+🎯 YOUR ABC NOTATION RESPONSIBILITY 🎯
+YOU OWN THE FINAL ABC NOTATION. This is YOUR responsibility.
 
-1. OCTAVE NOTATION:
-   - Apostrophes (') ONLY work with LOWERCASE letters: c' d' e' ✓
-   - NEVER use uppercase with apostrophes: C' D' E' ✗
-   - For lowercase: ' = higher octave, no modifier = middle, , = lower octave
+The Arrangement Agent specified ${arrangementContext.total_voices || 'N'} voices.
+The Timbrel Agent configured MIDI for those voices.
+YOU MUST use EXACTLY ${arrangementContext.total_voices || 'N'} voices. NO MORE. NO LESS.
 
-2. VOICE DECLARATIONS:
-   - ONLY declare voices that exist in the arrangement
-   - If arrangement specifies 3 voices, ONLY use [V:1] [V:2] [V:3]
-   - NEVER declare %%MIDI program/channel for non-existent voices
+⚠️ CRITICAL ABC SYNTAX RULES - YOUR SOLE RESPONSIBILITY ⚠️
 
-3. BAR COUNTS:
-   - EVERY bar must have EXACTLY the correct number of beats
-   - M:4/4 with L:1/16 = 16 sixteenth notes per bar
-   - Use 'z' for rests to fill bars to correct length
-   - ALL voices must have the SAME number of bars
+1. OCTAVE NOTATION (CAUSES PARSE ERRORS IF WRONG):
+   ✓ CORRECT: c' d' e' f' g' a' b'  (lowercase + apostrophe)
+   ✗ WRONG: C' D' E' F' G' A' B'  (uppercase + apostrophe is INVALID)
 
-4. FORMATTING:
-   - NO BLANK LINES between voice sections
-   - Each voice section on its own line with no indentation
+   - Apostrophes (') ONLY work with LOWERCASE letters
+   - For uppercase notes going down, use comma: C, D, E,
+   - NEVER EVER use uppercase with apostrophe
 
-5. MIDI:
-   - Drum pattern: count 'd' characters, provide that many programs and velocities
-   - Valid channels: 1-9, 11-16 (skip 10, it's drums only)
-   - Max dynamic: !fff!, min: !ppp!
+2. VOICE DECLARATIONS (MUST MATCH ARRANGEMENT):
+   - Arrangement said ${arrangementContext.total_voices || 'N'} voices
+   - You create EXACTLY ${arrangementContext.total_voices || 'N'} voice sections: [V:1] [V:2] ... [V:${arrangementContext.total_voices || 'N'}]
+   - Voice numbers are sequential: 1, 2, 3, ... (no gaps, no skipping)
+   - metadata.voices_used MUST equal ${arrangementContext.total_voices || 'N'}
+
+3. BAR COUNTS (EVERY BAR MUST BE CORRECT):
+   Time signature: ${formContext.time_signature || '4/4'}
+   Unit note length: L:1/16 (sixteenth notes)
+
+   Math for ${formContext.time_signature || '4/4'} with L:1/16:
+   - Each bar needs EXACTLY 16 sixteenth notes (4 beats × 4 sixteenths per beat)
+   - Count every note and rest: c2 = 2 sixteenths, z4 = 4 sixteenths
+   - Use 'z' rests to fill incomplete bars
+
+   MANDATORY:
+   - COUNT notes in EVERY bar before writing next bar
+   - If bar doesn't add up to 16, ADD RESTS
+   - ALL ${arrangementContext.total_voices || 'N'} voices MUST have SAME total number of bars
+
+4. VOICE BAR SYNCHRONIZATION:
+   - If [V:1] has 64 bars, then [V:2] MUST have 64 bars, [V:3] MUST have 64 bars
+   - Count bars for each voice as you write
+   - Verify at the end: all voices same bar count
+
+5. FORMATTING:
+   - NO BLANK LINES anywhere in the ABC
+   - Each voice section directly follows previous one
+   - Section comments (% Section A) on their own line
+
+HYPER-FOCUS ON THESE MISTAKES:
+1. ❌ Using C' D' E' instead of c' d' e' (this breaks abc2midi)
+2. ❌ Creating 5 voices when arrangement specified 3
+3. ❌ Having bars with 15 or 17 notes instead of 16
+4. ❌ Voice 1 has 64 bars but Voice 2 has 62 bars
 
 Your output MUST be valid JSON with this structure:
 {
@@ -65,17 +91,21 @@ Your output MUST be valid JSON with this structure:
   "metadata": {
     "title": "Composition title",
     "total_bars": 64,
-    "voices_used": 3,
-    "key": "Dm",
-    "tempo": 174
+    "voices_used": ${arrangementContext.total_voices || 3},
+    "key": "${formContext.key || 'Dm'}",
+    "tempo": ${formContext.tempo || 174}
+  },
+  "overflow_data": {
+    "_bar_count_verification": "All voices have 64 bars",
+    "_octave_notation_check": "Only lowercase letters used with apostrophes"
   }
 }
 
-FOCUS ON:
-- Correct bar counts in every single bar
-- Valid octave notation (lowercase + apostrophe)
-- Matching voice declarations to arrangement
-- Musical coherence
+MANDATORY CHECKS BEFORE RETURNING:
+1. Search output for pattern [A-G]' and ELIMINATE IT (uppercase + apostrophe)
+2. Count voices used === ${arrangementContext.total_voices}
+3. Count bars for each voice, verify all equal
+4. Verify metadata.voices_used === ${arrangementContext.total_voices}
 
 Output ONLY the JSON object, no other text.`;
 

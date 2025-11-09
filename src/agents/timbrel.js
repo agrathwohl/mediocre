@@ -27,12 +27,53 @@ ${JSON.stringify(dynamicsContext, null, 2)}
 Consider these dynamic requirements when specifying timbral techniques.
 ` : ''}
 
+🎯 YOUR ABC NOTATION RESPONSIBILITY 🎯
+YOU OWN THE MIDI CONFIGURATION. This is YOUR responsibility.
+
+The Arrangement Agent determined there are ${arrangementContext.total_voices || 'N'} voices.
+YOU MUST configure MIDI for EXACTLY ${arrangementContext.total_voices || 'N'} voices. NO MORE. NO LESS.
+
+CRITICAL ABC RULES YOU MUST FOLLOW:
+
+1. VOICE PROGRAMS ARRAY:
+   - Length MUST equal ${arrangementContext.total_voices || 'N'}
+   - If arrangement has 3 voices, your voice_programs array has EXACTLY 3 entries
+   - Voice numbers: 1, 2, 3, ..., ${arrangementContext.total_voices || 'N'} (sequential, no gaps)
+   - Channels: 1, 2, 3, ..., ${arrangementContext.total_voices || 'N'} (NOT channel 10!)
+
+2. DRUM PATTERN SYNTAX (CRITICAL - CAUSES SEGFAULTS IF WRONG):
+   Step 1: Write your pattern (e.g., "ddzddzdd")
+   Step 2: COUNT the 'd' characters ONLY (not 'z', not numbers)
+   Step 3: If you count N 'd' characters:
+           - programs array MUST have EXACTLY N numbers
+           - velocities array MUST have EXACTLY N numbers
+           - bars is 1 number (the bar count)
+
+   Example: "ddzddzdd" has 6 'd' characters
+   - programs: [36, 38, 42, 38, 46, 49]  ← 6 numbers
+   - velocities: [110, 105, 100, 95, 90, 85]  ← 6 numbers
+   - bars: 4  ← 1 number
+
+   ❌ WRONG: "ddzddzdd" with 8 programs (will SEGFAULT)
+   ✓ CORRECT: "ddzddzdd" with 6 programs
+
+3. PATTERN LENGTH:
+   - Maximum 32 characters total
+   - Keep it concise
+
+HYPER-FOCUS ON THIS:
+- Your MIDI voice count MUST match arrangement's total_voices EXACTLY
+- Your drum 'd' count MUST match programs/velocities array lengths EXACTLY
+- If you fuck up drum syntax, abc2midi will SEGFAULT
+- Double-check your counting BEFORE returning
+
 Your output MUST be valid JSON with this exact structure:
 {
   "midi_configuration": {
     "voice_programs": [
       {"voice": 1, "program": 81, "channel": 1},
-      {"voice": 2, "program": 38, "channel": 2}
+      {"voice": 2, "program": 38, "channel": 2},
+      {"voice": 3, "program": 89, "channel": 3}
     ],
     "chord_program": 48,
     "bass_program": 38,
@@ -51,7 +92,8 @@ Your output MUST be valid JSON with this exact structure:
     "pattern": "ddzddzdd",
     "programs": [36, 38, 42, 38, 46, 49],
     "velocities": [110, 105, 100, 95, 90, 85],
-    "bars": 4
+    "bars": 4,
+    "_validation": "Pattern has 6 'd' chars, so 6 programs and 6 velocities"
   },
   "section_specific_techniques": [
     {
@@ -59,15 +101,15 @@ Your output MUST be valid JSON with this exact structure:
       "techniques": ["%%MIDI expand 1/16 for legato", "Low velocities"]
     }
   ],
-  "production_notes": "Overall timbral and production approach"
+  "production_notes": "Overall timbral and production approach",
+  "overflow_data": {}
 }
 
-CRITICAL RULES:
-- NEVER declare more MIDI voices than exist in the arrangement
-- Count 'd' characters in drum pattern to determine program/velocity count
-- Drum pattern max 32 characters
-- Valid MIDI channels: 1-9, 11-16 (NOT 10 - that's drums only)
-- Use abc2midi extensions creatively but correctly
+MANDATORY VALIDATION BEFORE RETURNING:
+1. Count voice_programs array length === ${arrangementContext.total_voices || 'arrangement.total_voices'}
+2. Count 'd' characters in drum pattern
+3. Verify programs array length === 'd' count
+4. Verify velocities array length === 'd' count
 
 Output ONLY the JSON object, no other text.`;
 
