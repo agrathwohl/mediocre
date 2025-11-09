@@ -17,6 +17,13 @@ export class MusicOrchestrator {
   constructor(anthropic) {
     this.anthropic = anthropic;
 
+    // ARTISTIC PHILOSOPHY:
+    // This orchestrator is an uncompromising artistic director, not a passive coordinator.
+    // We passionately defend the honor of the music's outcome.
+    // We DO NOT accept mediocrity or compromise artistic values to appear agreeable.
+    // We are TOUGH, UNWAVERING, and ask the DIFFICULT and CHALLENGING questions.
+    // We demand excellence from every agent and reject work that doesn't meet our standards.
+
     // Initialize all specialist agents
     this.creativeGenreNameAgent = new CreativeGenreNameAgent(anthropic);
     this.musicHistoryAgent = new MusicHistoryAgent(anthropic);
@@ -28,7 +35,15 @@ export class MusicOrchestrator {
     this.compositionAgent = new CompositionAgent(anthropic);
     this.criticAgent = new CriticAgent(anthropic);
 
-    this.maxRevisions = 3;
+    this.maxRevisions = 5;  // More revisions allowed - we don't settle for "good enough"
+    this.aestheticStandards = {
+      // We maintain vigilant oversight of aesthetic goals
+      minimumQualityThreshold: 0.8,  // High bar for acceptance
+      rejectMinorIssues: false,  // We'll accept minor issues, but NEVER major ones
+      rejectCriticalIssues: true,  // Absolutely no tolerance for critical issues
+      enforceGenreAuthenticity: true,  // Must authentically represent both genres
+      enforceMusicalCoherence: true   // Must be musically coherent and compelling
+    };
   }
 
   /**
@@ -96,15 +111,43 @@ export class MusicOrchestrator {
         criticResult = await this.criticAgent.execute(userPrompt, context);
         if (criticResult.status === 'error') throw new Error('Critic Agent failed');
 
-        if (criticResult.data.recommendation === 'accept') {
-          console.log(`   ✅ Composition validated successfully!\n`);
+        // AESTHETIC STANDARDS ENFORCEMENT:
+        // We maintain vigilant oversight. We do NOT compromise artistic values.
+        const hasCriticalIssues = criticResult.data.issues.some(i => i.severity === 'critical');
+        const hasMajorIssues = criticResult.data.issues.some(i => i.severity === 'major');
+
+        if (this.aestheticStandards.rejectCriticalIssues && hasCriticalIssues) {
+          revisionCount++;
+          console.log(`   ❌ CRITICAL ISSUES FOUND - UNACCEPTABLE`);
+          console.log(`   Artistic standards demand revision ${revisionCount}/${this.maxRevisions}\n`);
+
+          if (revisionCount > this.maxRevisions) {
+            throw new Error('Failed to meet aesthetic standards after maximum revisions. Composition rejected.');
+          }
+
+          await this.handleRevisions(criticResult.data.issues, context, userPrompt);
+          continue;
+        }
+
+        if (criticResult.data.recommendation === 'accept' && !hasMajorIssues) {
+          console.log(`   ✅ Composition meets our artistic standards!\n`);
           break;
         } else {
           revisionCount++;
-          console.log(`   ⚠️  Issues found (${criticResult.data.issues.length}). Revision ${revisionCount}/${this.maxRevisions}...\n`);
+          console.log(`   ⚠️  Issues found (${criticResult.data.issues.length}). Revision ${revisionCount}/${this.maxRevisions}...`);
+
+          // Display issues with severity
+          criticResult.data.issues.forEach(issue => {
+            const icon = issue.severity === 'critical' ? '🔴' : issue.severity === 'major' ? '🟡' : '⚪';
+            console.log(`   ${icon} [${issue.severity.toUpperCase()}] ${issue.category}: ${issue.description}`);
+          });
+          console.log('');
 
           if (revisionCount > this.maxRevisions) {
-            console.log(`   ⚠️  Max revisions reached. Accepting with issues.\n`);
+            if (hasCriticalIssues) {
+              throw new Error('Composition has critical issues and cannot be accepted.');
+            }
+            console.log(`   ⚠️  Max revisions reached. Accepting with minor issues only.\n`);
             break;
           }
 
