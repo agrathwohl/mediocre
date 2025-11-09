@@ -3,6 +3,8 @@
  * All music composition agents inherit from this
  */
 
+import { generateText } from 'ai';
+
 export class BaseAgent {
   constructor(name, anthropic) {
     this.name = name;
@@ -47,23 +49,23 @@ export class BaseAgent {
   }
 
   /**
-   * Call Anthropic API with agent-specific prompt
+   * Call Anthropic API with agent-specific prompt using Vercel AI SDK
    */
   async callLLM(systemPrompt, userPrompt, options = {}) {
-    const response = await this.anthropic.messages.create({
-      model: options.model || 'claude-sonnet-4-5-20250929',
-      max_tokens: options.maxTokens || 8000,
-      temperature: options.temperature || 0.7,
+    // Get model from the anthropic provider (Vercel AI SDK pattern)
+    const modelName = options.model || 'claude-sonnet-4-5-20250929';
+    const model = this.anthropic(modelName);
+
+    // Use generateText from Vercel AI SDK
+    const result = await generateText({
+      model,
       system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: userPrompt
-        }
-      ]
+      prompt: userPrompt,
+      temperature: options.temperature || 0.7,
+      maxTokens: options.maxTokens || 8000
     });
 
-    return response.content[0].text;
+    return result.text;
   }
 
   /**
