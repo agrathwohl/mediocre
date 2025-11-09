@@ -69,7 +69,7 @@ Create melodic themes and motifs for this composition.`;
     try {
       const response = await this.callLLM(systemPrompt, prompt, {
         temperature: 0.8,
-        maxTokens: 4000
+        maxTokens: 16000  // Increased to handle detailed responses
       });
 
       const parsed = this.parseJSONResponse(response);

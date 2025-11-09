@@ -66,7 +66,7 @@ Design the compositional form and structure for this piece.`;
     try {
       const response = await this.callLLM(systemPrompt, prompt, {
         temperature: 0.7,
-        maxTokens: 3000
+        maxTokens: 16000  // Increased to handle detailed responses
       });
 
       const parsed = this.parseJSONResponse(response);

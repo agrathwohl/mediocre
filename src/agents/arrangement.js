@@ -89,7 +89,9 @@ Guidelines:
 - Assign appropriate MIDI program numbers (0-127, avoid channel 10)
 - VERIFY: voices array length === total_voices before returning
 
-Output ONLY the JSON object, no other text.`;
+IMPORTANT: You MUST output ONLY valid JSON. Do not include markdown, explanations, or any text outside the JSON object.
+Do not wrap the JSON in markdown code fences.
+Start your response with { and end with }`;
 
     const prompt = `${userPrompt}
 
@@ -97,12 +99,12 @@ ${genreContext.genre_name ? `Genre: "${genreContext.genre_name}"
 ` : ''}${historyContext.classical_characteristics ? `Classical Characteristics: ${JSON.stringify(historyContext.classical_characteristics, null, 2)}
 Modern Characteristics: ${JSON.stringify(historyContext.modern_characteristics, null, 2)}
 ` : ''}
-Determine the optimal instrumentation and arrangement for this composition.`;
+Determine the optimal instrumentation and arrangement for this composition. Return ONLY the JSON object.`;
 
     try {
       const response = await this.callLLM(systemPrompt, prompt, {
         temperature: 0.7,
-        maxTokens: 3000
+        maxTokens: 16000  // Increased to handle detailed arrangements
       });
 
       const parsed = this.parseJSONResponse(response);
