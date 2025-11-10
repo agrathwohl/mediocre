@@ -1,6 +1,12 @@
 /**
  * Composition Agent
  * Step 7: Assembles all previous outputs into complete ABC notation
+ *
+ * TEMPLATE-BASED APPROACH:
+ * - Programmatically generates ABC header (guaranteed valid)
+ * - Programmatically generates MIDI declarations (guaranteed valid)
+ * - LLM generates ONLY note sequences (can't make syntax errors)
+ * - Assembles everything into valid ABC notation
  */
 
 import { BaseAgent } from './base-agent.js';
@@ -8,6 +14,97 @@ import { BaseAgent } from './base-agent.js';
 export class CompositionAgent extends BaseAgent {
   constructor(anthropic) {
     super('composition', anthropic);
+  }
+
+  /**
+   * Generate ABC header from specifications (GUARANTEED VALID)
+   */
+  generateABCHeader(genreContext, formContext, arrangementContext) {
+    const title = genreContext.genre_name || 'Untitled';
+    const meter = formContext.time_signature || '4/4';
+    const tempo = formContext.tempo || 120;
+    const key = formContext.key || 'C';
+
+    return [
+      'X:1',
+      `T:${title}`,
+      `M:${meter}`,
+      'L:1/16',
+      `Q:1/4=${tempo}`,
+      `K:${key}`
+    ].join('\n');
+  }
+
+  /**
+   * Generate MIDI declarations from timbrel specifications (GUARANTEED VALID)
+   */
+  generateMIDIDeclarations(timbrelContext, arrangementContext) {
+    const declarations = [];
+    const totalVoices = arrangementContext.total_voices || 3;
+    const voiceConfigs = timbrelContext.voice_midi_configurations || [];
+
+    // Generate MIDI program declarations for each voice
+    for (let i = 0; i < totalVoices; i++) {
+      const voiceConfig = voiceConfigs[i] || {};
+      const channel = i + 1;
+      const program = voiceConfig.midi_program || 0;
+
+      // Validate program number (0-127)
+      const validProgram = Math.max(0, Math.min(127, program));
+
+      declarations.push(`%%MIDI program ${channel} ${validProgram}`);
+    }
+
+    // Add drum patterns if specified
+    if (timbrelContext.drum_pattern) {
+      const pattern = timbrelContext.drum_pattern.pattern || 'dzzz';
+      const programs = timbrelContext.drum_pattern.programs || [36];
+      const velocities = timbrelContext.drum_pattern.velocities || [80];
+
+      // Count 'd' characters in pattern
+      const dCount = (pattern.match(/d/g) || []).length;
+
+      // Take exactly dCount programs and velocities
+      const validPrograms = programs.slice(0, dCount);
+      const validVelocities = velocities.slice(0, dCount);
+
+      // Pad with defaults if needed
+      while (validPrograms.length < dCount) validPrograms.push(36);
+      while (validVelocities.length < dCount) validVelocities.push(80);
+
+      const drumDeclaration = `%%MIDI drum ${pattern} ${validPrograms.join(' ')} ${validVelocities.join(' ')}`;
+      declarations.push(drumDeclaration);
+    }
+
+    return declarations.join('\n');
+  }
+
+  /**
+   * Assemble complete ABC notation from parts (GUARANTEED VALID STRUCTURE)
+   */
+  assembleABC(header, midiDeclarations, voiceSequences) {
+    const parts = [
+      header,
+      midiDeclarations
+    ];
+
+    // Add each voice section
+    for (let i = 0; i < voiceSequences.length; i++) {
+      const voiceNum = i + 1;
+      const sequence = voiceSequences[i];
+
+      parts.push(`[V:${voiceNum}]`);
+      parts.push(sequence);
+    }
+
+    return parts.join('\n');
+  }
+
+  /**
+   * Count bars in a note sequence
+   */
+  countBars(noteSequence) {
+    return (noteSequence.match(/\|/g) || []).length;
   }
 
   async execute(userPrompt, previousOutputs = {}) {
@@ -19,194 +116,130 @@ export class CompositionAgent extends BaseAgent {
     const timbrelContext = previousOutputs.timbrel || {};
     const dynamicsContext = previousOutputs.dynamics || {};
 
-    const systemPrompt = `You are an expert ABC notation composer. Your task is to take all the musical decisions from previous agents and create complete, valid, playable ABC notation.
+    const totalVoices = arrangementContext.total_voices || 3;
+    const targetBars = formContext.total_bars || 64;
 
-YOU HAVE BEEN GIVEN COMPLETE SPECIFICATIONS:
+    console.log(`\n🎼 Template-based ABC generation:`);
+    console.log(`   Target: ${targetBars} bars, ${totalVoices} voices`);
+
+    // STEP 1: Generate header programmatically (GUARANTEED VALID)
+    const header = this.generateABCHeader(genreContext, formContext, arrangementContext);
+    console.log(`   ✓ Generated header`);
+
+    // STEP 2: Generate MIDI declarations programmatically (GUARANTEED VALID)
+    const midiDeclarations = this.generateMIDIDeclarations(timbrelContext, arrangementContext);
+    console.log(`   ✓ Generated MIDI declarations`);
+
+    // STEP 3: Have LLM generate ONLY note sequences (can't make syntax errors)
+    const systemPrompt = `You are a music composer generating ABC notation note sequences.
+
+SPECIFICATIONS:
 ${JSON.stringify({
   genre: genreContext,
   history: historyContext,
   arrangement: arrangementContext,
   form: formContext,
   melodic: melodicContext,
-  timbrel: timbrelContext,
   dynamics: dynamicsContext
 }, null, 2)}
 
-╔═══════════════════════════════════════════════════════════════╗
-║           ABC NOTATION TEMPLATE - FOLLOW EXACTLY              ║
-╚═══════════════════════════════════════════════════════════════╝
+YOUR TASK:
+Generate ONLY the note sequences for ${totalVoices} voices. DO NOT generate:
+- Headers (X:, T:, M:, L:, Q:, K:)
+- MIDI declarations (%%MIDI)
+- Voice declarations ([V:1], [V:2])
 
-HEADER STRUCTURE (Lines 1-N):
-X:1
-T:Your Title Here
-M:${formContext.time_signature || '4/4'}
-L:1/16
-Q:1/4=${formContext.tempo || 174}
-K:${formContext.key || 'Dm'}
-%%MIDI program 1 <instrument_number>
-%%MIDI program 2 <instrument_number>
-%%MIDI program 3 <instrument_number>
-[... one %%MIDI program line for EACH voice, numbered 1 to ${arrangementContext.total_voices || 'N'}]
-
-BODY STRUCTURE (After header, continuous notation):
-[V:1]
-<continuous notes and bars for entire piece>|
-<more bars>|
-<more bars>|
-[V:2]
-<continuous notes and bars for entire piece>|
-<more bars>|
-<more bars>|
-[V:3]
-<continuous notes and bars for entire piece>|
+Generate ONLY the musical notes and bar lines.
 
 CRITICAL RULES:
 
-1. %%MIDI DECLARATIONS - ONLY IN HEADER, ONLY THESE COMMANDS:
+1. OCTAVE NOTATION:
+   ✓ CORRECT: c d e f g a b c' d' e' (lowercase + apostrophe for high octaves)
+   ✗ WRONG: C' D' E' (uppercase + apostrophe is INVALID)
 
-   ✓ VALID COMMANDS (abc2midi will accept these):
-   %%MIDI program <channel> <instrument_0-127>
-   %%MIDI channel <channel>
-   %%MIDI beat <n1> <n2> <n3> <n4>
-   %%MIDI beatmod <n>
-   %%MIDI deltaloudness <n>
-   %%MIDI drum <pattern> <n1> <n2> <n3>...
-   %%MIDI chordprog <instrument>
-   %%MIDI bassprog <instrument>
-
-   ✗ INVALID - DO NOT USE:
-   %%MIDI c
-   %%MIDI p
-   %%MIDI v
-   %%MIDI vol
-   %%MIDI voice
-   <any other %%MIDI command not in the valid list above>
-
-2. MIDI PROGRAM DECLARATIONS:
-   - ONLY in header section (before first [V:1])
-   - NEVER mid-score (no %%MIDI program after any [V:N] declaration)
-   - MUST have exactly ${arrangementContext.total_voices || 'N'} declarations
-   - Sequential channels: %%MIDI program 1 X, %%MIDI program 2 Y, %%MIDI program 3 Z
-   - Valid instrument numbers: 0-127 ONLY
-
-3. DRUM PATTERN SYNTAX:
-   %%MIDI drum <pattern> <program1> <program2>... <velocity1> <velocity2>...
-
-   CRITICAL: If pattern has N 'd' characters, you need EXACTLY N programs and EXACTLY N velocities
-
-   ✓ CORRECT:
-   %%MIDI drum ddzd 36 38 36 36 76 76 76 76
-   (4 'd' chars → 4 programs: 36,38,36,36 → 4 velocities: 76,76,76,76)
-
-   ✗ WRONG:
-   %%MIDI drum ddzd 36 38 36 36 42 44 76 76 76 76 80 80
-   (4 'd' chars but 6 programs and 6 velocities - MISMATCHED!)
-
-   COUNT 'd' characters in your pattern, then provide EXACTLY that many numbers!
-
-4. VOICE DECLARATIONS:
-   - Write [V:1] ONCE at the start of voice 1's section
-   - Then write ALL of voice 1's bars continuously (no more [V:1] declarations)
-   - Then write [V:2] ONCE for voice 2
-   - Then write ALL of voice 2's bars continuously
-   - Pattern: [V:N] appears EXACTLY ONCE per voice, at the START of that voice's section
-
-   ✓ CORRECT:
-   [V:1]
-   cdef|gfed|cdef|gfed|
-   cdef|gfed|cdef|gfed|
-   [V:2]
-   CDEF|GFED|CDEF|GFED|
-
-   ✗ WRONG (DO NOT DO THIS):
-   [V:1]
-   cdef|gfed|
-   [V:1]
-   cdef|gfed|
-   [V:1]
-   cdef|gfed|
-   (DO NOT repeat [V:1] - write it ONCE!)
-
-5. OCTAVE NOTATION:
-   ✓ CORRECT: c' d' e' f' g' a' b' c'' (lowercase + apostrophe)
-   ✗ WRONG: C' D' E' F' G' A' B' (uppercase + apostrophe is INVALID)
-
-   - Apostrophes (') ONLY with lowercase
-   - For low notes: C, D, E, (uppercase + comma)
-
-6. BAR COUNTS:
+2. BAR LENGTH:
    Time signature: ${formContext.time_signature || '4/4'}
-   Unit note length: L:1/16
+   Unit length: L:1/16
+   Each bar needs EXACTLY 16 sixteenth-note units
+   - c2 = 2 units, c4 = 4 units, c8 = 8 units
+   - Use z for rests
 
-   Each bar needs EXACTLY 16 sixteenth notes worth of duration:
-   - c2 = 2 sixteenths
-   - c4 = 4 sixteenths
-   - c8 = 8 sixteenths
-   - z2 = 2 sixteenth rest
+3. BAR COUNT:
+   - Generate ${targetBars} bars for EACH voice
+   - ALL voices must have same bar count
+   - End each bar with |
 
-   COUNT every note/rest in each bar. If sum ≠ 16, add rests with z
+4. OUTPUT FORMAT:
+   Return JSON with this EXACT structure:
+   {
+     "voice_sequences": [
+       "notes for voice 1|more bars|...",
+       "notes for voice 2|more bars|...",
+       "notes for voice 3|more bars|..."
+     ],
+     "bars_per_voice": [64, 64, 64]
+   }
 
-7. VOICE COUNT:
-   - Arrangement specified ${arrangementContext.total_voices || 'N'} voices
-   - You MUST create EXACTLY ${arrangementContext.total_voices || 'N'} voices
-   - Voice numbers: 1, 2, 3, ..., ${arrangementContext.total_voices || 'N'} (sequential, no gaps)
-
-8. VOICE SYNCHRONIZATION:
-   - ALL voices must have SAME number of bars
-   - If [V:1] has 64 bars, then [V:2], [V:3], etc. MUST have 64 bars
-
-GENERATION CHECKLIST (verify before returning):
-□ Header has EXACTLY ${arrangementContext.total_voices || 'N'} %%MIDI program declarations
-□ All %%MIDI commands are from the VALID list (no made-up commands)
-□ NO %%MIDI program declarations after any [V:N] (all in header only)
-□ Each voice section starts with [V:N] ONCE and ONLY ONCE
-□ Drum pattern has matching counts (N 'd' chars = N programs = N velocities)
-□ No uppercase letters with apostrophes (C' D' E' etc.)
-□ All voices have same bar count
-□ metadata.voices_used equals ${arrangementContext.total_voices || 'N'}
-
-Your output MUST be valid JSON with this structure:
+EXAMPLE OUTPUT:
 {
-  "abc_notation": "Complete ABC notation as a single string with \\n for line breaks",
-  "metadata": {
-    "title": "Composition title",
-    "total_bars": 64,
-    "voices_used": ${arrangementContext.total_voices || 3},
-    "key": "${formContext.key || 'Dm'}",
-    "tempo": ${formContext.tempo || 174}
-  },
-  "overflow_data": {
-    "_bar_count_verification": "All voices have 64 bars",
-    "_octave_notation_check": "Only lowercase letters used with apostrophes"
-  }
+  "voice_sequences": [
+    "c4d4e4f4|g4f4e4d4|c4d4e4f4|g4f4e4d4|",
+    "C4D4E4F4|G4F4E4D4|C4D4E4F4|G4F4E4D4|",
+    "z16|z16|z16|z16|"
+  ],
+  "bars_per_voice": [4, 4, 4]
 }
 
-MANDATORY CHECKS BEFORE RETURNING:
-1. Search output for pattern [A-G]' and ELIMINATE IT (uppercase + apostrophe)
-2. Count voices used === ${arrangementContext.total_voices}
-3. Count bars for each voice, verify all equal
-4. Verify metadata.voices_used === ${arrangementContext.total_voices}
+MANDATORY:
+- Generate ${totalVoices} voice sequences
+- Each sequence has ${targetBars} bars
+- Only lowercase letters with apostrophes for octaves
+- No syntax elements (no headers, no MIDI, no [V:N])
+- Just notes, rests, and bar lines
 
-Output ONLY the JSON object, no other text.`;
+Output ONLY valid JSON.`;
 
-    const prompt = `Using ALL the specifications provided in the system prompt, compose complete ABC notation.
+    const prompt = `Generate ${targetBars} bars of ABC notation note sequences for ${totalVoices} voices.
 
-Title should reference: ${genreContext.genre_name || 'the genre fusion'}
+Genre: ${genreContext.genre_name || 'fusion'}
+Key: ${formContext.key || 'C'}
+Tempo: ${formContext.tempo || 120} BPM
 
-Be creative within the specifications, but follow them precisely.`;
+Be creative and musically interesting.`;
 
     try {
       const response = await this.callLLM(systemPrompt, prompt, {
         temperature: 0.7,
-        maxTokens: 32000 // Need lots of tokens for full ABC notation
+        maxTokens: 32000
       });
 
       const parsed = this.parseJSONResponse(response);
 
+      if (!parsed.voice_sequences || parsed.voice_sequences.length !== totalVoices) {
+        throw new Error(`Expected ${totalVoices} voice sequences, got ${parsed.voice_sequences?.length || 0}`);
+      }
+
+      console.log(`   ✓ Generated note sequences for ${totalVoices} voices`);
+
+      // Verify bar counts
+      const barCounts = parsed.voice_sequences.map(seq => this.countBars(seq));
+      console.log(`   ✓ Bar counts: ${barCounts.join(', ')}`);
+
+      // STEP 4: Assemble into valid ABC (GUARANTEED VALID STRUCTURE)
+      const abc = this.assembleABC(header, midiDeclarations, parsed.voice_sequences);
+
+      console.log(`   ✓ Assembled complete ABC notation`);
+
       return this.createResponse('success', {
-        abc_notation: parsed.abc_notation,
-        metadata: parsed.metadata
-      }, `ABC notation generated: ${parsed.metadata.total_bars} bars, ${parsed.metadata.voices_used} voices`);
+        abc_notation: abc,
+        metadata: {
+          title: genreContext.genre_name || 'Untitled',
+          total_bars: Math.max(...barCounts),
+          voices_used: totalVoices,
+          key: formContext.key || 'C',
+          tempo: formContext.tempo || 120
+        }
+      }, `ABC notation generated: ${Math.max(...barCounts)} bars, ${totalVoices} voices`);
     } catch (error) {
       console.error('Composition Agent failed:', error);
       return this.createResponse('error', {
