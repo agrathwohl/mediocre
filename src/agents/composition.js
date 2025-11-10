@@ -20,10 +20,13 @@ export class CompositionAgent extends BaseAgent {
    * Generate ABC header from specifications (GUARANTEED VALID)
    */
   generateABCHeader(genreContext, formContext, arrangementContext) {
-    const title = genreContext.genre_name || 'Untitled';
-    const meter = formContext.time_signature || '4/4';
-    const tempo = formContext.tempo || 120;
-    const key = formContext.key || 'C';
+    // Extract actual data from agent outputs (with reasonable fallbacks)
+    const title = genreContext.data?.genre_name || genreContext.genre_name || 'Untitled Composition';
+    const meter = formContext.data?.time_signature || formContext.time_signature || '4/4';
+    const tempo = formContext.data?.tempo || formContext.tempo || 120;
+    const key = formContext.data?.key || formContext.key || 'C';
+
+    console.log(`   📋 Header: "${title}" | ${meter} | ${tempo} BPM | ${key}`);
 
     return [
       'X:1',
@@ -40,26 +43,34 @@ export class CompositionAgent extends BaseAgent {
    */
   generateMIDIDeclarations(timbrelContext, arrangementContext) {
     const declarations = [];
-    const totalVoices = arrangementContext.total_voices || 3;
-    const voiceConfigs = timbrelContext.voice_midi_configurations || [];
+    const totalVoices = arrangementContext.data?.total_voices || arrangementContext.total_voices || 3;
+
+    // Extract voice configurations from timbrel agent response
+    const voiceConfigs = timbrelContext.data?.voice_midi_configurations
+                      || timbrelContext.voice_midi_configurations
+                      || [];
+
+    console.log(`   🎹 Configuring MIDI for ${totalVoices} voices:`);
 
     // Generate MIDI program declarations for each voice
     for (let i = 0; i < totalVoices; i++) {
       const voiceConfig = voiceConfigs[i] || {};
       const channel = i + 1;
-      const program = voiceConfig.midi_program || 0;
+      const program = voiceConfig.midi_program || voiceConfig.program || 0;
 
       // Validate program number (0-127)
       const validProgram = Math.max(0, Math.min(127, program));
 
+      console.log(`      Voice ${channel}: MIDI program ${validProgram} (${voiceConfig.instrument_name || 'unknown'})`);
       declarations.push(`%%MIDI program ${channel} ${validProgram}`);
     }
 
     // Add drum patterns if specified
-    if (timbrelContext.drum_pattern) {
-      const pattern = timbrelContext.drum_pattern.pattern || 'dzzz';
-      const programs = timbrelContext.drum_pattern.programs || [36];
-      const velocities = timbrelContext.drum_pattern.velocities || [80];
+    const drumPattern = timbrelContext.data?.drum_pattern || timbrelContext.drum_pattern;
+    if (drumPattern) {
+      const pattern = drumPattern.pattern || 'dzzz';
+      const programs = drumPattern.programs || [36];
+      const velocities = drumPattern.velocities || [80];
 
       // Count 'd' characters in pattern
       const dCount = (pattern.match(/d/g) || []).length;
@@ -73,6 +84,7 @@ export class CompositionAgent extends BaseAgent {
       while (validVelocities.length < dCount) validVelocities.push(80);
 
       const drumDeclaration = `%%MIDI drum ${pattern} ${validPrograms.join(' ')} ${validVelocities.join(' ')}`;
+      console.log(`      Drum pattern: ${pattern} (${dCount} voices)`);
       declarations.push(drumDeclaration);
     }
 
@@ -131,81 +143,147 @@ export class CompositionAgent extends BaseAgent {
     console.log(`   ✓ Generated MIDI declarations`);
 
     // STEP 3: Have LLM generate ONLY note sequences (can't make syntax errors)
-    const systemPrompt = `You are a music composer generating ABC notation note sequences.
+    const systemPrompt = `You are an expert music composer generating ABC notation note sequences.
 
-SPECIFICATIONS:
-${JSON.stringify({
-  genre: genreContext,
-  history: historyContext,
-  arrangement: arrangementContext,
-  form: formContext,
-  melodic: melodicContext,
-  dynamics: dynamicsContext
-}, null, 2)}
+╔═══════════════════════════════════════════════════════════════╗
+║                   MUSICAL SPECIFICATIONS                      ║
+╚═══════════════════════════════════════════════════════════════╝
 
-YOUR TASK:
-Generate ONLY the note sequences for ${totalVoices} voices. DO NOT generate:
-- Headers (X:, T:, M:, L:, Q:, K:)
-- MIDI declarations (%%MIDI)
-- Voice declarations ([V:1], [V:2])
+GENRE & AESTHETIC:
+${JSON.stringify(genreContext, null, 2)}
 
-Generate ONLY the musical notes and bar lines.
+MUSIC HISTORY CONTEXT:
+${JSON.stringify(historyContext, null, 2)}
 
-CRITICAL RULES:
+COMPOSITIONAL FORM & STRUCTURE:
+${JSON.stringify(formContext, null, 2)}
+
+ARRANGEMENT (Voice Roles):
+${JSON.stringify(arrangementContext, null, 2)}
+
+MELODIC THEMES & MOTIFS:
+${JSON.stringify(melodicContext, null, 2)}
+
+DYNAMIC ARC:
+${JSON.stringify(dynamicsContext, null, 2)}
+
+╔═══════════════════════════════════════════════════════════════╗
+║                    YOUR COMPOSITIONAL TASK                    ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Generate ${targetBars} bars of ABC notation note sequences for ${totalVoices} voices that EMBODY all the specifications above.
+
+CRITICAL: You are generating ONLY note sequences. DO NOT generate:
+- Headers (X:, T:, M:, L:, Q:, K:) ← Header is auto-generated
+- MIDI declarations (%%MIDI) ← MIDI is auto-generated
+- Voice declarations ([V:1], [V:2]) ← Voice markers are auto-added
+
+Generate ONLY: musical notes, rests (z), and bar lines (|)
+
+╔═══════════════════════════════════════════════════════════════╗
+║                 COMPOSITIONAL REQUIREMENTS                    ║
+╚═══════════════════════════════════════════════════════════════╝
+
+1. FOLLOW THE FORM STRUCTURE:
+   - The Compositional Form agent designed a ${targetBars}-bar structure
+   - Follow any section divisions, developmental arcs, or formal plans specified
+   - Respect the time signature: ${formContext.time_signature || '4/4'}
+
+2. DEVELOP THE MELODIC THEMES:
+   - The Melodic agent created themes/motifs for you to use
+   - Introduce, develop, vary, and recapitulate these themes
+   - Create melodic relationships between voices as specified
+
+3. REALIZE THE DYNAMIC ARC:
+   - The Dynamics agent designed an energy/intensity arc across the piece
+   - Reflect dynamics through: note density, register, rhythmic activity, articulation
+   - Build and release tension according to the dynamic plan
+
+4. EMBODY THE GENRE FUSION:
+   - Incorporate stylistic elements from the historical analysis
+   - Blend the aesthetic qualities of both genres
+   - Use rhythmic patterns, harmonic language, and textures that reflect the fusion
+
+5. RESPECT VOICE ROLES:
+   - Each voice has a specific role (melody, harmony, bass, rhythm, etc.)
+   - Voice interaction patterns may be specified (call-response, counterpoint, etc.)
+   - Maintain voice independence while creating ensemble coherence
+
+╔═══════════════════════════════════════════════════════════════╗
+║                      ABC SYNTAX RULES                         ║
+╚═══════════════════════════════════════════════════════════════╝
 
 1. OCTAVE NOTATION:
-   ✓ CORRECT: c d e f g a b c' d' e' (lowercase + apostrophe for high octaves)
-   ✗ WRONG: C' D' E' (uppercase + apostrophe is INVALID)
+   ✓ CORRECT: c d e f g a b c' d' e' f' g' a' b' c'' (lowercase + apostrophe)
+   ✗ WRONG: C' D' E' F' G' (uppercase + apostrophe is INVALID ABC syntax)
 
-2. BAR LENGTH:
+2. BAR LENGTH (CRITICAL):
    Time signature: ${formContext.time_signature || '4/4'}
-   Unit length: L:1/16
-   Each bar needs EXACTLY 16 sixteenth-note units
-   - c2 = 2 units, c4 = 4 units, c8 = 8 units
-   - Use z for rests
+   Unit length: L:1/16 (sixteenth notes)
+
+   Each bar needs EXACTLY 16 sixteenth-note units:
+   - c1 = 1 unit, c2 = 2 units, c4 = 4 units, c8 = 8 units, c16 = 16 units
+   - Chords count as one unit: [ceg]4 = 4 units
+   - z = rest (same duration rules)
+
+   MANDATORY: Count note durations in EVERY bar to ensure they sum to 16
 
 3. BAR COUNT:
-   - Generate ${targetBars} bars for EACH voice
-   - ALL voices must have same bar count
-   - End each bar with |
+   - Generate EXACTLY ${targetBars} bars for EACH voice
+   - ALL ${totalVoices} voices must have same bar count
+   - End each bar with | (bar line)
 
 4. OUTPUT FORMAT:
    Return JSON with this EXACT structure:
    {
      "voice_sequences": [
-       "notes for voice 1|more bars|...",
-       "notes for voice 2|more bars|...",
-       "notes for voice 3|more bars|..."
+       "note sequence for voice 1...",
+       "note sequence for voice 2...",
+       "note sequence for voice 3..."
      ],
-     "bars_per_voice": [64, 64, 64]
+     "bars_per_voice": [${targetBars}, ${targetBars}, ${targetBars}],
+     "compositional_notes": "Brief notes on how you realized the musical specifications"
    }
 
-EXAMPLE OUTPUT:
+EXAMPLE (simplified 4-bar excerpt):
 {
   "voice_sequences": [
-    "c4d4e4f4|g4f4e4d4|c4d4e4f4|g4f4e4d4|",
-    "C4D4E4F4|G4F4E4D4|C4D4E4F4|G4F4E4D4|",
-    "z16|z16|z16|z16|"
+    "d4f4a4d'4|e4g4c'4e'4|f4a4d'4f'4|d4a4d'4a'4|",
+    "D8F8|E8G8|F8A8|D8A8|",
+    "D,16|C,16|F,16|D,16|"
   ],
-  "bars_per_voice": [4, 4, 4]
+  "bars_per_voice": [4, 4, 4],
+  "compositional_notes": "Voice 1 carries main melodic theme, Voice 2 provides harmonic support, Voice 3 provides bass foundation"
 }
 
-MANDATORY:
-- Generate ${totalVoices} voice sequences
-- Each sequence has ${targetBars} bars
-- Only lowercase letters with apostrophes for octaves
-- No syntax elements (no headers, no MIDI, no [V:N])
-- Just notes, rests, and bar lines
+MANDATORY CHECKS BEFORE OUTPUTTING:
+□ Generated ${totalVoices} voice sequences
+□ Each sequence has ${targetBars} bars (count the | symbols)
+□ Only lowercase letters with apostrophes for octave marks
+□ No syntax elements (no X:, T:, M:, K:, %%MIDI, [V:N])
+□ Musical content reflects the genre fusion and specifications
+□ Form structure and dynamic arc are realized
+□ Melodic themes are developed and varied
 
 Output ONLY valid JSON.`;
 
-    const prompt = `Generate ${targetBars} bars of ABC notation note sequences for ${totalVoices} voices.
+    const prompt = `Compose ${targetBars} bars for ${totalVoices} voices that realizes the complete musical vision specified above.
 
-Genre: ${genreContext.genre_name || 'fusion'}
-Key: ${formContext.key || 'C'}
-Tempo: ${formContext.tempo || 120} BPM
+COMPOSITIONAL FOCUS:
+- Genre fusion: ${genreContext.genre_name || 'innovative fusion'}
+- Aesthetic goal: Blend ${historyContext.classical_reference || 'classical'} with ${historyContext.modern_reference || 'modern'} styles
+- Key: ${formContext.key || 'C'}
+- Tempo: ${formContext.tempo || 120} BPM
+- Time signature: ${formContext.time_signature || '4/4'}
 
-Be creative and musically interesting.`;
+CRITICAL REQUIREMENTS:
+1. Use the melodic themes/motifs provided by the Melodic agent
+2. Follow the form structure (sections, development plan) from Compositional Form agent
+3. Realize the dynamic arc designed by the Dynamics agent
+4. Respect voice roles and interactions from Arrangement agent
+5. Incorporate stylistic elements from the Music History analysis
+
+This is a complete composition - make it musically compelling, coherent, and true to the genre fusion vision.`;
 
     try {
       const response = await this.callLLM(systemPrompt, prompt, {
