@@ -49,6 +49,9 @@ export async function orchestrate(options) {
   if (options.producer) console.log(`Producer: ${options.producer}`);
   if (options.instruments) console.log(`Instruments: ${options.instruments}`);
   if (options.resume) console.log(`Resume Session: ${options.resume}`);
+  if (options.refinements && options.refinements > 0) {
+    console.log(`Refinement Rounds: ${options.refinements}`);
+  }
   console.log('═══════════════════════════════════════════════════════\n');
 
   // Create orchestrator

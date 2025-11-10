@@ -107,8 +107,15 @@ export class MusicOrchestrator {
    * Main orchestration method
    */
   async orchestrate(userPrompt, options = {}) {
+    const refinementRounds = options.refinements || 0;
+
     console.log('🎼 Starting Music Composition Orchestration...\n');
-    console.log(`💾 Session ID: ${this.sessionId}\n`);
+    console.log(`💾 Session ID: ${this.sessionId}`);
+    if (refinementRounds > 0) {
+      console.log(`🔁 Refinement rounds: ${refinementRounds}\n`);
+    } else {
+      console.log();
+    }
 
     let context = {
       user_prompt: userPrompt,
@@ -243,6 +250,77 @@ export class MusicOrchestrator {
     const hasCriticalIssues = criticResult?.data.issues.some(i => i.severity === 'critical') || false;
     const hasMajorIssues = criticResult?.data.issues.some(i => i.severity === 'major') || false;
 
+    // REFINEMENT ROUNDS: Expand and improve the composition
+    if (refinementRounds > 0) {
+      for (let refinementRound = 1; refinementRound <= refinementRounds; refinementRound++) {
+        console.log(`\n${'═'.repeat(60)}`);
+        console.log(`🔁 REFINEMENT ROUND ${refinementRound}/${refinementRounds}`);
+        console.log(`${'═'.repeat(60)}\n`);
+
+        // Store previous composition as context for refinement
+        const previousComposition = context.composition.data.abc_notation;
+        const previousMetadata = context.composition.data.metadata;
+
+        context.previous_composition = {
+          abc_notation: previousComposition,
+          metadata: previousMetadata,
+          refinement_round: refinementRound
+        };
+
+        // Build refinement prompt
+        const refinementPrompt = `${userPrompt}
+
+REFINEMENT ROUND ${refinementRound}:
+You are refining and EXPANDING upon a previous composition. Your goal is to:
+1. EXPAND the length significantly (add more measures/sections)
+2. ENHANCE the existing musical ideas with more variation and development
+3. ADD new musical material that complements what exists
+4. IMPROVE the overall quality and coherence
+5. MAINTAIN the core aesthetic and genre fusion
+
+Previous composition: ${previousMetadata.total_bars} measures
+Target for this refinement: Aim for at least ${Math.floor(previousMetadata.total_bars * 1.5)} measures
+
+Build upon the previous work, don't just repeat it. Add NEW sections, NEW variations, and DEEPER development.`;
+
+        // Re-run all agents with previous composition as context
+        // Skip genre name agent - keep the same genre
+        console.log('📚 Step 3: Refining music history analysis...');
+        const historyResult = await this.musicHistoryAgent.execute(refinementPrompt, context);
+        if (historyResult.status === 'error') throw new Error('Music History Agent failed');
+        context.music_history = historyResult;
+        console.log(`   ✓ Historical analysis refined\n`);
+
+        console.log('🎹 Step 4: Expanding arrangement & form...');
+        const tandemResult = await this.runArrangementFormTandem(refinementPrompt, context);
+        context.arrangement = tandemResult.arrangement;
+        context.compositional_form = tandemResult.compositional_form;
+        console.log(`   ✓ ${context.arrangement.data.total_voices} voices arranged`);
+        console.log(`   ✓ ${context.compositional_form.data.total_measures} measure structure created\n`);
+
+        console.log('🎵 Step 5: Developing melodic themes...');
+        const melodicResult = await this.melodicAgent.execute(refinementPrompt, context);
+        if (melodicResult.status === 'error') throw new Error('Melodic Agent failed');
+        context.melodic = melodicResult;
+        console.log(`   ✓ Melodic themes developed\n`);
+
+        console.log('🎚️  Step 6: Refining timbrel & dynamics...');
+        const timbrelDynamicsTandem = await this.runTimbrelDynamicsTandem(refinementPrompt, context);
+        context.timbrel = timbrelDynamicsTandem.timbrel;
+        context.dynamics = timbrelDynamicsTandem.dynamics;
+        console.log(`   ✓ MIDI configuration refined`);
+        console.log(`   ✓ Dynamic arc enhanced\n`);
+
+        console.log('🎼 Step 7: Assembling expanded ABC notation...');
+        const compositionResult = await this.compositionAgent.execute(refinementPrompt, context);
+        if (compositionResult.status === 'error') throw new Error('Composition Agent failed');
+        context.composition = compositionResult;
+        console.log(`   ✓ ABC notation expanded from ${previousMetadata.total_bars} to ${compositionResult.data.metadata.total_bars} measures\n`);
+
+        await this.saveIntermediateOutput(`07_refinement_${refinementRound}_composition`, context);
+      }
+    }
+
     return {
       abc_notation: context.composition.data.abc_notation,
       metadata: context.composition.data.metadata,
@@ -251,7 +329,8 @@ export class MusicOrchestrator {
       validation: criticResult ? criticResult.data : null,
       quality_warnings: hasCriticalIssues || hasMajorIssues,
       has_critical_issues: hasCriticalIssues,
-      has_major_issues: hasMajorIssues
+      has_major_issues: hasMajorIssues,
+      refinements_completed: refinementRounds
     };
   }
 
