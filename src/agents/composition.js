@@ -32,58 +32,138 @@ ${JSON.stringify({
   dynamics: dynamicsContext
 }, null, 2)}
 
-🎯 YOUR ABC NOTATION RESPONSIBILITY 🎯
-YOU OWN THE FINAL ABC NOTATION. This is YOUR responsibility.
+╔═══════════════════════════════════════════════════════════════╗
+║           ABC NOTATION TEMPLATE - FOLLOW EXACTLY              ║
+╚═══════════════════════════════════════════════════════════════╝
 
-The Arrangement Agent specified ${arrangementContext.total_voices || 'N'} voices.
-The Timbrel Agent configured MIDI for those voices.
-YOU MUST use EXACTLY ${arrangementContext.total_voices || 'N'} voices. NO MORE. NO LESS.
+HEADER STRUCTURE (Lines 1-N):
+X:1
+T:Your Title Here
+M:${formContext.time_signature || '4/4'}
+L:1/16
+Q:1/4=${formContext.tempo || 174}
+K:${formContext.key || 'Dm'}
+%%MIDI program 1 <instrument_number>
+%%MIDI program 2 <instrument_number>
+%%MIDI program 3 <instrument_number>
+[... one %%MIDI program line for EACH voice, numbered 1 to ${arrangementContext.total_voices || 'N'}]
 
-⚠️ CRITICAL ABC SYNTAX RULES - YOUR SOLE RESPONSIBILITY ⚠️
+BODY STRUCTURE (After header, continuous notation):
+[V:1]
+<continuous notes and bars for entire piece>|
+<more bars>|
+<more bars>|
+[V:2]
+<continuous notes and bars for entire piece>|
+<more bars>|
+<more bars>|
+[V:3]
+<continuous notes and bars for entire piece>|
 
-1. OCTAVE NOTATION (CAUSES PARSE ERRORS IF WRONG):
-   ✓ CORRECT: c' d' e' f' g' a' b'  (lowercase + apostrophe)
-   ✗ WRONG: C' D' E' F' G' A' B'  (uppercase + apostrophe is INVALID)
+CRITICAL RULES:
 
-   - Apostrophes (') ONLY work with LOWERCASE letters
-   - For uppercase notes going down, use comma: C, D, E,
-   - NEVER EVER use uppercase with apostrophe
+1. %%MIDI DECLARATIONS - ONLY IN HEADER, ONLY THESE COMMANDS:
 
-2. VOICE DECLARATIONS (MUST MATCH ARRANGEMENT):
-   - Arrangement said ${arrangementContext.total_voices || 'N'} voices
-   - You create EXACTLY ${arrangementContext.total_voices || 'N'} voice sections: [V:1] [V:2] ... [V:${arrangementContext.total_voices || 'N'}]
-   - Voice numbers are sequential: 1, 2, 3, ... (no gaps, no skipping)
-   - metadata.voices_used MUST equal ${arrangementContext.total_voices || 'N'}
+   ✓ VALID COMMANDS (abc2midi will accept these):
+   %%MIDI program <channel> <instrument_0-127>
+   %%MIDI channel <channel>
+   %%MIDI beat <n1> <n2> <n3> <n4>
+   %%MIDI beatmod <n>
+   %%MIDI deltaloudness <n>
+   %%MIDI drum <pattern> <n1> <n2> <n3>...
+   %%MIDI chordprog <instrument>
+   %%MIDI bassprog <instrument>
 
-3. BAR COUNTS (EVERY BAR MUST BE CORRECT):
+   ✗ INVALID - DO NOT USE:
+   %%MIDI c
+   %%MIDI p
+   %%MIDI v
+   %%MIDI vol
+   %%MIDI voice
+   <any other %%MIDI command not in the valid list above>
+
+2. MIDI PROGRAM DECLARATIONS:
+   - ONLY in header section (before first [V:1])
+   - NEVER mid-score (no %%MIDI program after any [V:N] declaration)
+   - MUST have exactly ${arrangementContext.total_voices || 'N'} declarations
+   - Sequential channels: %%MIDI program 1 X, %%MIDI program 2 Y, %%MIDI program 3 Z
+   - Valid instrument numbers: 0-127 ONLY
+
+3. DRUM PATTERN SYNTAX:
+   %%MIDI drum <pattern> <program1> <program2>... <velocity1> <velocity2>...
+
+   CRITICAL: If pattern has N 'd' characters, you need EXACTLY N programs and EXACTLY N velocities
+
+   ✓ CORRECT:
+   %%MIDI drum ddzd 36 38 36 36 76 76 76 76
+   (4 'd' chars → 4 programs: 36,38,36,36 → 4 velocities: 76,76,76,76)
+
+   ✗ WRONG:
+   %%MIDI drum ddzd 36 38 36 36 42 44 76 76 76 76 80 80
+   (4 'd' chars but 6 programs and 6 velocities - MISMATCHED!)
+
+   COUNT 'd' characters in your pattern, then provide EXACTLY that many numbers!
+
+4. VOICE DECLARATIONS:
+   - Write [V:1] ONCE at the start of voice 1's section
+   - Then write ALL of voice 1's bars continuously (no more [V:1] declarations)
+   - Then write [V:2] ONCE for voice 2
+   - Then write ALL of voice 2's bars continuously
+   - Pattern: [V:N] appears EXACTLY ONCE per voice, at the START of that voice's section
+
+   ✓ CORRECT:
+   [V:1]
+   cdef|gfed|cdef|gfed|
+   cdef|gfed|cdef|gfed|
+   [V:2]
+   CDEF|GFED|CDEF|GFED|
+
+   ✗ WRONG (DO NOT DO THIS):
+   [V:1]
+   cdef|gfed|
+   [V:1]
+   cdef|gfed|
+   [V:1]
+   cdef|gfed|
+   (DO NOT repeat [V:1] - write it ONCE!)
+
+5. OCTAVE NOTATION:
+   ✓ CORRECT: c' d' e' f' g' a' b' c'' (lowercase + apostrophe)
+   ✗ WRONG: C' D' E' F' G' A' B' (uppercase + apostrophe is INVALID)
+
+   - Apostrophes (') ONLY with lowercase
+   - For low notes: C, D, E, (uppercase + comma)
+
+6. BAR COUNTS:
    Time signature: ${formContext.time_signature || '4/4'}
-   Unit note length: L:1/16 (sixteenth notes)
+   Unit note length: L:1/16
 
-   Math for ${formContext.time_signature || '4/4'} with L:1/16:
-   - Each bar needs EXACTLY 16 sixteenth notes (4 beats × 4 sixteenths per beat)
-   - Count every note and rest: c2 = 2 sixteenths, z4 = 4 sixteenths
-   - Use 'z' rests to fill incomplete bars
+   Each bar needs EXACTLY 16 sixteenth notes worth of duration:
+   - c2 = 2 sixteenths
+   - c4 = 4 sixteenths
+   - c8 = 8 sixteenths
+   - z2 = 2 sixteenth rest
 
-   MANDATORY:
-   - COUNT notes in EVERY bar before writing next bar
-   - If bar doesn't add up to 16, ADD RESTS
-   - ALL ${arrangementContext.total_voices || 'N'} voices MUST have SAME total number of bars
+   COUNT every note/rest in each bar. If sum ≠ 16, add rests with z
 
-4. VOICE BAR SYNCHRONIZATION:
-   - If [V:1] has 64 bars, then [V:2] MUST have 64 bars, [V:3] MUST have 64 bars
-   - Count bars for each voice as you write
-   - Verify at the end: all voices same bar count
+7. VOICE COUNT:
+   - Arrangement specified ${arrangementContext.total_voices || 'N'} voices
+   - You MUST create EXACTLY ${arrangementContext.total_voices || 'N'} voices
+   - Voice numbers: 1, 2, 3, ..., ${arrangementContext.total_voices || 'N'} (sequential, no gaps)
 
-5. FORMATTING:
-   - NO BLANK LINES anywhere in the ABC
-   - Each voice section directly follows previous one
-   - Section comments (% Section A) on their own line
+8. VOICE SYNCHRONIZATION:
+   - ALL voices must have SAME number of bars
+   - If [V:1] has 64 bars, then [V:2], [V:3], etc. MUST have 64 bars
 
-HYPER-FOCUS ON THESE MISTAKES:
-1. ❌ Using C' D' E' instead of c' d' e' (this breaks abc2midi)
-2. ❌ Creating 5 voices when arrangement specified 3
-3. ❌ Having bars with 15 or 17 notes instead of 16
-4. ❌ Voice 1 has 64 bars but Voice 2 has 62 bars
+GENERATION CHECKLIST (verify before returning):
+□ Header has EXACTLY ${arrangementContext.total_voices || 'N'} %%MIDI program declarations
+□ All %%MIDI commands are from the VALID list (no made-up commands)
+□ NO %%MIDI program declarations after any [V:N] (all in header only)
+□ Each voice section starts with [V:N] ONCE and ONLY ONCE
+□ Drum pattern has matching counts (N 'd' chars = N programs = N velocities)
+□ No uppercase letters with apostrophes (C' D' E' etc.)
+□ All voices have same bar count
+□ metadata.voices_used equals ${arrangementContext.total_voices || 'N'}
 
 Your output MUST be valid JSON with this structure:
 {
