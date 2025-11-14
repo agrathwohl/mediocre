@@ -37,6 +37,7 @@ export async function orchestrate(options) {
     recordLabel: options.recordLabel,
     producer: options.producer,
     instruments: options.instruments,
+    notInstruments: options.notInstruments,
     solo: options.solo
   });
 
@@ -48,6 +49,7 @@ export async function orchestrate(options) {
   if (options.recordLabel) console.log(`Record Label: ${options.recordLabel}`);
   if (options.producer) console.log(`Producer: ${options.producer}`);
   if (options.instruments) console.log(`Instruments: ${options.instruments}`);
+  if (options.notInstruments) console.log(`Banned Instruments: ${options.notInstruments}`);
   if (options.resume) console.log(`Resume Session: ${options.resume}`);
   console.log('═══════════════════════════════════════════════════════\n');
 
@@ -154,6 +156,10 @@ function buildUserPrompt(options) {
 
   if (options.instruments) {
     prompt += ` The composition MUST include these instruments: ${options.instruments}.`;
+  }
+
+  if (options.notInstruments) {
+    prompt += ` The composition MUST NOT include these instruments: ${options.notInstruments}.`;
   }
 
   return prompt;

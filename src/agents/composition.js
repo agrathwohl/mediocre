@@ -4,6 +4,7 @@
  */
 
 import { BaseAgent } from './base-agent.js';
+import { calculateNotesPerBar } from '../utils/abc-utils.js';
 
 export class CompositionAgent extends BaseAgent {
   constructor(anthropic) {
@@ -18,8 +19,23 @@ export class CompositionAgent extends BaseAgent {
     const melodicContext = previousOutputs.melodic || {};
     const timbrelContext = previousOutputs.timbrel || {};
     const dynamicsContext = previousOutputs.dynamics || {};
+    const batchContext = previousOutputs.batch_specific || null;
 
-    const systemPrompt = `You are an expert ABC notation composer. Your task is to take all the musical decisions from previous agents and create complete, valid, playable ABC notation.
+    // Check if we're in batch mode
+    const isBatchMode = batchContext && batchContext.is_batch_mode;
+    const barsToCompose = isBatchMode ? batchContext.bars_to_compose : formContext.total_measures;
+    const startBar = isBatchMode ? batchContext.start_bar : 1;
+    const endBar = isBatchMode ? batchContext.end_bar : formContext.total_measures;
+    
+    // In batch mode, we're composing for a SINGLE voice
+    const voicesToCompose = isBatchMode ? 1 : arrangementContext.total_voices;
+    const currentVoice = isBatchMode ? batchContext.current_voice : null;
+
+    const systemPrompt = `You are an expert ABC notation composer. ${
+      isBatchMode 
+        ? `You are composing bars ${startBar}-${endBar} (${barsToCompose} bars) for a SINGLE voice: ${currentVoice.instrument_name}.` 
+        : `You are composing a complete piece with ${arrangementContext.total_voices} voices.`
+    }
 
 YOU HAVE BEEN GIVEN COMPLETE SPECIFICATIONS:
 ${JSON.stringify({
@@ -29,15 +45,19 @@ ${JSON.stringify({
   form: formContext,
   melodic: melodicContext,
   timbrel: timbrelContext,
-  dynamics: dynamicsContext
+  dynamics: dynamicsContext,
+  batch: batchContext
 }, null, 2)}
 
 🎯 YOUR ABC NOTATION RESPONSIBILITY 🎯
-YOU OWN THE FINAL ABC NOTATION. This is YOUR responsibility.
-
-The Arrangement Agent specified ${arrangementContext.total_voices || 'N'} voices.
-The Timbrel Agent configured MIDI for those voices.
-YOU MUST use EXACTLY ${arrangementContext.total_voices || 'N'} voices. NO MORE. NO LESS.
+${isBatchMode ? 
+  `You are composing ONLY bars ${startBar}-${endBar} (EXACTLY ${barsToCompose} bars) for ${currentVoice.instrument_name}.
+   DO NOT include voice headers (V:), clefs, or ABC headers.
+   Return ONLY the musical notation for these ${barsToCompose} bars.` :
+  `YOU OWN THE FINAL ABC NOTATION. This is YOUR responsibility.
+   The Arrangement Agent specified ${arrangementContext.total_voices || 'N'} voices.
+   YOU MUST use EXACTLY ${arrangementContext.total_voices || 'N'} voices. NO MORE. NO LESS.`
+}
 
 ⚠️ CRITICAL ABC SYNTAX RULES - YOUR SOLE RESPONSIBILITY ⚠️
 
@@ -49,67 +69,67 @@ YOU MUST use EXACTLY ${arrangementContext.total_voices || 'N'} voices. NO MORE. 
    - For uppercase notes going down, use comma: C, D, E,
    - NEVER EVER use uppercase with apostrophe
 
-2. VOICE DECLARATIONS (MUST MATCH ARRANGEMENT):
+${isBatchMode ? '' : `2. VOICE DECLARATIONS (MUST MATCH ARRANGEMENT):
    - Arrangement said ${arrangementContext.total_voices || 'N'} voices
-   - You create EXACTLY ${arrangementContext.total_voices || 'N'} voice sections: [V:1] [V:2] ... [V:${arrangementContext.total_voices || 'N'}]
+   - You create EXACTLY ${arrangementContext.total_voices || 'N'} voice sections: V:1 V:2 ... V:${arrangementContext.total_voices || 'N'}
    - Voice numbers are sequential: 1, 2, 3, ... (no gaps, no skipping)
-   - metadata.voices_used MUST equal ${arrangementContext.total_voices || 'N'}
+   - NO BRACKETS! Format is V:1 not [V:1]
+   - metadata.voices_used MUST equal ${arrangementContext.total_voices || 'N'}`}
 
 3. BAR COUNTS (EVERY BAR MUST BE CORRECT):
    Time signature: ${formContext.time_signature || '4/4'}
    Unit note length: L:1/16 (sixteenth notes)
 
    Math for ${formContext.time_signature || '4/4'} with L:1/16:
-   - Each bar needs EXACTLY 16 sixteenth notes (4 beats × 4 sixteenths per beat)
+   - Each bar needs EXACTLY ${calculateNotesPerBar(formContext.time_signature || '4/4')} sixteenth notes
    - Count every note and rest: c2 = 2 sixteenths, z4 = 4 sixteenths
-   - Use 'z' rests to fill incomplete bars
+   - Complete bars musically: extend notes, add variations, or use rests as appropriate
 
    MANDATORY:
    - COUNT notes in EVERY bar before writing next bar
-   - If bar doesn't add up to 16, ADD RESTS
-   - ALL ${arrangementContext.total_voices || 'N'} voices MUST have SAME total number of bars
+   - Each bar MUST total ${calculateNotesPerBar(formContext.time_signature || '4/4')} sixteenth notes
+   - You MUST compose EXACTLY ${barsToCompose} bars ${isBatchMode ? `(bars ${startBar}-${endBar})` : ''}
 
-4. VOICE BAR SYNCHRONIZATION:
-   - If [V:1] has 64 bars, then [V:2] MUST have 64 bars, [V:3] MUST have 64 bars
-   - Count bars for each voice as you write
-   - Verify at the end: all voices same bar count
-
-5. FORMATTING:
+4. FORMATTING:
    - NO BLANK LINES anywhere in the ABC
-   - Each voice section directly follows previous one
+   ${isBatchMode ? '- NO voice headers or ABC headers - just the music' : '- Each voice section directly follows previous one'}
    - Section comments (% Section A) on their own line
 
 HYPER-FOCUS ON THESE MISTAKES:
 1. ❌ Using C' D' E' instead of c' d' e' (this breaks abc2midi)
-2. ❌ Creating 5 voices when arrangement specified 3
-3. ❌ Having bars with 15 or 17 notes instead of 16
-4. ❌ Voice 1 has 64 bars but Voice 2 has 62 bars
+2. ❌ Having bars with wrong note count (must be ${calculateNotesPerBar(formContext.time_signature || '4/4')} sixteenth notes)
+3. ❌ Composing wrong number of bars (MUST be EXACTLY ${barsToCompose} bars)
+${isBatchMode ? '' : `4. ❌ Creating wrong number of voices (must be ${arrangementContext.total_voices})`}
+5. ❌ Using [V:1] instead of V:1 (brackets break ABC parsing)
 
 Your output MUST be valid JSON with this structure:
 {
-  "abc_notation": "Complete ABC notation as a single string with \\n for line breaks",
+  "abc_notation": "${isBatchMode ? 'Just the music notation for ' + barsToCompose + ' bars' : 'Complete ABC notation as a single string with \\n for line breaks'}",
+  ${isBatchMode ? '"voice_abc": "The music notation (same as abc_notation in batch mode)",' : ''}
   "metadata": {
-    "title": "Composition title",
-    "total_bars": 64,
-    "voices_used": ${arrangementContext.total_voices || 3},
+    ${isBatchMode ? '' : '"title": "Composition title",'}
+    "total_bars": ${barsToCompose},
+    ${isBatchMode ? '' : '"voices_used": ' + (arrangementContext.total_voices || 3) + ','}
     "key": "${formContext.key || 'Dm'}",
     "tempo": ${formContext.tempo || 174}
   },
   "overflow_data": {
-    "_bar_count_verification": "All voices have 64 bars",
+    "_bar_count_verification": "Composed exactly ${barsToCompose} bars",
     "_octave_notation_check": "Only lowercase letters used with apostrophes"
   }
 }
 
 MANDATORY CHECKS BEFORE RETURNING:
 1. Search output for pattern [A-G]' and ELIMINATE IT (uppercase + apostrophe)
-2. Count voices used === ${arrangementContext.total_voices}
-3. Count bars for each voice, verify all equal
-4. Verify metadata.voices_used === ${arrangementContext.total_voices}
+2. Count bars === ${barsToCompose}
+3. Verify metadata.total_bars === ${barsToCompose}
+${isBatchMode ? '' : '4. Count voices used === ' + arrangementContext.total_voices}
 
 Output ONLY the JSON object, no other text.`;
 
-    const prompt = `Using ALL the specifications provided in the system prompt, compose complete ABC notation.
+    const prompt = isBatchMode 
+      ? userPrompt // In batch mode, the orchestrator provides the specific prompt
+      : `Using ALL the specifications provided in the system prompt, compose complete ABC notation.
 
 Title should reference: ${genreContext.genre_name || 'the genre fusion'}
 
@@ -118,15 +138,16 @@ Be creative within the specifications, but follow them precisely.`;
     try {
       const response = await this.callLLM(systemPrompt, prompt, {
         temperature: 0.7,
-        maxTokens: 32000 // Need lots of tokens for full ABC notation
+        maxTokens: isBatchMode ? 4000 : 32000 // Less tokens needed for batch mode
       });
 
       const parsed = this.parseJSONResponse(response);
 
       return this.createResponse('success', {
         abc_notation: parsed.abc_notation,
+        voice_abc: parsed.voice_abc || parsed.abc_notation, // For batch mode
         metadata: parsed.metadata
-      }, `ABC notation generated: ${parsed.metadata.total_bars} bars, ${parsed.metadata.voices_used} voices`);
+      }, `ABC notation generated: ${parsed.metadata.total_bars} bars${isBatchMode ? ' (batch mode)' : ', ' + parsed.metadata.voices_used + ' voices'}`);
     } catch (error) {
       console.error('Composition Agent failed:', error);
       return this.createResponse('error', {

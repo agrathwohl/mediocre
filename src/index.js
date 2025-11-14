@@ -225,7 +225,9 @@ addOllamaOptions(program
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Style it like it was released on the given record label')
   .option('--producer <name>', 'Style it as if produced by the given producer')
-  .option('--instruments <list>', 'Comma-separated list of instruments to include'))
+  .option('--instruments <list>', 'Comma-separated list of instruments to include')
+  .option('--not-instruments <list>', 'Comma-separated list of instruments to EXCLUDE/BAN from the composition')
+  .option('--sequential', 'Use sequential per-instrument composition (each instrument composed fully before next)'))
   .action(async (options) => {
     try {
       // Set AI provider settings from command line options
@@ -254,7 +256,37 @@ program
   .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
   .option('--to <format>', 'Target format (midi, pdf, wav, all)', 'all')
   .option('--stems', 'Export individual stems for each track/voice (creates separate MIDI files when converting to MIDI, and separate WAV files when converting to WAV)')
+  .option('--soundfont <profile>', 'Soundfont profile (fast, standard, hq, ultra, rock, electronic, synth, contemporary)')
+  .option('--genre <genre>', 'Musical genre for automatic soundfont selection')
+  .option('--sample-rate <rate>', 'Audio sample rate (default: 48000)')
+  .option('--list-soundfonts', 'List available soundfont profiles')
   .action(async (options) => {
+    // Handle soundfont listing
+    if (options.listSoundfonts) {
+      const { listAvailableSoundfonts } = await import('./utils/soundfont-manager.js');
+      const soundfonts = listAvailableSoundfonts();
+      console.log('\nAvailable Soundfonts:\n');
+      console.log('Profile'.padEnd(15) + 'Status  ' + 'Quality  ' + 'Size     ' + 'Description');
+      console.log('-'.repeat(80));
+      soundfonts.forEach(sf => {
+        const status = sf.exists ? '✓' : '✗';
+        const quality = `${sf.quality}/10`;
+        const size = `${sf.size}MB`;
+        console.log(
+          sf.profile.padEnd(15) +
+          status.padEnd(8) +
+          quality.padEnd(9) +
+          size.padEnd(9) +
+          sf.description
+        );
+      });
+      console.log('\nGenres supported:');
+      const allGenres = [...new Set(soundfonts.flatMap(sf => sf.genres))];
+      console.log(allGenres.filter(g => g !== 'all').sort().join(', '));
+      return;
+    }
+
+    // Continue with conversion
     try {
       if (options.to === 'midi' || options.to === 'all') {
         const files = await convertToMidi(options);
@@ -270,6 +302,9 @@ program
       if (options.to === 'wav' || options.to === 'all') {
         const files = await convertToWav(options);
         console.log(`Converted ${files.length} file(s) to WAV`);
+        if (options.stems) {
+          console.log('WAV stem files have been created in the stems/ directory');
+        }
       }
     } catch (error) {
       console.error('Error converting files:', error);

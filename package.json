@@ -12,6 +12,7 @@
     "dev": "node src/index.js",
     "lint": "eslint src/**/*.js",
     "typecheck": "tsc --project jsconfig.json --noEmit",
+    "validate:soundfonts": "node scripts/validate-soundfonts.js",
     "build": "mkdir -p dist && cp -r src/* dist/ && chmod +x dist/index.js",
     "generate:abc": "node src/index.js generate",
     "convert:midi": "node src/index.js convert --to midi",

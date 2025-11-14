@@ -127,21 +127,52 @@ async function convertFile(inputPath, outputPath) {
  */
 function extractAbcVoices(abcContent) {
   const voices = [];
-  // Match both bracketed voices like [V:1] and unbracketed like V:1
-  const voiceRegex = /^\[?V:\s*(\S+)(?:\s+(.+?))?\]?$/gm;
+  const voicesSet = new Set(); // Track unique voice IDs
+
+  // Split content into header and body
+  const headerEndMatch = abcContent.match(/^K:.+$/m);
+  if (!headerEndMatch) {
+    // If no key signature found, process entire content as header
+    return [{
+      voice: '1',
+      name: 'Default Voice'
+    }];
+  }
+
+  const headerEndPos = headerEndMatch.index + headerEndMatch[0].length;
+  const header = abcContent.substring(0, headerEndPos + 1);
+
+  // Match voice definitions in header section only
+  // V:id [name=...] [clef=...] etc.
+  const voiceRegex = /^V:\s*([^\s\]]+)(?:\s+(.+?))?$/gm;
   let match;
-  
-  while ((match = voiceRegex.exec(abcContent)) !== null) {
+
+  while ((match = voiceRegex.exec(header)) !== null) {
     const voiceId = match[1];
-    // Get name from the rest of the line or use voice ID as fallback
-    const voiceName = match[2] ? match[2].trim() : `Voice ${voiceId}`;
-    
+
+    // Skip if we've already seen this voice ID
+    if (voicesSet.has(voiceId)) continue;
+    voicesSet.add(voiceId);
+
+    // Parse voice attributes from the rest of the line
+    let voiceName = `Voice ${voiceId}`;
+    if (match[2]) {
+      // Look for name="..." or name=...
+      const nameMatch = match[2].match(/name=["']?([^"'\s]+)["']?/);
+      if (nameMatch) {
+        voiceName = nameMatch[1];
+      } else {
+        // Use the whole remaining text as name if no specific name attribute
+        voiceName = match[2].trim();
+      }
+    }
+
     voices.push({
       voice: voiceId,
       name: voiceName
     });
   }
-  
+
   // If no explicit voices found, create a default one
   if (voices.length === 0) {
     voices.push({
@@ -149,7 +180,7 @@ function extractAbcVoices(abcContent) {
       name: 'Default Voice'
     });
   }
-  
+
   return voices;
 }
 
