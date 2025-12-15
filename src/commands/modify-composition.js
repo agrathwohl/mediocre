@@ -90,7 +90,9 @@ export async function modifyComposition(options) {
     solo: options.solo || false,
     recordLabel: options.recordLabel || '',
     producer: options.producer || '',
-    instruments: options.instruments || ''
+    instruments: options.instruments || '',
+    modern: options.modern || '',
+    modernStrength: options.modernStrength || 50
   });
   
   // Validate the ABC notation

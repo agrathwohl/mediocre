@@ -2,6 +2,8 @@ import { anthropic, createAnthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 import { config } from './config.js';
 import { generateTextWithOllama } from './ollama.js';
+import { AbcValidator } from './abc-validators.js';
+import { getSystemPrompt, getUserPrompt, getModifySystemPrompt } from './claude-new-prompt.js';
 
 /**
  * Validates ABC notation for formatting issues that would cause playback problems
@@ -31,9 +33,22 @@ export function validateAbcNotation(abcNotation) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineNum = i + 1;
-    
+
+    // Check if we've entered a voice section
+    if (line.match(/^V:\d+/)) {
+      inVoiceSection = true;
+    }
+
+    // CRITICAL: Check for MIDI directives inside voice sections (causes segfaults!)
+    if (inVoiceSection && line.match(/^%%MIDI/) && !line.match(/^%%MIDI\s+program\s+\d+\s+\d+/)) {
+      result.issues.push(`Line ${lineNum}: MIDI directive inside voice section (causes abc2midi segfault!)`);
+      result.lineIssues.push(lineNum);
+      result.isValid = false;
+    }
+
     // Check for blank lines (completely empty or just whitespace)
-    if (line.trim() === '') {
+    // Skip the last line if it's empty (normal file ending)
+    if (line.trim() === '' && i < lines.length - 1) {
       result.issues.push(`Line ${lineNum}: Blank line detected - will cause ABC parsing errors`);
       result.lineIssues.push(lineNum);
       result.isValid = false;
@@ -207,15 +222,18 @@ export function fixDrumSyntax(abcNotation) {
 /**
  * Cleans up ABC notation to ensure proper formatting for abc2midi
  * @param {string} abcNotation - ABC notation to clean
+ * @param {Object} options - Generation options for genre-specific handling
  * @returns {string} Cleaned ABC notation
  */
-export function cleanAbcNotation(abcNotation) {
+export function cleanAbcNotation(abcNotation, options = {}) {
   let cleanedText = abcNotation
     // First, ensure %%MIDI directives that are on the same line are separated
     .replace(/(%%MIDI[^\n]+)(\s*)(%%MIDI)/g, '$1\n$3')
 
-    // Remove ALL blank lines between ANY content (most aggressive approach)
-    .replace(/\n\s*\n/g, '\n')
+    // Remove ALL blank lines - multiple passes to ensure complete removal
+    .replace(/\n\s*\n+/g, '\n')      // Remove multiple consecutive newlines with optional whitespace
+    .replace(/^\s*\n/gm, '')         // Remove blank lines at the start
+    .replace(/\n\s*$/gm, '\n')       // Remove trailing whitespace on lines
 
     // Ensure proper voice, lyric, and section formatting
     .replace(/\n\s*(\[V:)/g, '\n$1')      // Fix spacing before bracketed voice declarations
@@ -231,27 +249,51 @@ export function cleanAbcNotation(abcNotation) {
 
     // Fix invalid pitch specifiers - remove commas after notes
     .replace(/([A-Ga-g][',]*),/g, '$1')    // Remove commas after notes with octave marks
-
-    // Fix invalid octave notation - uppercase letters with apostrophes
-    .replace(/([A-G])([']+)/g, (match, note, apostrophes) => {
-      // Convert uppercase+apostrophe to lowercase+apostrophe (e.g., B' -> b')
-      return note.toLowerCase() + apostrophes;
-    })
-
-    // Fix invalid dynamic markings (max is !fff!)
-    .replace(/!f{4,}!/g, '!fff!')          // Replace !ffff!, !fffff!, !ffffff!, etc. with !fff!
-    .replace(/!p{4,}!/g, '!ppp!')          // Replace !pppp!, !ppppp!, etc. with !ppp!
-
     .trim();                               // Remove any trailing whitespace
 
-  // Fix drum syntax errors
+  // Apply AbcValidator fixes
+  cleanedText = AbcValidator.fixUppercaseApostrophes(cleanedText);
+  cleanedText = AbcValidator.limitOctaveMarkers(cleanedText);
+  cleanedText = AbcValidator.fixInvalidDynamics(cleanedText);
+
+  // Fix invalid trailing ] on voice lines - these cause segfaults in abc2midi
+  // Note: |] is meant to be a final bar line in ABC, but AI often generates it
+  // incorrectly at the end of EVERY voice line, causing abc2midi to crash.
+  // The multiline flag (m) is intentional - we remove ALL occurrences, not just the last one.
+  cleanedText = cleanedText.replace(/\|\]$/gm, '|');  // Remove trailing ] after bar lines
+
+  // Fix voice declarations with invalid name attributes - abc2midi doesn't support name="..."
+  cleanedText = cleanedText.replace(/^(V:\d+.*) name="[^"]*"/gm, '$1');  // Remove name="..." from voice declarations
+
+  // Handle drum directives - ALWAYS fix and limit to prevent crashes
+  // First fix any syntax errors
   cleanedText = fixDrumSyntax(cleanedText);
+
+  // Then limit the number of drum directives to prevent abc2midi crashes
+  const drumDirectiveLimit = 3;
+  const drumLines = cleanedText.split('\n').filter(line => line.match(/^%%MIDI\s+drum/));
+
+  if (drumLines.length > drumDirectiveLimit) {
+    console.warn(`⚠️ Limiting drum directives from ${drumLines.length} to ${drumDirectiveLimit} to prevent crashes`);
+    // Remove excess drum directives
+    let drumCount = 0;
+    cleanedText = cleanedText.split('\n').filter(line => {
+      if (line.match(/^%%MIDI\s+drum/)) {
+        drumCount++;
+        return drumCount <= drumDirectiveLimit;
+      }
+      return true;
+    }).join('\n');
+  }
 
   // Remove directives that cause abc2midi segfaults
   cleanedText = removeCrashTriggers(cleanedText);
 
-  // Remove any duplicate blank lines that may have been introduced
-  cleanedText = cleanedText.replace(/\n\s*\n/g, '\n');
+  // Final aggressive blank line removal
+  cleanedText = cleanedText
+    .replace(/\n\s*\n+/g, '\n')      // Remove any remaining blank lines
+    .replace(/^\s*\n/gm, '')         // Remove blank lines at the start
+    .replace(/\n\s*$/gm, '\n');      // Remove trailing whitespace
 
   // Ensure the file ends with a single newline
   return cleanedText + '\n';
@@ -287,31 +329,32 @@ function removeCrashTriggers(abcNotation) {
     cleaned = cleaned.replace(/%%MIDI\s+program\s+10\s+\d+\s*\n/g, '');
   }
 
-  // 4. Remove mid-score %%MIDI program changes (keep only header ones)
-  const lines = cleaned.split('\n');
-  let inHeader = true;
-  let removedProgChanges = 0;
+  // 4. Remove invalid drummap directives
+  // Valid syntax: %%MIDI drummap <note_letter> <midi_pitch>
+  // Example: %%MIDI drummap c 36 (maps note 'c' to kick drum)
+  const validDrummapPattern = /^%%MIDI\s+drummap\s+[a-gA-G]\s+\d{1,3}\s*$/;
+  const allDrummapLines = cleaned.match(/%%MIDI\s+drummap\s+.*$/gm) || [];
+  const invalidDrummaps = allDrummapLines.filter(line => !validDrummapPattern.test(line));
 
-  const safeLines = lines.map(line => {
-    // After we see first voice section, we're out of header
-    if (line.match(/^\[V:\d+\]/)) {
-      inHeader = false;
+  if (invalidDrummaps.length > 0) {
+    console.warn(`⚠️ Removing ${invalidDrummaps.length} invalid %%MIDI drummap directive(s)`);
+    console.warn(`  Valid syntax: %%MIDI drummap <note> <midi_pitch> (e.g., "%%MIDI drummap c 36")`);
+    // Remove each invalid drummap line
+    for (const invalid of invalidDrummaps) {
+      cleaned = cleaned.replace(invalid + '\n', '');
     }
-
-    // Remove MIDI program changes that appear after header
-    if (!inHeader && line.match(/^%%MIDI\s+program\s+/)) {
-      removedProgChanges++;
-      return null; // Mark for removal
-    }
-
-    return line;
-  }).filter(line => line !== null);
-
-  if (removedProgChanges > 0) {
-    console.warn(`⚠️ Removed ${removedProgChanges} mid-score %%MIDI program change(s) (can cause crashes)`);
   }
 
-  return safeLines.join('\n');
+  // 5. Fix MIDI directive placement using AbcValidator (critical segfault fix)
+  cleaned = AbcValidator.fixMidiDirectivePlacement(cleaned);
+
+  // Also fix high velocities that could cause issues
+  cleaned = AbcValidator.fixHighVelocities(cleaned);
+
+  // Remove orphaned MIDI declarations
+  cleaned = AbcValidator.fixOrphanedMidiDeclarations(cleaned);
+
+  return cleaned;
 }
 
 /**
@@ -354,8 +397,15 @@ export function getAIGenerator() {
       const myAnthropic = getAnthropic();
       // Only use claude models with Anthropic, never Ollama models
       const modelName = options.model || 'claude-sonnet-4-5-20250929';
+      // Validate model matches provider
+      if (modelName.startsWith('llama') || modelName.includes('qwen') || modelName.includes(':')) {
+        console.warn(`⚠️ Warning: Model "${modelName}" appears to be an Ollama model but provider is "anthropic"`);
+        console.warn(`   Switching to default Claude model: claude-sonnet-4-5-20250929`);
+      }
       // Ensure we're using a Claude model
-      const safeModelName = modelName.startsWith('llama') ? 'claude-sonnet-4-5-20250929' : modelName;
+      const safeModelName = (modelName.startsWith('llama') || modelName.includes('qwen') || modelName.includes(':'))
+        ? 'claude-sonnet-4-5-20250929'
+        : modelName;
       const model = myAnthropic(safeModelName);
       
       return generateText({
@@ -401,316 +451,35 @@ export async function generateMusicWithClaude(options) {
   const requestedInstruments = options.instruments || '';
   const people = options.people || '';
 
-  // Use custom system prompt if provided, otherwise use the default
-  const systemPrompt = options.customSystemPrompt ||
-    `You are a music composer specializing in ${creativeGenre ? `creating music in the "${creativeGenre}" genre` : `fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}`}.
-${creativeGenre 
-  ? `Your task is to create a composition that authentically captures the essence of the "${creativeGenre}" genre, while subtly incorporating elements of both ${classicalGenre} and ${modernGenre} musical traditions as background influences.`
-  : `Your task is to create a composition that authentically blends elements of both ${classicalGenre} and ${modernGenre} musical traditions.`
-}
-${people ? `The following NON-MUSICIAN names are provided: ${people}\nDo with these names whatever you think would be appropriate given your other context.` : ''}
+  // Use custom system prompt if provided, otherwise use the new clean prompt
+  const systemPrompt = options.customSystemPrompt || getSystemPrompt({
+    creativeGenre,
+    classicalGenre,
+    modernGenre,
+    genre,
+    includeSolo,
+    recordLabel,
+    producer,
+    requestedInstruments,
+    people
+  });
 
-⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
-The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
-Every voice declaration, section comment, and other element must be on its own line with NO INDENTATION.
-Failure to follow these formatting rules will result in completely unplayable music files.
-
-⚠️ CRITICAL TIMING AND RHYTHM INSTRUCTIONS ⚠️
-1. EVERY BAR must have EXACTLY the correct number of beats for the time signature
-   - M:4/4 = 16 sixteenth notes per bar (if L:1/16)
-   - M:4/4 = 8 eighth notes per bar (if L:1/8)
-   - M:3/4 = 12 sixteenth notes per bar (if L:1/16)
-   - M:7/8 = 14 sixteenth notes per bar (if L:1/16)
-
-2. COUNT YOUR NOTES IN EACH BAR CAREFULLY
-   - Use 'z' for rests to fill bars to the correct length
-   - NEVER have bars with too many or too few notes
-   - Double-check EVERY bar before moving to the next
-
-3. ALL VOICES must have the SAME number of bars
-   - If voice 1 has 64 bars, ALL other voices must have 64 bars
-   - Pad shorter voices with rest bars (z16 for whole bar of 16ths)
-
-4. NO SUSTAINED NOTES BEYOND TRACK END
-   - All notes must resolve before the composition ends
-   - The last bar of each voice should end cleanly
-
-Return ONLY the ABC notation format for the composition, with no explanation or additional text.
-DO NOT wrap the output in markdown code fences (no \`\`\`abc or \`\`\`). Return raw ABC notation only.
-
-${creativeGenre 
-  ? `Guidelines for the "${creativeGenre}" composition:
-
-1. The creative genre "${creativeGenre}" should be the PRIMARY compositional consideration.
-   - Interpret what musical elements would best represent this creative genre
-   - Let your imagination explore what this genre name suggests or evokes
-   - Be bold and experimental in your approach
-
-2. As secondary influences, subtly incorporate elements from:
-   - ${classicalGenre}: Perhaps in harmonic choices, form, or melodic development
-   - ${modernGenre}: Perhaps in rhythmic elements, production techniques, or texture
-   
-The composition should primarily feel like an authentic "${creativeGenre}" piece, with the classical and modern elements serving only as subtle background influences.`
-  : `Guidelines for the ${genre} fusion:
-
-1. From ${classicalGenre}, incorporate:
-   - Appropriate harmonic structures
-   - Melodic patterns and motifs
-   - Formal structures
-   - Typical instrumentation choices
-   
-2. From ${modernGenre}, incorporate:
-   - Rhythmic elements
-   - Textural approaches
-   - Production aesthetics
-   - Distinctive sounds or techniques`
-}
-
-3. Technical guidelines:
-   - Create a composition that is 64 or more measures long
-   - Use appropriate time signatures, key signatures, and tempos that bridge both genres
-   - Include appropriate articulations, dynamics, and other musical notations
-   ${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
-   ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
-   ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
-   ${requestedInstruments ? `- Your composition MUST include these specific instruments: ${requestedInstruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
-   - Ensure the ABC notation is properly formatted and playable
-   - Use abc2midi extensions creatively to bring your composition to life
-
-CRITICAL FORMATTING RULES:
-- NEVER include blank lines between voice sections in your ABC notation
-- Each voice section ([V:1], [V:2], etc.) should be on its own line with no blank lines before or after
-- Each section comment (% Section A, etc.) can be on its own line with no blank lines before or after
-- When voice sections follow each other, they must be immediately adjacent with no blank lines between them
-- This is EXTREMELY IMPORTANT for proper parsing by abc2midi
-
-⚠️ CRITICAL SYNTAX RULES:
-- NEVER put commas after notes (e.g., "e,g,b," is WRONG - use "egb" or "e g b")
-- Commas and apostrophes are ONLY for octave changes (e.g., "C," = lower octave, "c'" = higher octave)
-- ⚠️ OCTAVE NOTATION RULE: Apostrophes (') ONLY work with LOWERCASE letters (a-g)
-  - CORRECT: c' d' e' f' g' a' b'  (lowercase + apostrophe = higher octave)
-  - WRONG: C' D' E' F' G' A' B'  (uppercase + apostrophe is INVALID SYNTAX!)
-  - For uppercase notes, use COMMAS to go DOWN: C, D, E, (lower octave)
-- Notes in chords should be in brackets with NO commas: [CEG] not [C,E,G]
-- Maximum dynamic is !fff! - NEVER use !ffff! or more f's
-- Minimum dynamic is !ppp! - NEVER use !pppp! or more p's
-- ⚠️ VOICE DECLARATION RULE: ONLY declare voices in the header that you ACTUALLY USE in the music
-  - If you use [V:1] through [V:5] in your music, ONLY declare %%MIDI program/channel 1-5
-  - DO NOT declare %%MIDI program 6, 7, 8, etc. if you don't use [V:6], [V:7], [V:8] in your score
-  - Count your voices BEFORE writing the header!
-
-SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
-
-1. INSTRUMENTS & CHANNELS:
-   %%MIDI program [channel] n - Select instruments (0-127 General MIDI)
-   %%MIDI channel n - Route voices to specific channels (1-16)
-   Example: %%MIDI program 1 40  (violin on channel 1)
-
-   ⚠️ CRITICAL: NEVER set %%MIDI program on channel 10!
-   Channel 10 is RESERVED FOR DRUMS ONLY - it does NOT support instrument programs
-   Valid channels for instruments: 1-9, 11-16 (skip 10!)
-
-   ⚠️ IMPORTANT: Set ALL %%MIDI program directives in the HEADER (before voice sections)
-   NEVER change %%MIDI program in the middle of the score - this can crash abc2midi
-
-2. DYNAMICS & EXPRESSION (Make your music breathe!):
-   !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff! - Standard dynamic markings
-   ⚠️ CRITICAL: The MAXIMUM dynamic is !fff! and MINIMUM is !ppp!
-   NEVER use !ffff!, !fffff!, !ffffff!, !pppp!, !ppppp!, or any extended versions
-   These are INVALID and will cause errors!
-
-   %%MIDI beat a b c n - Set base velocities for strong/weak beats
-   %%MIDI beatmod n - Add/subtract velocity for crescendo/diminuendo effects
-   %%MIDI beatstring fmpfmp - Precise forte/mezzo/piano stress patterns
-   %%MIDI deltaloudness n - Configure crescendo/diminuendo intensity
-   Example: %%MIDI beat 90 80 65 1 followed by %%MIDI beatmod 15 for crescendo
-
-   ⚠️ AVOID: %%MIDI nobeataccents and %%MIDI beataccents - toggling these can crash abc2midi
-   Use %%MIDI beat with even values instead if you need consistent dynamics
-
-3. ARTICULATION (Shape your phrases!):
-   %%MIDI trim x/y - Create separation between notes (staccato effect)
-   %%MIDI expand x/y - Overlap notes for smooth legato
-   %%MIDI chordattack n - Humanize chords with slight note delays
-   %%MIDI randomchordattack n - Natural variation in chord rolls
-   Example: %%MIDI trim 1/32 for crisp attacks, %%MIDI expand 1/16 for flowing melodies
-
-4. DRUMS (Essential for modern genres!):
-   ⚠️ CRITICAL: The %%MIDI drum syntax is VERY PRECISE. You MUST count correctly! ⚠️
-
-   FORMAT: %%MIDI drum <pattern> <prog1> <prog2>... <vol1> <vol2>... <bars>
-
-   ⚠️ PATTERN LENGTH LIMIT: MAXIMUM 32 characters for the pattern string!
-   NEVER create patterns longer than 32 characters (e.g., "ddzddzdd" = 8 chars is good)
-   DO NOT repeat patterns endlessly - keep it SHORT and CONCISE!
-
-   🔢 COUNTING ALGORITHM (FOLLOW THIS EXACTLY):
-
-   Step 1: Write down your pattern string (e.g., "ddzddzdd")
-   Step 2: Go through each character and count ONLY the 'd' characters
-   Step 3: This count is N
-   Step 4: You need EXACTLY N program numbers
-   Step 5: You need EXACTLY N velocity numbers
-   Step 6: Add 1 final number for the bar count
-
-   ❌ COMMON MISTAKES TO AVOID:
-   - DON'T count 'z' (it's a rest, not a drum hit)
-   - DON'T count numbers 0-9 (they modify duration, not add drums)
-   - DON'T provide more programs than you have 'd' characters
-   - DON'T provide more velocities than you have 'd' characters
-   - The LAST number is the bar count, NOT a velocity
-
-   ✅ VALIDATION CHECKLIST:
-   1. Count the 'd' characters in your pattern → this is N
-   2. Count your program numbers → must equal N
-   3. Count your velocity numbers → must equal N
-   4. Verify last number is the bar count (usually 1)
-
-   📝 WORKED EXAMPLES:
-
-   Example 1: "dzdz"
-   Step 1: Pattern is "dzdz"
-   Step 2: Count 'd' only:
-           d (1), z (skip), d (2), z (skip)
-   Step 3: N = 2
-   Step 4: Need 2 programs
-   Step 5: Need 2 velocities
-
-   ✅ CORRECT: %%MIDI drum dzdz 36 38 100 80 1
-                             ^^^^  ^^^^^ ^^^^^^ ^
-                             pattern prog  vel  bars
-                                    (N=2) (N=2)
-
-   ❌ WRONG: %%MIDI drum dzdz 36 38 42 46 100 80 90 95 1
-             (4 programs and 4 velocities, but only 2 'd' chars!)
-
-   Example 2: "d2zdd"
-   Step 1: Pattern is "d2zdd"
-   Step 2: Count 'd' only:
-           d (1), 2 (skip-number), z (skip), d (2), d (3)
-   Step 3: N = 3
-   Step 4: Need 3 programs
-   Step 5: Need 3 velocities
-
-   ✅ CORRECT: %%MIDI drum d2zdd 35 38 42 100 90 85 1
-                             ^^^^^  ^^^^^^^^ ^^^^^^^^^ ^
-                             pattern prog(3) vel(3)   bars
-
-   Example 3: "ddzddzdd"
-   Step 1: Pattern is "ddzddzdd"
-   Step 2: Count 'd' only:
-           d (1), d (2), z (skip), d (3), d (4), z (skip), d (5), d (6)
-   Step 3: N = 6
-   Step 4: Need 6 programs
-   Step 5: Need 6 velocities
-
-   ✅ CORRECT: %%MIDI drum ddzddzdd 36 38 42 38 46 49 110 105 100 95 90 85 1
-                             ^^^^^^^^  ^^^^^^^^^^^^^^^^ ^^^^^^^^^^^^^^^^^^ ^
-                             pattern   programs (N=6)   velocities (N=6) bars
-
-   ❌ WRONG: %%MIDI drum ddzddzdd 36 36 38 38 42 42 46 49 110 105 120 115 90 85 100 95 1
-             (8 programs and 8 velocities, but only 6 'd' chars!)
-
-   Example 4: "ddd"
-   Step 1: Pattern is "ddd"
-   Step 2: Count 'd' only: d (1), d (2), d (3)
-   Step 3: N = 3
-
-   ✅ CORRECT: %%MIDI drum ddd 36 38 42 120 100 90 1
-   ❌ WRONG: %%MIDI drum ddd 36 38 42 46 120 100 90 85 1
-
-   %%MIDI drumbars n - Spread drum pattern over n bars for variation
-
-   Common drum sounds (MIDI note numbers):
-   35=acoustic bass drum, 36=bass drum 1, 38=acoustic snare,
-   42=closed hi-hat, 44=pedal hi-hat, 46=open hi-hat, 49=crash cymbal
-
-   USE DRUMS PROMINENTLY for: Techno, Hip-Hop, EDM, Dance, Electronic hybrids
-
-5. GUITAR CHORDS & BASS:
-   %%MIDI gchord string - Chord/bass patterns (f=fundamental, c=chord, z=rest)
-   %%MIDI gchord ghijGHIJ - Arpeggiate chords (g=lowest note, h=next, etc.)
-   %%MIDI gchordbars n - Spread gchord pattern over n bars
-   %%MIDI chordprog n [octave=±2] - Set instrument for chords
-   %%MIDI bassprog n [octave=±2] - Set instrument for bass
-   %%MIDI chordvol n - Chord velocity (0-127)
-   %%MIDI bassvol n - Bass velocity (0-127)
-   %%MIDI chordname name n1 n2 n3 n4 n5 n6 - Define custom chord voicings
-   %%MIDI gchordon / %%MIDI gchordoff - Toggle chord generation
-   Example: %%MIDI gchord ghih for arpeggiated patterns
-
-6. TRANSPOSITION & PITCH:
-   ⚠️ WARNING: %%MIDI transpose can cause abc2midi to crash (segfault)
-   AVOID using %%MIDI transpose and %%MIDI rtranspose
-   If you need different octaves, write the notes in the correct octave instead
-
-7. SPECIAL EFFECTS:
-   %%MIDI droneon / %%MIDI droneoff - Continuous drone (bagpipes, ambient)
-   %%MIDI drone prog pitch1 pitch2 vel1 vel2 - Configure drone parameters
-   %%MIDI grace a/b - Grace note articulation fraction
-   %%MIDI gracedivider n - Fixed grace note duration
-   Example: %%MIDI droneon for ambient/experimental sections
-
-GENRE-SPECIFIC GUIDANCE:
-- Baroque/Classical + Techno/EDM: Use drums prominently, trim for sharp attacks, beatmod for builds
-- Renaissance + Ambient: Use drones, expand for smooth textures, nobeataccents for pads
-- Classical + Hip-Hop: Use drum patterns, beatmod dynamics, trim for rhythmic precision
-- Opera + IDM/Glitch: Use chordattack for expression, complex beatstrings, randomchordattack
-- Jazz + Electronic: Use gchordbars for chord spreads, chordprog for synth textures
-- Folk + Dance: Use drum patterns, gchord arpeggios (ghij), dynamic beatstrings
-
-🎵 EDM DROP REQUIREMENT (POST-2008 ELECTRONIC GENRES):
-⚠️ CRITICAL: If composing with ANY electronic music genre that rose to prominence around 2008 or later
-(Dubstep, Trap, Future Bass, Brostep, Moombahton, Tropical House, Future House, etc.),
-you MUST include at least one EDM-style DROP in your composition!
-
-What is a DROP?
-- The climactic moment after a buildup where the beat/bass intensifies dramatically
-- Typically occurs after tension-building section with increasing dynamics and reduced instrumentation
-- Features maximum energy, full instrumentation, prominent bass, aggressive drums
-
-How to structure a DROP in ABC notation:
-1. BUILDUP section (8-16 bars before drop):
-   - Gradually reduce notes/voices (thin out texture)
-   - Increase dynamics from !mf! → !f! → !ff!
-   - Use %%MIDI beatmod increasing values (5 → 10 → 15)
-   - Optional: Add rising pitch sequences
-   - End with dramatic pause or minimal texture (1-2 bars of mostly rests)
-
-2. THE DROP section (16-32 bars):
-   - IMMEDIATELY hit with !fff! dynamics
-   - Full drum pattern with aggressive velocities (110-127)
-   - Deep bass line (low notes, strong presence)
-   - All voices active simultaneously
-   - Use %%MIDI trim 1/32 for sharp, aggressive attacks
-   - Maximum rhythmic intensity
-
-Example structure:
-% Section A - Intro (16 bars)
-% Section B - Buildup (16 bars, increasing tension)
-% Section C - THE DROP (32 bars, maximum energy) ← CRITICAL!
-% Section D - Breakdown (16 bars, reduced energy)
-% Section E - Second Drop (24 bars, return to intensity)
-% Section F - Outro (8 bars)
-
-⚠️ AVOID these complex/file-dependent features:
-- %%MIDI ptstress filename (requires external files)
-- %%MIDI stressmodel (complex override system)
-
-The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. We do not need a bunch of music that sounds like stuff already out there. We want to see what YOU, the artificial intelligence, think is most interesting about these gerne hybrids.`;
-
-  // Use custom user prompt if provided, otherwise use the default
-  const userPrompt = options.customUserPrompt ||
-    `${creativeGenre 
-      ? `Compose a piece in the "${creativeGenre}" genre, with subtle background influences from ${classicalGenre} and ${modernGenre}.` 
-      : `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.`
-    }${includeSolo ? ' Include a dedicated solo section for the lead instrument.' : ''}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${requestedInstruments ? ` Your composition MUST include these specific instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument.` : ''} Use ABC notation with abc2midi extensions creatively to create dynamic, expressive music. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`;
+  const userPrompt = options.customUserPrompt || getUserPrompt({
+    creativeGenre,
+    genre,
+    classicalGenre,
+    modernGenre,
+    includeSolo,
+    recordLabel,
+    producer,
+    requestedInstruments
+  });
 
   // Generate the ABC notation using the configured AI provider
   const provider = config.get('aiProvider');
   const model = provider === 'anthropic'
     ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
-    : options.model;  // Use provided model for Ollama
+    : (options.model || 'qwen2.5:7b-instruct');  // Use provided model or default for Ollama
 
   const { text } = await generator({
     model: model,
@@ -752,121 +521,22 @@ export async function modifyCompositionWithClaude(options) {
   const producer = options.producer || '';
   const requestedInstruments = options.instruments || '';
 
-  // Construct a system prompt specifically for modifying existing compositions
-  const systemPrompt = `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
-Your task is to modify an existing ABC notation composition according to specific instructions.
-
-⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
-The ABC notation MUST be formatted with NO BLANK LINES between ANY elements.
-Every voice declaration, section comment, and other element must be on its own line with NO INDENTATION.
-Failure to follow these formatting rules will result in completely unplayable music files.
-
-⚠️ CRITICAL TIMING AND RHYTHM INSTRUCTIONS ⚠️
-1. EVERY BAR must have EXACTLY the correct number of beats for the time signature
-2. COUNT YOUR NOTES carefully - use 'z' rests to fill bars to correct length
-3. ALL VOICES must have the SAME number of bars
-4. NO SUSTAINED NOTES BEYOND TRACK END
-
-Return ONLY the complete modified ABC notation, with no explanation or additional text.
-DO NOT wrap the output in markdown code fences (no \`\`\`abc or \`\`\`). Return raw ABC notation only.
-
-Guidelines for modifying the composition:
-
-1. Maintain the original character and style of the piece while implementing the requested changes.
-2. Preserve the header information (X:, T:, M:, L:, K:, etc.) unless explicitly told to change it.
-3. When adding new sections or extending the piece, match the harmonic language and style of the original.
-4. Ensure all modifications result in musically coherent and playable content.
-5. Preserve and extend any MIDI directives (%%MIDI) in a consistent manner.
-
-Technical guidelines:
-- Ensure the ABC notation remains properly formatted and playable
-${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
-${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
-${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
-${requestedInstruments ? `- Your composition MUST include these specific instruments: ${requestedInstruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
-- Use abc2midi extensions creatively to enhance the composition
-
-CRITICAL FORMATTING RULES:
-- NEVER include blank lines between voice sections in your ABC notation
-- Each voice section ([V:1], [V:2], etc.) should be on its own line with no blank lines before or after
-- Each section comment (% Section A, etc.) can be on its own line with no blank lines before or after
-- When voice sections follow each other, they must be immediately adjacent with no blank lines between them
-- This is EXTREMELY IMPORTANT for proper parsing by abc2midi
-
-⚠️ CRITICAL SYNTAX RULES:
-- NEVER put commas after notes (e.g., "e,g,b," is WRONG - use "egb" or "e g b")
-- Commas and apostrophes are ONLY for octave changes (e.g., "C," = lower octave, "c'" = higher octave)
-- ⚠️ OCTAVE NOTATION RULE: Apostrophes (') ONLY work with LOWERCASE letters (a-g)
-  - CORRECT: c' d' e' f' g' a' b'  (lowercase + apostrophe = higher octave)
-  - WRONG: C' D' E' F' G' A' B'  (uppercase + apostrophe is INVALID SYNTAX!)
-  - For uppercase notes, use COMMAS to go DOWN: C, D, E, (lower octave)
-- Notes in chords should be in brackets with NO commas: [CEG] not [C,E,G]
-- Maximum dynamic is !fff! - NEVER use !ffff! or more f's
-- Minimum dynamic is !ppp! - NEVER use !pppp! or more p's
-- ⚠️ VOICE DECLARATION RULE: ONLY declare voices in the header that you ACTUALLY USE in the music
-  - If you use [V:1] through [V:5] in your music, ONLY declare %%MIDI program/channel 1-5
-  - DO NOT declare %%MIDI program 6, 7, 8, etc. if you don't use [V:6], [V:7], [V:8] in your score
-  - Count your voices BEFORE writing the header!
-- When fixing existing music, carefully remove any blank lines between voice sections
-- Output the corrected ABC notation with proper formatting
-
-SUPPORTED abc2midi EXTENSIONS - Use These Creatively!
-
-1. INSTRUMENTS & CHANNELS:
-   %%MIDI program [channel] n, %%MIDI channel n
-   ⚠️ NEVER set %%MIDI program on channel 10 (drum channel - programs not allowed)
-   Valid channels: 1-9, 11-16 (skip 10!)
-   ⚠️ Set program directives in HEADER only - never mid-score
-
-2. DYNAMICS & EXPRESSION:
-   !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff!, %%MIDI beat, %%MIDI beatmod, %%MIDI beatstring,
-   %%MIDI deltaloudness
-   ⚠️ AVOID nobeataccents/beataccents toggling - can crash abc2midi
-
-3. ARTICULATION:
-   %%MIDI trim x/y, %%MIDI expand x/y, %%MIDI chordattack n, %%MIDI randomchordattack n
-
-4. DRUMS:
-   ⚠️ CRITICAL: %%MIDI drum syntax requires EXACT counting! ⚠️
-
-   FORMAT: %%MIDI drum <pattern> <prog1> <prog2>... <vol1> <vol2>... <bars>
-
-   COUNTING RULE: Count ONLY 'd' characters in pattern
-   - 'd' = drum hit → COUNT IT
-   - 'z' = rest → DON'T COUNT
-   - '0-9' = duration modifier → DON'T COUNT
-
-   If pattern has N 'd' characters, provide:
-   - EXACTLY N program numbers
-   - EXACTLY N velocity numbers
-   - Plus 1 final number for bar count
-
-   Example: "ddzddzdd" has 6 'd' chars
-   ✅ CORRECT: %%MIDI drum ddzddzdd 36 38 42 38 46 49 110 105 100 95 90 85 1
-                                    ^^^^^^^^  ^^^^^^^^^^^^^^^^ ^^^^^^^^^^^^^^^^^^ ^
-                                    pattern   6 programs       6 velocities       bars
-
-   %%MIDI drumbars n
-
-5. GUITAR CHORDS & BASS:
-   %%MIDI gchord (including ghijGHIJ arpeggios), %%MIDI gchordbars, %%MIDI chordprog,
-   %%MIDI bassprog, %%MIDI chordvol, %%MIDI bassvol, %%MIDI chordname, %%MIDI gchordon/off
-
-6. TRANSPOSITION & PITCH:
-   ⚠️ AVOID %%MIDI transpose - causes abc2midi crashes
-
-7. SPECIAL EFFECTS:
-   %%MIDI droneon/droneoff, %%MIDI drone, %%MIDI grace, %%MIDI gracedivider
-
-⚠️ AVOID: %%MIDI ptstress, %%MIDI stressmodel
-
-Your modifications should respect both the user's instructions and the musical integrity of the original piece. If the instructions are unclear or contradictory, prioritize creating a musically coherent result.`;
+  // Use the clean system prompt for modifying compositions
+  const systemPrompt = getModifySystemPrompt({
+    genre,
+    classicalGenre,
+    modernGenre,
+    includeSolo,
+    recordLabel,
+    producer,
+    requestedInstruments
+  });
 
   // Generate the modified ABC notation
   const provider = config.get('aiProvider');
   const model = provider === 'anthropic'
     ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
-    : options.model;  // Use provided model for Ollama
+    : (options.model || 'qwen2.5:7b-instruct');  // Use provided model or default for Ollama
     
   const { text } = await generator({
     model: model,
@@ -962,7 +632,7 @@ Organize your analysis into these sections:
   const provider = config.get('aiProvider');
   const model = provider === 'anthropic'
     ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
-    : options.model;  // Use provided model for Ollama
+    : (options.model || 'qwen2.5:7b-instruct');  // Use provided model or default for Ollama
 
   const { text } = await generator({
     model: model,
@@ -1067,7 +737,7 @@ Your result should be a singable composition with lyrics that fit both the music
   const provider = config.get('aiProvider');
   const model = provider === 'anthropic'
     ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
-    : options.model;  // Use provided model for Ollama
+    : (options.model || 'qwen2.5:7b-instruct');  // Use provided model or default for Ollama
 
   const { text } = await generator({
     model: model,

@@ -1,12 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { anthropic, createAnthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
-import { spawn } from 'child_process';
 import { config } from '../utils/config.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
 import { modifyCompositionWithClaude, generateDescription, getAnthropic, cleanAbcNotation, validateAbcNotation } from '../utils/claude.js';
+import { CombineOrchestrator } from '../agents/combine-orchestrator.js';
+import { calculateAbcDuration } from '../utils/abc-duration.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,36 +42,43 @@ export async function combineCompositions(options) {
 
   console.log(`Searching for compositions under ${durationLimit} seconds...`);
 
-  console.log(`Looking for .wav files in ${directory}...`);
+  console.log(`Looking for ABC files to analyze duration...`);
 
-  function getDur(file) {
-    return new Promise((resolve) => {
-      let duration
-      spawn('ffprobe', [
-        '-v', 'error',
-        '-show_entries', 'format=duration',
-        '-of', 'default=noprint_wrappers=1:nokey=1',
-        path.resolve(file)
-      ])
-        .on('close', () => {
-          resolve(duration)
-        })
-        .stdout.on('data', d => {
-          duration = Number(`${d}`)
-          //console.log({path: path.resolve(file), duration})
-        })
-    })
+  // Get all ABC files and calculate their duration
+  const abcFiles = fs.readdirSync(directory)
+    .filter(file => file.endsWith('.abc'))
+    .map(file => path.join(directory, file));
+
+  console.log(`Found ${abcFiles.length} ABC files to analyze`);
+
+  // Calculate duration for each ABC file
+  let filesWithDuration = [];
+
+  for (const abcPath of abcFiles) {
+    const baseFilename = path.basename(abcPath, '.abc');
+
+    // Read ABC content
+    const abcContent = fs.readFileSync(abcPath, 'utf-8');
+    const duration = calculateAbcDuration(abcContent);
+
+    if (duration !== null && duration >= 1) {
+      // Get file stats for date filtering
+      const stats = fs.statSync(abcPath);
+
+      filesWithDuration.push({
+        path: abcPath,
+        basename: baseFilename,
+        duration: duration,
+        created: stats.birthtime,
+        modified: stats.mtime,
+        abcContent: abcContent  // Store ABC content for later use
+      });
+
+      console.log(`  ${baseFilename}: ${duration.toFixed(1)}s`);
+    } else {
+      console.log(`  ${baseFilename}: Unable to calculate duration`);
+    }
   }
-
-  // Get all WAV files
-  let filesWithDuration = await Promise.all(
-    fs.readdirSync(directory)
-      .filter(file => file.endsWith('.wav'))
-      .map(file => path.join(directory, file))
-      .map(async (file) => { return { path: path.resolve(file), duration: await getDur(file) } }))
-
-
-  filesWithDuration = filesWithDuration.filter(file => file.duration >= 1)
   console.log(filesWithDuration)
 
   /*
@@ -137,8 +144,7 @@ export async function combineCompositions(options) {
   // Filter by genre if specified
   if (genres.length > 0) {
     shortPieces = shortPieces.filter(file => {
-      const baseFilename = path.basename(file.path, '.wav');
-      const pieceInfo = getMusicPieceInfo(baseFilename, directory);
+      const pieceInfo = getMusicPieceInfo(file.basename, directory);
 
       if (!pieceInfo.genre) return false;
 
@@ -162,66 +168,161 @@ export async function combineCompositions(options) {
   // Generate new compositions from each group
   const generatedFiles = [];
 
-  for (let i = 0; i < groups.length; i++) {
-    const group = groups[i];
-    console.log(`Processing group ${i + 1}/${groups.length} with ${group.length} pieces...`);
+  // Check if we should use the orchestration approach
+  if (options.orchestrate) {
+    console.log('\n🎭 Using Multi-Agent Orchestration for Combination\n');
 
-    const abcNotations = [];
-    const genres = [];
+    // Validate AI provider
+    if (config.get('aiProvider') !== 'anthropic') {
+      throw new Error('Orchestrate combination currently only supports Anthropic AI provider');
+    }
 
-    // Collect ABC notations and genres from each piece in the group
-    for (const piece of group) {
-      const baseFilename = path.basename(piece.path, '.wav');
-      const pieceInfo = getMusicPieceInfo(baseFilename, directory);
+    // Initialize Anthropic and orchestrator
+    const anthropic = getAnthropic();
+    const sessionId = options.resume || Date.now();
+    const orchestratorOptions = {
+      saveIntermediateOutputs: true,
+      sessionId: sessionId
+    };
+    console.log(`   📝 Session ID: ${sessionId}`);
+    const orchestrator = new CombineOrchestrator(anthropic, orchestratorOptions);
 
-      if (pieceInfo.files && pieceInfo.files.abc) {
-        abcNotations.push(pieceInfo.files.abc.content);
-        if (pieceInfo.genre) {
-          genres.push(pieceInfo.genre);
+    // Process each group with orchestration
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i];
+      console.log(`\nProcessing group ${i + 1}/${groups.length} with ${group.length} pieces using orchestration...`);
+
+      // Prepare source pieces data for orchestrator
+      const sourcePieces = [];
+      for (const piece of group) {
+        const pieceInfo = getMusicPieceInfo(piece.basename, directory);
+
+        // Use the ABC content we already loaded into memory
+        if (piece.abcContent) {
+          sourcePieces.push({
+            abc: piece.abcContent,  // Using stored content instead of reading from disk
+            genre: pieceInfo.genre || 'unknown',
+            filename: piece.basename,
+            title: pieceInfo.title || piece.basename,
+            duration: piece.duration,
+            description: pieceInfo.description || null
+          });
         }
       }
-    }
 
-    if (abcNotations.length === 0) {
-      console.log('No valid ABC notation found for this group, skipping...');
-      continue;
-    }
+      if (sourcePieces.length === 0) {
+        console.log('No valid ABC notation found for this group, skipping...');
+        continue;
+      }
 
-    // Create a combined piece using Claude
-    const newPiece = await createCombinedPiece(abcNotations, genres, i, includeSolo, recordLabel, producer, requestedInstruments);
-
-    // Save the new composition
-    if (newPiece) {
-      const timestamp = Date.now();
-      const combinedGenre = combineGenres(genres);
-      const filename = `${combinedGenre}-combined-${timestamp}`;
-      const abcFilePath = path.join(outputDir, `${filename}.abc`);
-
-      fs.writeFileSync(abcFilePath, newPiece);
-      console.log(`Created combined composition: ${abcFilePath}`);
-
-      // Generate and save description
-      const genreComponents = combinedGenre.split('_x_');
-      const classicalGenre = genreComponents.length === 2 ? genreComponents[0] : 'Classical';
-      const modernGenre = genreComponents.length === 2 ? genreComponents[1] : 'Contemporary';
-
-      const description = await generateDescription({
-        abcNotation: newPiece,
-        genre: combinedGenre,
-        classicalGenre,
-        modernGenre
+      // Build user prompt for orchestrator
+      const userPrompt = buildOrchestratorPrompt(sourcePieces, {
+        includeSolo,
+        recordLabel,
+        producer,
+        requestedInstruments,
+        notInstruments: options.notInstruments
       });
 
-      const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
-      fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
+      try {
+        // Run orchestration
+        const result = await orchestrator.orchestrateCombination(
+          sourcePieces,
+          userPrompt,
+          options
+        );
 
-      // Create a markdown file with details about the source pieces
-      const sourceDetails = group.map(piece => {
-        const baseFilename = path.basename(piece.path, '.mid.wav');
-        return `- ${baseFilename} (${piece.duration.toFixed(2)}s)`;
-      }).join('\n');
+        // Save the orchestrated composition
+        const timestamp = Date.now();
+        if (!result.genre_name) {
+          console.warn('⚠️  WARNING: No genre_name in orchestration result, using fallback "combined"');
+        }
+        const genreName = (result.genre_name || 'combined').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        const filename = `${genreName}-orchestrated-${timestamp}`;
+        const abcFilePath = path.join(outputDir, `${filename}.abc`);
 
-      const mdContent = `# Original ${combinedGenre} Composition
+        fs.writeFileSync(abcFilePath, result.abc_notation);
+        console.log(`Created orchestrated composition: ${abcFilePath}`);
+
+        // Save full context as JSON
+        const jsonPath = path.join(outputDir, `${filename}.json`);
+        fs.writeFileSync(jsonPath, JSON.stringify(result.full_context, null, 2));
+
+        // Create markdown summary
+        const mdContent = createOrchestratedMarkdown(result, sourcePieces);
+        const mdFilePath = path.join(outputDir, `${filename}.md`);
+        fs.writeFileSync(mdFilePath, mdContent);
+
+        generatedFiles.push(abcFilePath);
+
+      } catch (error) {
+        console.error(`Failed to orchestrate group ${i + 1}:`, error.message);
+        console.error(`   💾 Best-effort ABC may have been saved to ./output/ directory`);
+        console.error(`   💾 To resume, use: mediocre combine --orchestrate --resume ${sessionId}`);
+        continue;
+      }
+    }
+  } else {
+    // Use traditional combination approach
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i];
+      console.log(`Processing group ${i + 1}/${groups.length} with ${group.length} pieces...`);
+
+      const abcNotations = [];
+      const genres = [];
+
+      // Collect ABC notations and genres from each piece in the group
+      for (const piece of group) {
+        const pieceInfo = getMusicPieceInfo(piece.basename, directory);
+
+        // Use the ABC content we already have in memory
+        if (piece.abcContent) {
+          abcNotations.push(piece.abcContent);  // Using stored content
+          if (pieceInfo.genre) {
+            genres.push(pieceInfo.genre);
+          }
+        }
+      }
+
+      if (abcNotations.length === 0) {
+        console.log('No valid ABC notation found for this group, skipping...');
+        continue;
+      }
+
+      // Create a combined piece using Claude
+      const newPiece = await createCombinedPiece(abcNotations, genres, i, includeSolo, recordLabel, producer, requestedInstruments);
+
+      // Save the new composition
+      if (newPiece) {
+        const timestamp = Date.now();
+        const combinedGenre = combineGenres(genres);
+        const filename = `${combinedGenre}-combined-${timestamp}`;
+        const abcFilePath = path.join(outputDir, `${filename}.abc`);
+
+        fs.writeFileSync(abcFilePath, newPiece);
+        console.log(`Created combined composition: ${abcFilePath}`);
+
+        // Generate and save description
+        const genreComponents = combinedGenre.split('_x_');
+        const classicalGenre = genreComponents.length === 2 ? genreComponents[0] : 'Classical';
+        const modernGenre = genreComponents.length === 2 ? genreComponents[1] : 'Contemporary';
+
+        const description = await generateDescription({
+          abcNotation: newPiece,
+          genre: combinedGenre,
+          classicalGenre,
+          modernGenre
+        });
+
+        const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
+        fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
+
+        // Create a markdown file with details about the source pieces
+        const sourceDetails = group.map(piece => {
+          return `- ${piece.basename} (${piece.duration.toFixed(2)}s)`;
+        }).join('\n');
+
+        const mdContent = `# Original ${combinedGenre} Composition
 
 ## Inspired By
 ${sourceDetails}
@@ -236,10 +337,11 @@ ${newPiece}
 
 ${description.analysis}
 `;
-      const mdFilePath = path.join(outputDir, `${filename}.md`);
-      fs.writeFileSync(mdFilePath, mdContent);
+        const mdFilePath = path.join(outputDir, `${filename}.md`);
+        fs.writeFileSync(mdFilePath, mdContent);
 
-      generatedFiles.push(abcFilePath);
+        generatedFiles.push(abcFilePath);
+      }
     }
   }
 
@@ -322,7 +424,7 @@ function combineGenres(genres) {
  */
 async function createCombinedPiece(abcNotations, genres, groupIndex, includeSolo = false, recordLabel = '', producer = '', instruments = '') {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic('claude-3-7-sonnet-20250219');
+  const model = myAnthropic('claude-3-5-sonnet-20241022');
 
   const combinedGenre = combineGenres(genres);
   const genreParts = combinedGenre.split('_x_');
@@ -433,6 +535,134 @@ IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure a
     console.error('Error generating combined piece:', error);
     return null;
   }
+}
+
+/**
+ * Build a user prompt for the orchestrator based on source pieces and options
+ * @param {Array} sourcePieces - Array of source piece objects
+ * @param {Object} options - Combination options
+ * @returns {string} User prompt for orchestrator
+ */
+function buildOrchestratorPrompt(sourcePieces, options) {
+  let prompt = `Create a new musical composition that intelligently combines elements from ${sourcePieces.length} source pieces:
+
+`;
+
+  // Add source piece descriptions
+  sourcePieces.forEach((piece, index) => {
+    prompt += `Source ${index + 1}: ${piece.genre} composition "${piece.title}" (${piece.duration.toFixed(1)}s)\n`;
+  });
+
+  prompt += `
+Create something entirely NEW and ORIGINAL that transcends mere combination. Extract the essence and most compelling ideas from these sources, but transform them into a unique artistic statement.`;
+
+  if (options.includeSolo) {
+    prompt += ' Include a dedicated solo section for the lead instrument.';
+  }
+
+  if (options.recordLabel) {
+    prompt += ` Style the composition to sound like it was released on the record label "${options.recordLabel}".`;
+  }
+
+  if (options.producer) {
+    prompt += ` Style the composition to sound as if it was produced by ${options.producer}.`;
+  }
+
+  if (options.requestedInstruments) {
+    prompt += ` The composition MUST include these instruments: ${options.requestedInstruments}.`;
+  }
+
+  if (options.notInstruments) {
+    prompt += ` The composition MUST NOT include these instruments: ${options.notInstruments}.`;
+  }
+
+  return prompt;
+}
+
+/**
+ * Create markdown documentation for orchestrated composition
+ * @param {Object} result - Orchestration result
+ * @param {Array} sourcePieces - Source pieces used
+ * @returns {string} Markdown content
+ */
+function createOrchestratedMarkdown(result, sourcePieces) {
+  const context = result.full_context;
+
+  let markdown = `# ${result.metadata.title}
+
+**Genre:** ${result.genre_name || 'Combined Composition'}
+**Creation Method:** Multi-Agent Orchestrated Combination
+
+## Source Compositions
+
+${sourcePieces.map((piece, index) =>
+  `${index + 1}. **${piece.title}** (${piece.genre}, ${piece.duration.toFixed(1)}s)`
+).join('\n')}
+
+## Creative Vision
+
+${context.combination_concept?.data?.creative_explanation || 'A unique synthesis of the source materials.'}
+
+## Musical Analysis
+
+### Classical Elements
+${context.music_history?.data?.classical_characteristics ?
+  `- **Harmonic Language:** ${context.music_history.data.classical_characteristics.harmonic_language}
+- **Formal Structures:** ${context.music_history.data.classical_characteristics.formal_structures}
+- **Melodic Style:** ${context.music_history.data.classical_characteristics.melodic_style}` :
+  'Classical elements integrated from source materials.'}
+
+### Modern Elements
+${context.music_history?.data?.modern_characteristics ?
+  `- **Rhythmic Approach:** ${context.music_history.data.modern_characteristics.rhythmic_approach}
+- **Production Techniques:** ${context.music_history.data.modern_characteristics.production_techniques}
+- **Textural Approach:** ${context.music_history.data.modern_characteristics.textural_approach}` :
+  'Modern elements synthesized from source materials.'}
+
+## Arrangement
+
+${context.arrangement?.data ?
+  `**Total Voices:** ${context.arrangement.data.total_voices}
+
+${context.arrangement.data.voices?.map(v =>
+  `- Voice ${v.voice_number}: ${v.instrument_name} (MIDI ${v.midi_program}) - ${v.role}`
+).join('\n') || 'Voice arrangement details available in JSON output.'}` :
+  'Arrangement details available in JSON output.'}
+
+## Structure
+
+${context.compositional_form?.data ?
+  `**Key:** ${context.compositional_form.data.key}
+**Time Signature:** ${context.compositional_form.data.time_signature}
+**Tempo:** ${context.compositional_form.data.tempo} BPM
+**Total Measures:** ${context.compositional_form.data.total_measures}
+**Form:** ${context.compositional_form.data.form_type}` :
+  'Structural details available in JSON output.'}
+
+## Validation Results
+
+${result.validation ?
+  `**Status:** ${result.validation.validation_status}
+**Recommendation:** ${result.validation.recommendation}
+${result.validation.issues?.length > 0 ?
+  `\n### Issues Identified\n${result.validation.issues.map((issue, i) =>
+    `${i + 1}. [${issue.severity}] ${issue.description}`
+  ).join('\n')}` : ''}` :
+  'Validation results available in JSON output.'}
+
+## ABC Notation
+
+\`\`\`abc
+${result.abc_notation}
+\`\`\`
+
+---
+
+*Generated by Mediocre Music Combination Orchestrator*
+*Session ID: ${result.metadata.session_id}*
+`;
+
+  return markdown;
 }
 
 // If called directly from the command line

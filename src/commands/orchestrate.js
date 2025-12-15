@@ -82,7 +82,10 @@ export async function orchestrate(options) {
     await fs.mkdir(outputDir, { recursive: true });
 
     const timestamp = Date.now();
-    const genreName = result.genre_name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    if (!result.genre_name) {
+      console.warn('⚠️  WARNING: No genre_name in orchestration result, using fallback "composition"');
+    }
+    const genreName = (result.genre_name || 'composition').toLowerCase().replace(/[^a-z0-9]+/g, '_');
 
     // Add quality warning suffix if needed
     const qualitySuffix = result.has_critical_issues ? '_CRITICAL_ISSUES' :
@@ -132,6 +135,7 @@ export async function orchestrate(options) {
 
   } catch (error) {
     console.error('\n❌ Orchestration failed:', error.message);
+    console.error('💾 Best-effort ABC may have been saved to ./output/ directory');
     throw error;
   }
 }

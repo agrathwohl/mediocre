@@ -31,6 +31,12 @@
 - 🖥️ **Interactive TUI** - Browse compositions with playback and rating system
 - 🔄 **Model Flexibility** - Switch between Anthropic Claude and Ollama models
 - 🔄 **Command Pipelines** - Run sequences of commands to automate complex workflows
+- 🎨 **Orchestrated Combination** - Multi-agent orchestration for intelligent composition merging
+- ⚡ **ABC Duration Parsing** - Calculate music duration directly from ABC notation (no ffprobe needed)
+- 🎬 **ASCII Choreography** - AI-generated synchronized ASCII art animations for compositions
+- 🔊 **Multi-Profile Playback** - MIDI playback with configurable soundfont profiles (stable, ultimate, overkill)
+- 📈 **Audio Analysis** - Comprehensive amplitude, frequency band, beat detection, and onset analysis
+- 📋 **Playlist Support** - Sequential playback with progress tracking and resume functionality
 
 ## 🛠️ Installation
 
@@ -78,6 +84,9 @@ echo "OLLAMA_MODEL=llama3" >> .env
   - `abcm2ps` & `ghostscript` - PDF score generation
   - `timidity` - MIDI → WAV conversion
   - `sox` - Audio effects processing
+  - `mpv` - Audio/video playback (for play commands)
+  - `aubio-tools` - Beat detection and frequency analysis (optional, for audio analysis)
+  - `ffmpeg` - Audio analysis fallback (optional)
 
 ## 🎮 Usage Guide
 
@@ -161,6 +170,35 @@ mediocre mix-and-match -f "/path/to/first.abc" "/path/to/second.abc" --instrumen
 mediocre lyrics -m "/path/to/composition.mid" -a "/path/to/composition.abc" -p "A song about the beauty of nature" --instruments "Piano,Vocals"
 ```
 
+### Combine Existing Compositions
+
+```bash
+# Basic combination - finds and merges short pieces intelligently
+mediocre combine
+
+# Limit source pieces by duration (in seconds)
+mediocre combine --duration-limit 45
+
+# Filter by genres and instruments
+mediocre combine --genres "baroque,romantic" --instruments "Piano,Violin"
+
+# Advanced orchestrated combination using multi-agent system
+mediocre combine --orchestrate
+
+# Orchestrated combination with specific options
+mediocre combine --orchestrate \
+  --duration-limit 45 \
+  --genres "baroque,romantic" \
+  --instruments "Piano,Violin,Cello" \
+  --record-label "Deutsche Grammophon" \
+  --producer "Rick Rubin"
+
+# Resume interrupted orchestration from checkpoint
+mediocre combine --orchestrate --resume 1234567890
+```
+
+See [ORCHESTRATED-COMBINE.md](docs/ORCHESTRATED-COMBINE.md) for detailed documentation on orchestrated combination.
+
 ### Build ML Datasets
 
 ```bash
@@ -176,6 +214,118 @@ mediocre validate-abc -i "/path/to/composition.abc" -o "/path/to/fixed.abc"
 
 # Process all ABC files in the output directory
 mediocre validate-abc
+```
+
+### Play Audio and MIDI Files
+
+```bash
+# Play a MIDI file with the stable soundfont profile (recommended)
+mediocre play output/composition.mid
+
+# Play with different soundfont profiles
+mediocre play output/composition.mid --profile ultimate
+mediocre play output/composition.mid --profile overkill
+
+# Play WAV/MP3/FLAC audio files
+mediocre play output/composition.wav
+
+# Adjust volume
+mediocre play output/composition.mid --volume 80
+
+# List available soundfont profiles
+mediocre play --list-profiles
+```
+
+### Play with ASCII Choreography
+
+```bash
+# Play audio with auto-generated ASCII visualization
+mediocre play-choreography output/composition.wav
+
+# Play with a choreography file
+mediocre play-choreography output/composition.wav -c output/composition-choreography.json
+
+# Use v1.1 choreography engine (supports dynamic expressions)
+mediocre play-choreography output/composition.wav -c choreography.json --mode v1.1
+
+# Play with ABC timing synchronization
+mediocre play-choreography output/composition.wav --abc output/composition.abc
+
+# Analyze audio without playing (shows beat/frequency data)
+mediocre play-choreography output/composition.wav --analyze
+```
+
+### Playlist Playback
+
+```bash
+# Play all audio files in a directory with choreography
+mediocre playlist -d output --auto-choreo
+
+# Resume from where you left off
+mediocre playlist -d output --resume
+
+# Shuffle playlist order
+mediocre playlist -d output --shuffle
+
+# Limit to specific number of tracks
+mediocre playlist -d output --limit 10
+
+# Set delay between tracks (in seconds)
+mediocre playlist -d output --delay 5
+
+# Use a playlist file
+mediocre playlist --playlist my-playlist.json
+
+# Reset progress and start fresh
+mediocre playlist -d output --reset
+
+# List tracks without playing
+mediocre playlist -d output --list
+```
+
+### Analyze Audio
+
+```bash
+# Full audio analysis (amplitude, frequency, beats, onsets)
+mediocre analyze-audio output/composition.wav
+
+# Use specific analysis method
+mediocre analyze-audio output/composition.wav --method aubio
+mediocre analyze-audio output/composition.wav --method ffmpeg
+mediocre analyze-audio output/composition.wav --method sox
+
+# Analyze specific aspects only
+mediocre analyze-audio output/composition.wav --beats-only
+mediocre analyze-audio output/composition.wav --frequency-only
+mediocre analyze-audio output/composition.wav --amplitude-only
+
+# Save analysis to JSON file
+mediocre analyze-audio output/composition.wav -o output/analysis.json
+
+# Output raw JSON for piping
+mediocre analyze-audio output/composition.wav --json | jq '.beats'
+
+# Adjust sample rate (samples per second)
+mediocre analyze-audio output/composition.wav --sample-rate 60
+```
+
+### Generate Choreography
+
+```bash
+# Generate choreography from ABC notation
+mediocre generate-choreography -a output/composition.abc -o output/choreography.json
+
+# Generate from audio file with analysis
+mediocre generate-choreography --audio output/composition.wav -o output/choreography.json
+
+# Generate v1.1 format (supports dynamic expressions like "bass*1.5")
+mediocre generate-choreography -a output/composition.abc -o output/choreography.json --format v1.1
+
+# Use custom ASCII art library
+mediocre generate-choreography -a output/composition.abc --art-library my-ascii-art.json
+
+# Generate with specific FPS
+mediocre generate-choreography -a output/composition.abc --fps 30
 ```
 
 ### Run Command Pipelines

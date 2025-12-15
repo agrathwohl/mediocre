@@ -1,0 +1,542 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ASCII Choreography Schema (Extended)",
+  "description": "A compatibility-preserving extension of the base choreography schema with added flexibility for generative/LLM workflows.",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Choreography metadata and global settings",
+      "properties": {
+        "version": {"type": "string", "default": "1.1"},
+        "name": {"type": "string"},
+        "duration": {"type": "number", "description": "Total duration in seconds"},
+        "bpm": {"type": "number", "description": "Beats per minute for beat-based timing"},
+        "timeSignature": {"type": "string", "default": "4/4"},
+        "fps": {"type": "number", "default": 120},
+        "seed": {"type": ["number", "string"], "description": "Optional randomness seed for reproducibility"},
+        "notes": {"type": "string"}
+      }
+    },
+
+    "settings": {
+      "type": "object",
+      "description": "Global choreography settings",
+      "properties": {
+        "audioReactive": {
+          "type": "object",
+          "properties": {
+            "amplitudeMultiplier": {"type": "number", "default": 1.0},
+            "velocityThreshold": {"type": "number", "default": 0.15},
+            "frequencyBands": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string", "description": "Band name (bass/mid/treble or custom)"},
+                  "range": {"type": "array", "items": {"type": "number"}},
+                  "weight": {"type": "number"}
+                }
+              }
+            },
+            "analysisWindow": {"type": "number", "description": "Milliseconds of audio used per analysis frame"},
+            "smoothing": {"type": "number", "description": "0-1 smoothing factor applied to audio signals"}
+          }
+        },
+        "collisionBehavior": {
+          "type": "string",
+          "enum": ["default", "scripted", "disabled"],
+          "default": "default"
+        },
+        "boundaryMode": {
+          "type": "string",
+          "enum": ["bounce", "wrap", "stop", "destroy"],
+          "default": "bounce"
+        },
+        "randomness": {
+          "type": "object",
+          "description": "Control stochastic elements for deterministic playback",
+          "properties": {
+            "seed": {"type": ["number", "string"]},
+            "mode": {"type": "string", "enum": ["deterministic", "chaotic", "mixed"], "default": "deterministic"}
+          }
+        },
+        "performanceBudget": {
+          "type": "object",
+          "description": "Optional hints to keep choreographies performant",
+          "properties": {
+            "maxObjects": {"type": "integer"},
+            "maxTransformsPerSecond": {"type": "integer"}
+          }
+        }
+      }
+    },
+
+    "templates": {
+      "type": "object",
+      "description": "Reusable object and effect templates",
+      "properties": {
+        "objects": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "shape": {
+                "description": "ASCII art reference, inline art, or multiline sprite",
+                "oneOf": [
+                  {"type": "string"},
+                  {"type": "array", "items": {"type": "string"}}
+                ]
+              },
+              "frames": {
+                "type": "array",
+                "description": "Animated frames (string or multiline array)",
+                "items": {
+                  "oneOf": [
+                    {"type": "string"},
+                    {"type": "array", "items": {"type": "string"}}
+                  ]
+                }
+              },
+              "frameRate": {"type": "number", "description": "Frames per second for animated shapes"},
+              "loop": {"type": "boolean", "description": "Whether animated frames loop"},
+              "defaultColor": {"type": "string"},
+              "defaultScale": {"type": "number"},
+              "bounds": {
+                "type": "object",
+                "description": "Optional hitbox or layout bounds for the object",
+                "properties": {
+                  "width": {"type": "number"},
+                  "height": {"type": "number"}
+                }
+              },
+              "physics": {
+                "type": "object",
+                "properties": {
+                  "mass": {"type": "number"},
+                  "friction": {"type": "number"},
+                  "elasticity": {"type": "number"}
+                }
+              }
+            }
+          }
+        },
+        "movements": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "description": "Named movement preset",
+                "anyOf": [
+                  {"type": "string", "enum": ["linear", "circular", "sine", "bezier", "physics"]},
+                  {"type": "string"}
+                ]
+              },
+              "parameters": {"type": "object"}
+            }
+          }
+        },
+        "formations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "anyOf": [
+                  {"type": "string", "enum": ["circle", "grid", "spiral", "wave", "random"]},
+                  {"type": "string"}
+                ]
+              },
+              "spacing": {"$ref": "#/definitions/dynamicNumber"},
+              "count": {"type": "integer"},
+              "jitter": {"$ref": "#/definitions/dynamicNumber"},
+              "orientation": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+
+    "tracks": {
+      "type": "array",
+      "description": "Parallel tracks for organizing objects",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "layer": {"type": "integer", "description": "Z-order, higher = front"},
+          "opacity": {"type": "number", "minimum": 0, "maximum": 1},
+          "audioChannel": {
+            "type": "string",
+            "enum": ["stereo", "left", "right", "center"],
+            "default": "stereo"
+          },
+          "timeline": {
+            "description": "Optional per-track timeline for parallel sequencing",
+            "type": "array",
+            "items": {"$ref": "#/definitions/timelineEvent"}
+          }
+        }
+      }
+    },
+
+    "timeline": {
+      "type": "array",
+      "description": "Timeline of choreography events",
+      "items": {"$ref": "#/definitions/timelineEvent"}
+    },
+
+    "threads": {
+      "type": "array",
+      "description": "Parallel timelines for layered or overlapping sequences",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "track": {"type": "string", "description": "Optional track to bind this thread to"},
+          "timeline": {
+            "type": "array",
+            "items": {"$ref": "#/definitions/timelineEvent"}
+          }
+        }
+      }
+    },
+
+    "scenes": {
+      "type": "array",
+      "description": "Named scene definitions for complex choreographies",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "start": {"type": "number"},
+          "duration": {"type": "number"},
+          "transition": {
+            "type": "object",
+            "description": "Optional scene transition metadata",
+            "properties": {
+              "type": {"type": "string", "enum": ["cut", "crossfade", "wipe", "custom"]},
+              "duration": {"type": "number"},
+              "easing": {"type": "string"}
+            }
+          },
+          "timeline": {"$ref": "#/definitions/timelineEventArray"}
+        }
+      }
+    }
+  },
+
+  "definitions": {
+    "dynamicNumber": {
+      "type": ["number", "string"],
+      "description": "Supports numeric literals or templated/expression strings (e.g., random(0,1), {{beat}}*2)"
+    },
+
+    "timelineEventArray": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/timelineEvent"}
+    },
+
+    "timelineEvent": {
+      "type": "object",
+      "properties": {
+        "label": {"type": "string", "description": "Optional marker for referencing this event"},
+        "trigger": {
+          "type": "object",
+          "oneOf": [
+            {
+              "properties": {
+                "type": {"const": "time"},
+                "at": {"$ref": "#/definitions/dynamicNumber", "description": "Absolute time in seconds"},
+                "jitter": {"type": "number", "description": "Optional random jitter in seconds"}
+              }
+            },
+            {
+              "properties": {
+                "type": {"const": "beat"},
+                "measure": {"type": "integer"},
+                "beat": {"$ref": "#/definitions/dynamicNumber"},
+                "subdivision": {"type": "number", "description": "Beat subdivision (e.g., 0.5 for eighths)"},
+                "swing": {"type": "number", "description": "0-1 swing amount"},
+                "phase": {"type": "number", "description": "Phase offset in beats"}
+              }
+            },
+            {
+              "properties": {
+                "type": {"const": "audio"},
+                "condition": {
+                  "type": "object",
+                  "properties": {
+                    "parameter": {"type": "string", "enum": ["amplitude", "velocity", "frequency", "custom"]},
+                    "operator": {"type": "string", "enum": [">", "<", "==", "spike", "drop", "between"]},
+                    "value": {"$ref": "#/definitions/dynamicNumber"},
+                    "value2": {"$ref": "#/definitions/dynamicNumber", "description": "Optional upper bound for between"},
+                    "band": {"type": "string", "description": "Frequency band name for frequency/custom"}
+                  }
+                },
+                "conditions": {
+                  "type": "array",
+                  "description": "Boolean-composed audio conditions",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "parameter": {"type": "string", "enum": ["amplitude", "velocity", "frequency", "custom"]},
+                      "operator": {"type": "string", "enum": [">", "<", "==", "spike", "drop", "between"]},
+                      "value": {"$ref": "#/definitions/dynamicNumber"},
+                      "value2": {"$ref": "#/definitions/dynamicNumber"},
+                      "band": {"type": "string"}
+                    }
+                  }
+                },
+                "logic": {"type": "string", "enum": ["and", "or", "xor"], "default": "and"},
+                "window": {"type": "number", "description": "Seconds the condition must hold"}
+              }
+            },
+            {
+              "properties": {
+                "type": {"const": "loop"},
+                "every": {"$ref": "#/definitions/dynamicNumber", "description": "Interval in seconds"},
+                "count": {"type": "integer", "description": "Number of repetitions, -1 for infinite"},
+                "phase": {"type": "number"},
+                "jitter": {"type": "number"}
+              }
+            }
+          ]
+        },
+
+        "actions": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/action"}
+        }
+      }
+    },
+
+    "action": {
+      "type": "object",
+      "oneOf": [
+        {
+          "properties": {
+            "type": {"const": "spawn"},
+            "label": {"type": "string"},
+            "delay": {"type": "number", "description": "Seconds to wait after trigger before applying"},
+            "objectId": {"type": "string"},
+            "template": {"type": "string"},
+            "position": {
+              "type": "object",
+              "properties": {
+                "x": {"$ref": "#/definitions/dynamicNumber"},
+                "y": {"$ref": "#/definitions/dynamicNumber"},
+                "relative": {"type": "boolean", "default": false}
+              }
+            },
+            "rotation": {"$ref": "#/definitions/dynamicNumber"},
+            "track": {"type": "string"}
+          }
+        },
+        {
+          "properties": {
+            "type": {"const": "move"},
+            "label": {"type": "string"},
+            "delay": {"type": "number"},
+            "target": {"type": "string", "description": "Object ID or 'all' or track ID"},
+            "movement": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "preset": {
+                      "description": "Named movement preset or custom string",
+                      "anyOf": [
+                        {"type": "string", "enum": ["linear", "circular", "sine", "bezier", "physics"]},
+                        {"type": "string"}
+                      ]
+                    },
+                    "duration": {"$ref": "#/definitions/dynamicNumber"},
+                    "easing": {
+                      "description": "Easing name (standard or custom)",
+                      "anyOf": [
+                        {"type": "string", "enum": ["linear", "ease-in", "ease-out", "ease-in-out", "bounce"]},
+                        {"type": "string"}
+                      ]
+                    },
+                    "stagger": {"type": "number", "description": "Optional stagger for grouped targets"}
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "x": {"$ref": "#/definitions/dynamicNumber"},
+                          "y": {"$ref": "#/definitions/dynamicNumber"},
+                          "time": {"$ref": "#/definitions/dynamicNumber"},
+                          "relative": {"type": "boolean"}
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "velocity": {
+                      "type": "object",
+                      "properties": {
+                        "x": {"$ref": "#/definitions/dynamicNumber"},
+                        "y": {"$ref": "#/definitions/dynamicNumber"}
+                      }
+                    },
+                    "acceleration": {
+                      "type": "object",
+                      "properties": {
+                        "x": {"$ref": "#/definitions/dynamicNumber"},
+                        "y": {"$ref": "#/definitions/dynamicNumber"}
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {"const": "transform"},
+            "label": {"type": "string"},
+            "delay": {"type": "number"},
+            "target": {"type": "string"},
+            "effect": {
+              "anyOf": [
+                {"type": "string", "enum": ["EXPLODE", "SHATTER", "MELT", "PIXELATE", "GLITCH", "MORPH", "WARP", "MULTIPLY", "RAINBOW", "INVERT", "MATRIX", "DISSOLVE"]},
+                {"type": "string"}
+              ]
+            },
+            "duration": {"$ref": "#/definitions/dynamicNumber"},
+            "parameters": {"type": "object"}
+          }
+        },
+        {
+          "properties": {
+            "type": {"const": "formation"},
+            "label": {"type": "string"},
+            "delay": {"type": "number"},
+            "objects": {"type": "array", "items": {"type": "string"}},
+            "pattern": {
+              "anyOf": [
+                {"type": "string"},
+                {"type": "string", "enum": ["circle", "grid", "spiral", "wave", "random"]}
+              ]
+            },
+            "center": {
+              "type": "object",
+              "properties": {
+                "x": {"$ref": "#/definitions/dynamicNumber"},
+                "y": {"$ref": "#/definitions/dynamicNumber"}
+              }
+            },
+            "duration": {"$ref": "#/definitions/dynamicNumber"},
+            "spacing": {"$ref": "#/definitions/dynamicNumber"},
+            "stagger": {"type": "number"}
+          }
+        },
+        {
+          "properties": {
+            "type": {"const": "visual"},
+            "label": {"type": "string"},
+            "delay": {"type": "number"},
+            "target": {"type": "string"},
+            "changes": {
+              "type": "object",
+              "properties": {
+                "color": {"type": "string", "description": "HSL, hex, or templated color"},
+                "scale": {"$ref": "#/definitions/dynamicNumber"},
+                "rotation": {"$ref": "#/definitions/dynamicNumber", "description": "Degrees"},
+                "opacity": {"$ref": "#/definitions/dynamicNumber"},
+                "blur": {"$ref": "#/definitions/dynamicNumber"},
+                "glow": {
+                  "type": "object",
+                  "properties": {
+                    "color": {"type": "string"},
+                    "radius": {"$ref": "#/definitions/dynamicNumber"}
+                  }
+                },
+                "blendMode": {"type": "string"}
+              }
+            },
+            "duration": {"$ref": "#/definitions/dynamicNumber"},
+            "easing": {"type": "string"}
+          }
+        },
+        {
+          "properties": {
+            "type": {"const": "destroy"},
+            "label": {"type": "string"},
+            "delay": {"type": "number"},
+            "target": {"type": "string"},
+            "effect": {
+              "anyOf": [
+                {"type": "string", "enum": ["instant", "fade", "explode", "collapse"]},
+                {"type": "string"}
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {"const": "audio-map"},
+            "label": {"type": "string"},
+            "delay": {"type": "number"},
+            "target": {"type": "string"},
+            "mapping": {
+              "type": "object",
+              "properties": {
+                "amplitude": {
+                  "type": "object",
+                  "properties": {
+                    "property": {"type": "string", "enum": ["scale", "opacity", "rotation", "x", "y", "color", "glow", "effectIntensity"]},
+                    "range": {"type": "array", "items": {"type": "number"}},
+                    "smoothing": {"type": "number"},
+                    "curve": {"type": "string", "description": "Optional curve name (linear, ease, exp, etc.)"}
+                  }
+                },
+                "frequency": {
+                  "type": "object",
+                  "properties": {
+                    "band": {"type": "string"},
+                    "property": {"type": "string"},
+                    "range": {"type": "array", "items": {"type": "number"}},
+                    "smoothing": {"type": "number"},
+                    "curve": {"type": "string"}
+                  }
+                },
+                "properties": {
+                  "type": "object",
+                  "description": "Generalized mapping: property -> source signal",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "property": {"type": "string", "description": "Target property to drive"},
+                      "source": {"type": "string", "enum": ["amplitude", "velocity", "frequency", "custom"]},
+                      "band": {"type": "string", "description": "Band name when source=frequency/custom"},
+                      "range": {"type": "array", "items": {"type": "number"}},
+                      "smoothing": {"type": "number"},
+                      "curve": {"type": "string"},
+                      "clamp": {"type": "array", "items": {"type": "number"}},
+                      "offset": {"type": "number"},
+                      "multiplier": {"type": "number"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -11,6 +11,14 @@ export class CompositionAgent extends BaseAgent {
     super('composition', anthropic);
   }
 
+  /**
+   * Execute composition generation
+   * @param {string} userPrompt - User's composition request
+   * @param {Object} previousOutputs - Context from previous agents
+   * @param {Object} [previousOutputs.creative_genre_name] - From standard generation workflow (.data.genre_name)
+   * @param {Object} [previousOutputs.combination_concept] - From combination workflow (.data.genre_name)
+   * Both provide genre_name but in different workflow contexts
+   */
   async execute(userPrompt, previousOutputs = {}) {
     const genreContext = previousOutputs.creative_genre_name || {};
     const historyContext = previousOutputs.music_history || {};
@@ -20,6 +28,10 @@ export class CompositionAgent extends BaseAgent {
     const timbrelContext = previousOutputs.timbrel || {};
     const dynamicsContext = previousOutputs.dynamics || {};
     const batchContext = previousOutputs.batch_specific || null;
+
+    // CRITICAL: Extract source ABC notations for combination mode
+    const sourceAnalysis = previousOutputs.source_analysis || {};
+    const sourceCompositions = sourceAnalysis.data?.source_abc_notations || null;
 
     // Check if we're in batch mode
     const isBatchMode = batchContext && batchContext.is_batch_mode;
@@ -32,10 +44,30 @@ export class CompositionAgent extends BaseAgent {
     const currentVoice = isBatchMode ? batchContext.current_voice : null;
 
     const systemPrompt = `You are an expert ABC notation composer. ${
-      isBatchMode 
-        ? `You are composing bars ${startBar}-${endBar} (${barsToCompose} bars) for a SINGLE voice: ${currentVoice.instrument_name}.` 
+      isBatchMode
+        ? `You are composing bars ${startBar}-${endBar} (${barsToCompose} bars) for a SINGLE voice: ${currentVoice.instrument_name}.`
         : `You are composing a complete piece with ${arrangementContext.total_voices} voices.`
     }
+
+${sourceCompositions ? `
+============ CRITICAL: SOURCE COMPOSITIONS TO COMBINE ============
+You MUST extract and transform material from these source ABC notations:
+
+${sourceCompositions.map((source, i) => `
+SOURCE ${i + 1}: ${source.title || 'Untitled'}
+Genre: ${source.genre || 'Unknown'}
+ABC NOTATION:
+${source.abc_notation}
+`).join('\n---\n')}
+
+COMBINATION INSTRUCTIONS:
+1. EXTRACT melodies, harmonies, rhythms, and patterns from the source ABC notations above
+2. TRANSFORM and COMBINE these extracted elements into a cohesive new composition
+3. PRESERVE instruments that appear in the source pieces
+4. CREATE transitional material AS NEEDED to make the combination flow naturally
+5. The source material above is your PRIMARY BASIS - USE IT, don't ignore it!
+================================================================
+` : ''}
 
 YOU HAVE BEEN GIVEN COMPLETE SPECIFICATIONS:
 ${JSON.stringify({
@@ -61,13 +93,15 @@ ${isBatchMode ?
 
 ⚠️ CRITICAL ABC SYNTAX RULES - YOUR SOLE RESPONSIBILITY ⚠️
 
-1. OCTAVE NOTATION (CAUSES PARSE ERRORS IF WRONG):
-   ✓ CORRECT: c' d' e' f' g' a' b'  (lowercase + apostrophe)
-   ✗ WRONG: C' D' E' F' G' A' B'  (uppercase + apostrophe is INVALID)
+1. OCTAVE NOTATION (ABC STANDARD - STRICT MODE):
+   - C D E F G A B = lower octave (below middle C)
+   - c d e f g a b = middle octave (around middle C)
+   - c' d' e' f' g' a' b' = higher octave (above middle C)
+   - Comma (,) lowers by an octave: C, = two octaves below middle C
+   - Apostrophe (') raises by an octave: c'' = two octaves above middle C
 
-   - Apostrophes (') ONLY work with LOWERCASE letters
-   - For uppercase notes going down, use comma: C, D, E,
-   - NEVER EVER use uppercase with apostrophe
+   CRITICAL: Use lowercase + apostrophe for high notes (NOT C' D' E')
+   This prevents abc2midi parsing ambiguities
 
 ${isBatchMode ? '' : `2. VOICE DECLARATIONS (MUST MATCH ARRANGEMENT):
    - Arrangement said ${arrangementContext.total_voices || 'N'} voices
@@ -96,7 +130,7 @@ ${isBatchMode ? '' : `2. VOICE DECLARATIONS (MUST MATCH ARRANGEMENT):
    - Section comments (% Section A) on their own line
 
 HYPER-FOCUS ON THESE MISTAKES:
-1. ❌ Using C' D' E' instead of c' d' e' (this breaks abc2midi)
+1. ❌ Using C' D' E' (uppercase+apostrophe causes abc2midi parsing issues)
 2. ❌ Having bars with wrong note count (must be ${calculateNotesPerBar(formContext.time_signature || '4/4')} sixteenth notes)
 3. ❌ Composing wrong number of bars (MUST be EXACTLY ${barsToCompose} bars)
 ${isBatchMode ? '' : `4. ❌ Creating wrong number of voices (must be ${arrangementContext.total_voices})`}
@@ -120,7 +154,7 @@ Your output MUST be valid JSON with this structure:
 }
 
 MANDATORY CHECKS BEFORE RETURNING:
-1. Search output for pattern [A-G]' and ELIMINATE IT (uppercase + apostrophe)
+1. Ensure all octave notations are valid ABC syntax
 2. Count bars === ${barsToCompose}
 3. Verify metadata.total_bars === ${barsToCompose}
 ${isBatchMode ? '' : '4. Count voices used === ' + arrangementContext.total_voices}

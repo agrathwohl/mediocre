@@ -175,8 +175,9 @@ function fixVoiceSequencing(content) {
   let nextVoiceNum = 1;
 
   // First pass: find all voice declarations and build mapping
+  // Support both V:1 and [V:1] formats
   for (const line of lines) {
-    const match = line.match(/^V:(\d+)/);
+    const match = line.match(/^\[?V:(\d+)/);
     if (match) {
       const oldNum = match[1];
       if (!voiceMap.has(oldNum)) {
@@ -187,12 +188,14 @@ function fixVoiceSequencing(content) {
 
   // Second pass: replace voice numbers
   for (const line of lines) {
-    const match = line.match(/^V:(\d+)(.*)$/);
+    // Match both V:1 and [V:1] formats
+    const match = line.match(/^(\[?)V:(\d+)(.*)$/);
     if (match) {
-      const oldNum = match[1];
-      const rest = match[2];
+      const bracket = match[1];
+      const oldNum = match[2];
+      const rest = match[3];
       const newNum = voiceMap.get(oldNum);
-      result.push(`V:${newNum}${rest}`);
+      result.push(`${bracket}V:${newNum}${rest}`);
     } else {
       // Also fix MIDI program references if they use voice numbers
       const midiMatch = line.match(/^%%MIDI program (\d+) (\d+)$/);

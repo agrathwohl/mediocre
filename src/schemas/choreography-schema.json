@@ -1,0 +1,323 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ASCII Choreography Schema",
+  "type": "object",
+  "properties": {
+
+    "metadata": {
+      "type": "object",
+      "description": "Choreography metadata and global settings",
+      "properties": {
+        "version": {"type": "string", "default": "1.0"},
+        "name": {"type": "string"},
+        "duration": {"type": "number", "description": "Total duration in seconds"},
+        "bpm": {"type": "number", "description": "Beats per minute for beat-based timing"},
+        "timeSignature": {"type": "string", "default": "4/4"},
+        "fps": {"type": "number", "default": 120}
+      }
+    },
+
+    "settings": {
+      "type": "object",
+      "description": "Global choreography settings",
+      "properties": {
+        "audioReactive": {
+          "type": "object",
+          "properties": {
+            "amplitudeMultiplier": {"type": "number", "default": 1.0},
+            "velocityThreshold": {"type": "number", "default": 0.15},
+            "frequencyBands": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string", "enum": ["bass", "mid", "treble"]},
+                  "range": {"type": "array", "items": {"type": "number"}},
+                  "weight": {"type": "number"}
+                }
+              }
+            }
+          }
+        },
+        "collisionBehavior": {
+          "type": "string",
+          "enum": ["default", "scripted", "disabled"],
+          "default": "default"
+        },
+        "boundaryMode": {
+          "type": "string",
+          "enum": ["bounce", "wrap", "stop", "destroy"],
+          "default": "bounce"
+        }
+      }
+    },
+
+    "templates": {
+      "type": "object",
+      "description": "Reusable object and effect templates",
+      "properties": {
+        "objects": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "shape": {"type": "string", "description": "ASCII art reference or inline art"},
+              "defaultColor": {"type": "string"},
+              "defaultScale": {"type": "number"},
+              "physics": {
+                "type": "object",
+                "properties": {
+                  "mass": {"type": "number"},
+                  "friction": {"type": "number"},
+                  "elasticity": {"type": "number"}
+                }
+              }
+            }
+          }
+        },
+        "movements": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": {"type": "string", "enum": ["linear", "circular", "sine", "bezier", "physics"]},
+              "parameters": {"type": "object"}
+            }
+          }
+        },
+        "formations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "pattern": {"type": "string", "enum": ["circle", "grid", "spiral", "wave", "random"]},
+              "spacing": {"type": "number"},
+              "count": {"type": "integer"}
+            }
+          }
+        }
+      }
+    },
+
+    "tracks": {
+      "type": "array",
+      "description": "Parallel tracks for organizing objects",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "layer": {"type": "integer", "description": "Z-order, higher = front"},
+          "opacity": {"type": "number", "minimum": 0, "maximum": 1},
+          "audioChannel": {
+            "type": "string",
+            "enum": ["stereo", "left", "right", "center"],
+            "default": "stereo"
+          }
+        }
+      }
+    },
+
+    "timeline": {
+      "type": "array",
+      "description": "Timeline of choreography events",
+      "items": {
+        "type": "object",
+        "properties": {
+          "trigger": {
+            "type": "object",
+            "oneOf": [
+              {
+                "properties": {
+                  "type": {"const": "time"},
+                  "at": {"type": "number", "description": "Absolute time in seconds"}
+                }
+              },
+              {
+                "properties": {
+                  "type": {"const": "beat"},
+                  "measure": {"type": "integer"},
+                  "beat": {"type": "number"}
+                }
+              },
+              {
+                "properties": {
+                  "type": {"const": "audio"},
+                  "condition": {
+                    "type": "object",
+                    "properties": {
+                      "parameter": {"type": "string", "enum": ["amplitude", "velocity", "frequency"]},
+                      "operator": {"type": "string", "enum": [">", "<", "==", "spike", "drop"]},
+                      "value": {"type": "number"}
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "type": {"const": "loop"},
+                  "every": {"type": "number", "description": "Interval in seconds"},
+                  "count": {"type": "integer", "description": "Number of repetitions, -1 for infinite"}
+                }
+              }
+            ]
+          },
+
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "oneOf": [
+                {
+                  "properties": {
+                    "type": {"const": "spawn"},
+                    "objectId": {"type": "string"},
+                    "template": {"type": "string"},
+                    "position": {
+                      "type": "object",
+                      "properties": {
+                        "x": {"type": ["number", "string"]},
+                        "y": {"type": ["number", "string"]},
+                        "relative": {"type": "boolean", "default": false}
+                      }
+                    },
+                    "track": {"type": "string"}
+                  }
+                },
+                {
+                  "properties": {
+                    "type": {"const": "move"},
+                    "target": {"type": "string", "description": "Object ID or 'all' or track ID"},
+                    "movement": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "preset": {"type": "string"},
+                            "duration": {"type": "number"},
+                            "easing": {"type": "string", "enum": ["linear", "ease-in", "ease-out", "ease-in-out", "bounce"]}
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "x": {"type": "number"},
+                                  "y": {"type": "number"},
+                                  "time": {"type": "number"}
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "velocity": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
+                            "acceleration": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}}
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "type": {"const": "transform"},
+                    "target": {"type": "string"},
+                    "effect": {
+                      "type": "string",
+                      "enum": ["EXPLODE", "SHATTER", "MELT", "PIXELATE", "GLITCH", "MORPH", "WARP", "MULTIPLY", "RAINBOW", "INVERT", "MATRIX", "DISSOLVE"]
+                    },
+                    "duration": {"type": "number"},
+                    "parameters": {"type": "object"}
+                  }
+                },
+                {
+                  "properties": {
+                    "type": {"const": "formation"},
+                    "objects": {"type": "array", "items": {"type": "string"}},
+                    "pattern": {"type": "string"},
+                    "center": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
+                    "duration": {"type": "number"}
+                  }
+                },
+                {
+                  "properties": {
+                    "type": {"const": "visual"},
+                    "target": {"type": "string"},
+                    "changes": {
+                      "type": "object",
+                      "properties": {
+                        "color": {"type": "string", "description": "HSL or hex color"},
+                        "scale": {"type": "number"},
+                        "rotation": {"type": "number", "description": "Degrees"},
+                        "opacity": {"type": "number"},
+                        "blur": {"type": "number"},
+                        "glow": {"type": "object", "properties": {"color": {"type": "string"}, "radius": {"type": "number"}}}
+                      }
+                    },
+                    "duration": {"type": "number"},
+                    "easing": {"type": "string"}
+                  }
+                },
+                {
+                  "properties": {
+                    "type": {"const": "destroy"},
+                    "target": {"type": "string"},
+                    "effect": {"type": "string", "enum": ["instant", "fade", "explode", "collapse"]}
+                  }
+                },
+                {
+                  "properties": {
+                    "type": {"const": "audio-map"},
+                    "target": {"type": "string"},
+                    "mapping": {
+                      "type": "object",
+                      "properties": {
+                        "amplitude": {
+                          "type": "object",
+                          "properties": {
+                            "property": {"type": "string", "enum": ["scale", "opacity", "rotation", "x", "y"]},
+                            "range": {"type": "array", "items": {"type": "number"}},
+                            "smoothing": {"type": "number"}
+                          }
+                        },
+                        "frequency": {
+                          "type": "object",
+                          "properties": {
+                            "band": {"type": "string"},
+                            "property": {"type": "string"},
+                            "range": {"type": "array", "items": {"type": "number"}}
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+
+    "scenes": {
+      "type": "array",
+      "description": "Named scene definitions for complex choreographies",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "start": {"type": "number"},
+          "duration": {"type": "number"},
+          "timeline": {"$ref": "#/properties/timeline"}
+        }
+      }
+    }
+  }
+}

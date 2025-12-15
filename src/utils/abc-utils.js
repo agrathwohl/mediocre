@@ -25,5 +25,3 @@ export function calculateNotesPerBar(timeSignature) {
   return numerator * sixteenthsPerBeat;
 }
 
-// TODO: Implement validateBarLength function when ABC parsing is needed
-// Would validate that a bar has the correct number of notes for a time signature

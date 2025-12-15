@@ -22,3 +22,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+soundfonts/
+
+test-output

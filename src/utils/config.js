@@ -43,6 +43,9 @@ export const config = new Conf({
       enum: ['anthropic', 'ollama'],
       default: process.env.AI_PROVIDER || 'anthropic' // Always default to anthropic unless explicitly set otherwise
     },
+    // Note: This config key remains 'ollamaModel' for backward compatibility
+    // even though the CLI flag is now '--model' (works for both providers).
+    // Internal config key names don't affect user experience.
     ollamaModel: {
       type: 'string',
       default: process.env.OLLAMA_MODEL || 'llama3'

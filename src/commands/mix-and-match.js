@@ -211,7 +211,7 @@ function combineGenres(genres) {
  */
 async function createMixedComposition(sourceFiles, includeSolo = false, recordLabel = '', producer = '', instruments = '') {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic('claude-3-7-sonnet-20250219');
+  const model = myAnthropic('claude-3-5-sonnet-20241022');
 
   const combinedGenre = combineGenres(sourceFiles.map(file => file.genre));
   const genreParts = combinedGenre.split('_x_');

@@ -10,6 +10,12 @@ import {
   soundfontExists,
   SOUNDFONT_PROFILES
 } from '../utils/soundfont-manager.js';
+import {
+  getStemDirectories,
+  ensureStemDirectories,
+  checkMidiStemsExist,
+  createStemFileName
+} from '../utils/stem-paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -245,40 +251,36 @@ async function convertFileWithStems(inputPath, outputPath, options = {}) {
     await convertFile(inputPath, outputPath, options);
     const generatedStems = [outputPath];
 
-    // Check if MIDI stem files exist (created by convert-midi with --stems)
-    const inputDir = path.dirname(inputPath);
-    const baseFileName = path.basename(inputPath, '.mid');
-    const midiStemDir = path.join(inputDir, 'stems', baseFileName);
+    // Check if MIDI stem files exist
+    const midiStemInfo = checkMidiStemsExist(inputPath);
 
-    // Create WAV stems directory
-    const wavStemDir = path.join(path.dirname(outputPath), 'stems');
-    if (!fs.existsSync(wavStemDir)) {
-      fs.mkdirSync(wavStemDir, { recursive: true });
-    }
+    // Create WAV stem directories
+    const { stemDir: wavStemDir, fileSpecificStemDir: wavFileSpecificStemDir } = getStemDirectories(outputPath, 'wav');
+    ensureStemDirectories(wavStemDir, wavFileSpecificStemDir);
 
-    // Create subdirectory for this specific file's WAV stems
-    const wavFileSpecificStemDir = path.join(wavStemDir, path.basename(outputPath, '.wav'));
-    if (!fs.existsSync(wavFileSpecificStemDir)) {
-      fs.mkdirSync(wavFileSpecificStemDir, { recursive: true });
-    }
+    // Check if MIDI stems exist and are valid
+    if (midiStemInfo.exists && midiStemInfo.stemFiles.length > 0) {
+      console.log(`Found ${midiStemInfo.stemFiles.length} MIDI stems in ${midiStemInfo.stemDir}, converting each to WAV...`);
 
-    // Check if MIDI stems exist
-    if (fs.existsSync(midiStemDir)) {
-      console.log(`Found MIDI stems in ${midiStemDir}, converting each to WAV...`);
+      const midiStemFiles = midiStemInfo.stemFiles;
 
-      // Read all MIDI stem files
-      const midiStemFiles = fs.readdirSync(midiStemDir).filter(f => f.endsWith('.mid'));
-
-      for (const midiStemFile of midiStemFiles) {
-        const midiStemPath = path.join(midiStemDir, midiStemFile);
+      console.log(`Converting ${midiStemFiles.length} MIDI stems to WAV...`);
+      for (let i = 0; i < midiStemFiles.length; i++) {
+        const midiStemFile = midiStemFiles[i];
+        const midiStemPath = path.join(midiStemInfo.stemDir, midiStemFile);
         const wavStemFileName = midiStemFile.replace('.mid', '.wav');
         const wavStemPath = path.join(wavFileSpecificStemDir, wavStemFileName);
 
-        console.log(`Converting stem: ${midiStemFile} -> ${wavStemFileName}`);
+        console.log(`[${i + 1}/${midiStemFiles.length}] Converting stem: ${midiStemFile} -> ${wavStemFileName}`);
 
-        // Convert individual MIDI stem to WAV using the same soundfont settings
-        await convertFile(midiStemPath, wavStemPath, options);
-        generatedStems.push(wavStemPath);
+        try {
+          // Convert individual MIDI stem to WAV using the same soundfont settings
+          await convertFile(midiStemPath, wavStemPath, options);
+          generatedStems.push(wavStemPath);
+        } catch (error) {
+          console.error(`Warning: Failed to convert MIDI stem ${midiStemFile} to WAV: ${error.message}`);
+          // Continue processing other stems
+        }
       }
 
       console.log(`Successfully converted ${midiStemFiles.length} MIDI stems to WAV`);
@@ -292,18 +294,16 @@ async function convertFileWithStems(inputPath, outputPath, options = {}) {
       console.log(`Found ${tracks.length} tracks in ${inputPath}`);
 
       // Generate stems for each track using channel muting
+      console.log(`Generating ${tracks.filter(t => t.channel !== null).length} WAV stems using channel muting...`);
+      let stemCount = 0;
       for (const track of tracks) {
         // Skip tracks with no channel assignment
         if (track.channel === null) continue;
 
-        // Sanitize track name for file system
-        const sanitizedName = track.name
-          .replace(/[^\w\s-]/g, '')  // Remove non-alphanumeric characters
-          .replace(/\s+/g, '_')      // Replace spaces with underscores
-          .toLowerCase();
-
-        // Create stem file path
-        const stemFileName = `${path.basename(outputPath, '.wav')}_${sanitizedName}_track${track.track}.wav`;
+        stemCount++;
+        // Create stem file path using shared utility
+        const baseFileName = path.basename(outputPath, '.wav');
+        const stemFileName = createStemFileName(baseFileName, track.name, track.track, 'wav');
         const stemFilePath = path.join(wavFileSpecificStemDir, stemFileName);
 
         console.log(`Generating stem for track ${track.track} (${track.name}) on channel ${track.channel}...`);

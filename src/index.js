@@ -19,8 +19,17 @@ import { mixAndMatch } from './commands/mix-and-match.js';
 import { rearrangeComposition } from './commands/rearrange.js';
 import { runPipeline } from './commands/pipeline.js';
 import { createDatasetBrowser } from './ui/index.js';
-import { validateAbcNotation, cleanAbcNotation } from './utils/claude.js';
+import { validateAbcNotation } from './utils/claude.js';
 import { orchestrate } from './commands/orchestrate.js';
+import { createExtractTimingCommand } from './commands/extract-timing.js';
+import { createVisualizeCommand } from './commands/visualize.js';
+import { generateAsciiArt, listAsciiArt, exportAsciiArt } from './commands/generate-ascii-art.js';
+import generateChoreographyCommand from './commands/generate-choreography.js';
+import { createPlayCommand } from './commands/play.js';
+import { createPlayChoreographyCommand } from './commands/play-choreography.js';
+import { createAnalyzeAudioCommand } from './commands/analyze-audio.js';
+import { createPlaylistCommand } from './commands/playlist.js';
+import { setAIProviderFromOptions } from './utils/ai-options.js';
 
 // Set up the CLI program
 program
@@ -28,16 +37,16 @@ program
   .description('CLI tool for generating synthetic music compositions for AI training datasets')
   .version('0.1.0');
 
-// Common Ollama-related options
-const addOllamaOptions = (command) => {
+// Common AI-related options
+const addAIOptions = (command) => {
   return command
     .option('--ai-provider <provider>', 'AI provider to use (anthropic or ollama)', 'anthropic')
-    .option('--ollama-model <model>', 'Ollama model to use (when ai-provider is ollama)', config.get('ollamaModel'))
+    .option('--model <model>', 'AI model to use (e.g., claude-3-opus-20240229 for Anthropic, qwen2.5:7b-instruct for Ollama)', config.get('ollamaModel'))
     .option('--ollama-endpoint <url>', 'Ollama API endpoint URL (when ai-provider is ollama)', config.get('ollamaEndpoint'));
 };
 
 // Add commands
-addOllamaOptions(program
+addAIOptions(program
   .command('genres')
   .description('Generate hybrid genre names for composition')
   .option('-c, --classical <genres>', 'Comma-separated list of classical/traditional genres')
@@ -58,7 +67,7 @@ addOllamaOptions(program
     });
   });
 
-addOllamaOptions(program
+addAIOptions(program
   .command('generate')
   .description('Generate ABC notation files using configured AI provider')
   .option('-c, --count <number>', 'Number of compositions to generate', '1')
@@ -160,15 +169,7 @@ addOllamaOptions(program
       }
       
       // Set AI provider settings from command line options
-      if (options.aiProvider) {
-        config.set('aiProvider', options.aiProvider);
-      }
-      if (options.ollamaModel) {
-        config.set('ollamaModel', options.ollamaModel);
-      }
-      if (options.ollamaEndpoint) {
-        config.set('ollamaEndpoint', options.ollamaEndpoint);
-      }
+      setAIProviderFromOptions(options);
 
       // Generate ABC notation for each genre
       const allFiles = [];
@@ -200,7 +201,7 @@ addOllamaOptions(program
           instruments: options.instruments || '',
           people: options.people || '',
           aiProvider: options.aiProvider,
-          ollamaModel: options.ollamaModel,
+          model: options.model,
           ollamaEndpoint: options.ollamaEndpoint
         };
         
@@ -216,7 +217,7 @@ addOllamaOptions(program
   });
 
 // Orchestrate command - multi-agent composition system
-addOllamaOptions(program
+addAIOptions(program
   .command('orchestrate')
   .description('Use multi-agent system to compose music')
   .option('-g, --genre <string>', 'Music genre (format: classical_x_modern, e.g., chorale_x_metalheadz)', 'chorale_x_metalheadz')
@@ -231,15 +232,7 @@ addOllamaOptions(program
   .action(async (options) => {
     try {
       // Set AI provider settings from command line options
-      if (options.aiProvider) {
-        config.set('aiProvider', options.aiProvider);
-      }
-      if (options.ollamaModel) {
-        config.set('ollamaModel', options.ollamaModel);
-      }
-      if (options.ollamaEndpoint) {
-        config.set('ollamaEndpoint', options.ollamaEndpoint);
-      }
+      setAIProviderFromOptions(options);
 
       await orchestrate(options);
     } catch (error) {
@@ -370,7 +363,7 @@ program
     }
   });
 
-addOllamaOptions(program
+addAIOptions(program
   .command('more-like-this'))
   .description('Generate more compositions similar to the specified one')
   .argument('<abcFile>', 'Direct file path to ABC notation file to use as reference')
@@ -384,28 +377,22 @@ addOllamaOptions(program
   .action(async (abcFile, options) => {
     try {
       // Set AI provider settings from command line options
-      if (options.aiProvider) {
-        config.set('aiProvider', options.aiProvider);
-      }
-      if (options.ollamaModel) {
-        config.set('ollamaModel', options.ollamaModel);
-      }
-      if (options.ollamaEndpoint) {
-        config.set('ollamaEndpoint', options.ollamaEndpoint);
-      }
-      
+      setAIProviderFromOptions(options);
+
       await createMoreLikeThis({ ...options, abcFile });
     } catch (error) {
       console.error('Error generating similar compositions:', error);
     }
   });
 
-addOllamaOptions(program
+addAIOptions(program
   .command('modify'))
   .description('Modify an existing composition according to instructions')
   .argument('<abcFile>', 'Direct file path to ABC notation file to modify')
   .option('-i, --instructions <text>', 'Instructions for modifying the composition')
   .option('-f, --instructions-file <file>', 'File containing instructions for modifying the composition')
+  .option('-M, --modern <genre>', 'Apply modern genre influence (Techno, Jazz, Metal, EDM, Hip-Hop, Funk, Ambient)')
+  .option('--modern-strength <percent>', 'Strength of modern influence (0-100)', '50')
   .option('-o, --output <directory>', 'Output directory for the modified composition')
   .option('--solo', 'Include a musical solo section for the lead instrument')
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
@@ -426,22 +413,21 @@ addOllamaOptions(program
         }
       }
       
+      // Handle modern genre flag as instructions
+      if (options.modern && !instructions) {
+        const strength = parseInt(options.modernStrength) || 50;
+        instructions = `Apply ${options.modern} genre influence at ${strength}% strength`;
+        console.log(`Applying ${options.modern} influence at ${strength}% strength...`);
+      }
+
       if (!instructions) {
-        console.error('Instructions are required. Use --instructions or --instructions-file.');
+        console.error('Instructions are required. Use --instructions, --instructions-file, or --modern flag.');
         process.exit(1);
       }
       
       // Set AI provider settings from command line options
-      if (options.aiProvider) {
-        config.set('aiProvider', options.aiProvider);
-      }
-      if (options.ollamaModel) {
-        config.set('ollamaModel', options.ollamaModel);
-      }
-      if (options.ollamaEndpoint) {
-        config.set('ollamaEndpoint', options.ollamaEndpoint);
-      }
-      
+      setAIProviderFromOptions(options);
+
       await modifyComposition({ 
         ...options, 
         abcFile,
@@ -465,7 +451,7 @@ program
     }
   });
 
-addOllamaOptions(program
+addAIOptions(program
   .command('combine'))
   .description('Find short compositions and combine them into new pieces')
   .option('-l, --duration-limit <seconds>', 'Maximum duration in seconds for pieces to combine', '60')
@@ -478,19 +464,14 @@ addOllamaOptions(program
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
+  .option('--orchestrate', 'Use multi-agent orchestration methodology for intelligent combination')
+  .option('--resume <session-id>', 'Resume a previous orchestration session from checkpoint')
+  .option('--not-instruments <list>', 'Comma-separated list of instruments to exclude from compositions')
   .action(async (options) => {
     try {
       // Set AI provider settings from command line options
-      if (options.aiProvider) {
-        config.set('aiProvider', options.aiProvider);
-      }
-      if (options.ollamaModel) {
-        config.set('ollamaModel', options.ollamaModel);
-      }
-      if (options.ollamaEndpoint) {
-        config.set('ollamaEndpoint', options.ollamaEndpoint);
-      }
-      
+      setAIProviderFromOptions(options);
+
       const files = await combineCompositions(options);
       console.log(`Generated ${files.length} combined composition(s)`);
     } catch (error) {
@@ -498,7 +479,7 @@ addOllamaOptions(program
     }
   });
 
-addOllamaOptions(program
+addAIOptions(program
   .command('lyrics')
   .description('Add lyrics to an existing composition using configured AI provider'))
   .requiredOption('-m, --midi-file <file>', 'Path to MIDI file to add lyrics to')
@@ -512,16 +493,8 @@ addOllamaOptions(program
   .action(async (options) => {
     try {
       // Set AI provider settings from command line options
-      if (options.aiProvider) {
-        config.set('aiProvider', options.aiProvider);
-      }
-      if (options.ollamaModel) {
-        config.set('ollamaModel', options.ollamaModel);
-      }
-      if (options.ollamaEndpoint) {
-        config.set('ollamaEndpoint', options.ollamaEndpoint);
-      }
-      
+      setAIProviderFromOptions(options);
+
       const abcFile = await generateLyrics(options);
       console.log(`ABC notation with lyrics saved to: ${abcFile}`);
       console.log('Convert to PDF to see the score with lyrics using:');
@@ -531,7 +504,7 @@ addOllamaOptions(program
     }
   });
 
-addOllamaOptions(program
+addAIOptions(program
   .command('mix-and-match'))
   .description('Create a new composition by mixing and matching segments from multiple ABC files')
   .requiredOption('-f, --files <files...>', 'List of direct file paths to ABC notation files')
@@ -543,16 +516,8 @@ addOllamaOptions(program
   .action(async (options) => {
     try {
       // Set AI provider settings from command line options
-      if (options.aiProvider) {
-        config.set('aiProvider', options.aiProvider);
-      }
-      if (options.ollamaModel) {
-        config.set('ollamaModel', options.ollamaModel);
-      }
-      if (options.ollamaEndpoint) {
-        config.set('ollamaEndpoint', options.ollamaEndpoint);
-      }
-      
+      setAIProviderFromOptions(options);
+
       const mixedFile = await mixAndMatch(options);
       console.log(`Mixed composition saved to: ${mixedFile}`);
       console.log('Convert to MIDI for playback using:');
@@ -562,7 +527,7 @@ addOllamaOptions(program
     }
   });
 
-addOllamaOptions(program
+addAIOptions(program
   .command('rearrange'))
   .description('Rearrange an existing ABC composition with new instrumentation')
   .argument('<abcFile>', 'Direct file path to ABC notation file to rearrange')
@@ -572,16 +537,8 @@ addOllamaOptions(program
   .action(async (abcFile, options) => {
     try {
       // Set AI provider settings from command line options
-      if (options.aiProvider) {
-        config.set('aiProvider', options.aiProvider);
-      }
-      if (options.ollamaModel) {
-        config.set('ollamaModel', options.ollamaModel);
-      }
-      if (options.ollamaEndpoint) {
-        config.set('ollamaEndpoint', options.ollamaEndpoint);
-      }
-      
+      setAIProviderFromOptions(options);
+
       const rearrangedFile = await rearrangeComposition({ ...options, abcFile });
       console.log(`Rearranged composition saved to: ${rearrangedFile}`);
       console.log('Convert to MIDI for playback using:');
@@ -591,23 +548,15 @@ addOllamaOptions(program
     }
   });
 
-addOllamaOptions(program
+addAIOptions(program
   .command('pipeline')
   .description('Run a sequence of mediocre commands as a pipeline')
   .requiredOption('-c, --config <file>', 'Path to pipeline configuration JSON file')
   .action(async (options) => {
     try {
       // Set AI provider settings from command line options
-      if (options.aiProvider) {
-        config.set('aiProvider', options.aiProvider);
-      }
-      if (options.ollamaModel) {
-        config.set('ollamaModel', options.ollamaModel);
-      }
-      if (options.ollamaEndpoint) {
-        config.set('ollamaEndpoint', options.ollamaEndpoint);
-      }
-      
+      setAIProviderFromOptions(options);
+
       await runPipeline(options);
     } catch (error) {
       console.error('Error executing pipeline:', error.message);
@@ -707,6 +656,54 @@ program
     }
   });
 
+// Add the extract-timing command
+program.addCommand(createExtractTimingCommand());
+program.addCommand(createVisualizeCommand());
+
+// Add ASCII art generation commands
+addAIOptions(program
+  .command('generate-ascii-art')
+  .description('Generate AI ASCII art shapes for a specific ABC notation')
+  .requiredOption('-d, --description <file>', 'Path to markdown file containing ABC notation description')
+  .requiredOption('-a, --abc <basename>', 'ABC notation basename (without .abc extension)')
+  .option('-c, --count <number>', 'Number of ASCII art shapes to generate', '8')
+  .option('-t, --theme <name>', 'Theme for the generated ASCII art')
+  .action(async (options) => {
+    try {
+      // Set AI provider settings from command line options
+      setAIProviderFromOptions(options);
+
+      const result = await generateAsciiArt(options);
+      console.log(`\n✅ Successfully generated ${result.shapes.length} ASCII art shapes for ${result.abcBasename}`);
+    } catch (error) {
+      console.error('Error generating ASCII art:', error);
+    }
+  }));
+
+program
+  .command('list-ascii-art')
+  .description('List all ABC notations with generated ASCII art')
+  .action(() => {
+    listAsciiArt();
+  });
+
+program
+  .command('export-ascii-art')
+  .description('Export ASCII art shapes for a specific ABC notation')
+  .argument('<abcBasename>', 'ABC notation basename (without .abc)')
+  .action((abcBasename) => {
+    exportAsciiArt(abcBasename);
+  });
+
+// Add choreography generation command
+program.addCommand(generateChoreographyCommand);
+
+// Add playback commands
+program.addCommand(createPlayCommand());
+program.addCommand(createPlayChoreographyCommand());
+program.addCommand(createAnalyzeAudioCommand());
+program.addCommand(createPlaylistCommand());
+
 // Default help message
 if (process.argv.length === 2) {
   console.log(`
@@ -715,22 +712,33 @@ if (process.argv.length === 2) {
   Generate synthetic music compositions for AI training.
   
   Commands:
-    genres         Generate hybrid genre names by combining classical and modern genres
-    generate       Generate ABC notation files using Claude
-    convert        Convert ABC files to MIDI, PDF, and WAV
-    process        Apply audio effects to WAV files
-    dataset        Build dataset from generated files
-    list           List and sort compositions in the output directory
-    info           Display detailed information about a composition
-    more-like-this Generate more compositions similar to the specified one
-    modify         Modify an existing composition according to instructions
-    rearrange      Rearrange an existing composition with new instrumentation
-    combine        Find short compositions and combine them into new pieces
-    mix-and-match  Create a new composition by mixing and matching segments from multiple ABC files
-    lyrics         Add lyrics to an existing composition using Claude
-    browse         Launch interactive TUI browser for the music dataset
-    validate-abc   Validate and fix formatting issues in ABC notation files
-    pipeline       Run a sequence of mediocre commands as a pipeline
+    genres            Generate hybrid genre names by combining classical and modern genres
+    generate          Generate ABC notation files using Claude
+    orchestrate       Use multi-agent system to compose music
+    convert           Convert ABC files to MIDI, PDF, and WAV
+    process           Apply audio effects to WAV files
+    dataset           Build dataset from generated files
+    list              List and sort compositions in the output directory
+    info              Display detailed information about a composition
+    more-like-this    Generate more compositions similar to the specified one
+    modify            Modify an existing composition according to instructions
+    rearrange         Rearrange an existing composition with new instrumentation
+    combine           Find short compositions and combine them into new pieces
+    mix-and-match     Create a new composition by mixing segments from multiple ABC files
+    lyrics            Add lyrics to an existing composition using Claude
+    browse            Launch interactive TUI browser for the music dataset
+    validate-abc      Validate and fix formatting issues in ABC notation files
+    pipeline          Run a sequence of mediocre commands as a pipeline
+
+  Visualization & Playback:
+    play              Play MIDI or audio files with soundfont profiles
+    play-choreography Play audio with synchronized ASCII choreography visualization
+    playlist          Play sequence of tracks with progress tracking
+    analyze-audio     Analyze audio for amplitude, frequency, beats, and onsets
+    generate-ascii-art Generate AI ASCII art shapes for ABC notation
+    generate-choreography Generate choreography JSON for audio visualization
+    extract-timing    Extract timing data from ABC notation
+    visualize         Launch Python-based audio visualizer
     
   Examples:
     mediocre genres -c "baroque,classical,romantic" -m "techno,ambient,glitch" -n 5
@@ -757,7 +765,24 @@ if (process.argv.length === 2) {
     mediocre validate-abc -i "/path/to/baroque_x_jazz-score1.abc" -o "/path/to/fixed.abc"  # Process a single file
     mediocre browse
     mediocre pipeline -c "/path/to/pipeline-config.json"          # Run a sequence of commands defined in a JSON config
-    
+
+  Playback & Visualization Examples:
+    mediocre play output/song.mid                                  # Play MIDI with stable soundfont profile
+    mediocre play output/song.mid --profile ultimate               # Play with ultimate quality soundfonts
+    mediocre play output/song.wav                                  # Play audio file with mpv
+    mediocre play --list-profiles                                  # List available soundfont profiles
+    mediocre play-choreography output/song.wav                     # Play with auto ASCII visualization
+    mediocre play-choreography output/song.wav -c output/song.choreography.json  # With choreography file
+    mediocre play-choreography output/song.wav --mode v11 -c output/song.v11.json # Choreography v1.1 mode
+    mediocre play-choreography output/song.wav -a output/song.abc  # Load ASCII art from ABC file
+    mediocre play-choreography output/song.wav --analyze-only      # Analyze audio without playback
+    mediocre analyze-audio output/song.wav                         # Full audio analysis
+    mediocre analyze-audio output/song.wav --beats-only            # Detect beats and BPM
+    mediocre analyze-audio output/song.wav -o output/analysis.json # Save analysis to JSON
+    mediocre playlist -d output --auto-choreo                      # Play all WAV files with auto-choreography
+    mediocre playlist -d output/maximum-overkill --shuffle         # Shuffle and play directory
+    mediocre playlist --resume                                     # Resume from last played track
+
   For more information, run: mediocre --help
   
   Using Ollama:
