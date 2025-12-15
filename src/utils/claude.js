@@ -392,30 +392,68 @@ export function getAIGenerator() {
       return result;
     };
   } else {
-    // Default to Anthropic/Claude
+    // Default to Anthropic/Claude with prompt caching and optional extended thinking
     return async (options) => {
       const myAnthropic = getAnthropic();
       // Only use claude models with Anthropic, never Ollama models
-      const modelName = options.model || 'claude-sonnet-4-5-20250929';
+      const modelName = options.model || 'claude-sonnet-4-5';
       // Validate model matches provider
       if (modelName.startsWith('llama') || modelName.includes('qwen') || modelName.includes(':')) {
         console.warn(`⚠️ Warning: Model "${modelName}" appears to be an Ollama model but provider is "anthropic"`);
-        console.warn(`   Switching to default Claude model: claude-sonnet-4-5-20250929`);
+        console.warn(`   Switching to default Claude model: claude-sonnet-4-5`);
       }
       // Ensure we're using a Claude model
       const safeModelName = (modelName.startsWith('llama') || modelName.includes('qwen') || modelName.includes(':'))
-        ? 'claude-sonnet-4-5-20250929'
+        ? 'claude-sonnet-4-5'
         : modelName;
       const model = myAnthropic(safeModelName);
-      
-      return generateText({
+
+      // Enable prompt caching by default (min 1024 tokens for Sonnet)
+      const enableCache = options.enableCache !== false;
+      const enableThinking = options.enableThinking || false;
+      const thinkingBudget = options.thinkingBudget || 10000;
+
+      // Build messages array with cache control on system prompt
+      const messages = [
+        {
+          role: 'system',
+          content: options.system,
+          ...(enableCache && {
+            providerOptions: {
+              anthropic: { cacheControl: { type: 'ephemeral' } }
+            }
+          })
+        },
+        {
+          role: 'user',
+          content: options.prompt
+        }
+      ];
+
+      // Build provider options for thinking
+      const providerOptions = enableThinking ? {
+        anthropic: {
+          thinking: { type: 'enabled', budgetTokens: thinkingBudget }
+        }
+      } : options.providerOptions;
+
+      const result = await generateText({
         model,
-        system: options.system,
-        prompt: options.prompt,
+        messages,
         temperature: options.temperature,
         maxTokens: options.maxTokens,
-        providerOptions: options.providerOptions
+        ...(providerOptions && { providerOptions })
       });
+
+      // Log cache stats if available
+      if (result.providerMetadata?.anthropic?.cacheCreationInputTokens) {
+        console.log(`  📦 Cache created: ${result.providerMetadata.anthropic.cacheCreationInputTokens} tokens`);
+      }
+      if (result.providerMetadata?.anthropic?.cacheReadInputTokens) {
+        console.log(`  ♻️  Cache hit: ${result.providerMetadata.anthropic.cacheReadInputTokens} tokens`);
+      }
+
+      return result;
     };
   }
 }
@@ -478,7 +516,7 @@ export async function generateMusicWithClaude(options) {
   // Generate the ABC notation using the configured AI provider
   const provider = config.get('aiProvider');
   const model = provider === 'anthropic'
-    ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
+    ? (options.model || 'claude-sonnet-4-5')  // Use Claude model for Anthropic provider
     : (options.model || 'qwen2.5:7b-instruct');  // Use provided model or default for Ollama
 
   const { text } = await generator({
@@ -535,7 +573,7 @@ export async function modifyCompositionWithClaude(options) {
   // Generate the modified ABC notation
   const provider = config.get('aiProvider');
   const model = provider === 'anthropic'
-    ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
+    ? (options.model || 'claude-sonnet-4-5')  // Use Claude model for Anthropic provider
     : (options.model || 'qwen2.5:7b-instruct');  // Use provided model or default for Ollama
     
   const { text } = await generator({
@@ -631,7 +669,7 @@ Organize your analysis into these sections:
 
   const provider = config.get('aiProvider');
   const model = provider === 'anthropic'
-    ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
+    ? (options.model || 'claude-sonnet-4-5')  // Use Claude model for Anthropic provider
     : (options.model || 'qwen2.5:7b-instruct');  // Use provided model or default for Ollama
 
   const { text } = await generator({
@@ -736,7 +774,7 @@ Your result should be a singable composition with lyrics that fit both the music
   // Generate the ABC notation with lyrics
   const provider = config.get('aiProvider');
   const model = provider === 'anthropic'
-    ? (options.model || 'claude-sonnet-4-5-20250929')  // Use Claude model for Anthropic provider
+    ? (options.model || 'claude-sonnet-4-5')  // Use Claude model for Anthropic provider
     : (options.model || 'qwen2.5:7b-instruct');  // Use provided model or default for Ollama
 
   const { text } = await generator({

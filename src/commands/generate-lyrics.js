@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { addLyricsWithClaude, validateAbcNotation, cleanAbcNotation } from '../utils/claude.js';
 import { config } from '../utils/config.js';
-import { extractInstruments } from './generate-abc.js';
+import { extractInstrumentsFromAbc } from '../utils/gm-instruments.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -110,7 +110,7 @@ export async function generateLyrics(options) {
   }
   
   // Extract the instruments used in the composition
-  const instruments = extractInstruments(finalAbc);
+  const instruments = extractInstrumentsFromAbc(finalAbc);
   const instrumentString = instruments.length > 0 
     ? instruments.join(', ') 
     : 'Default Instrument';

@@ -287,13 +287,35 @@ The piece MUST be complex in its layering of ideas and use vertical combination 
 IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure all headers come first (X:1, T:, M:, L:, Q:, K:), then any MIDI program declarations, then voice declarations, then music.`;
 
   try {
-    const { text } = await generateText({
+    // Build messages array with cache control for system prompt
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompt,
+        providerOptions: {
+          anthropic: { cacheControl: { type: 'ephemeral' } }
+        }
+      },
+      {
+        role: 'user',
+        content: userPrompt
+      }
+    ];
+
+    const { text, providerMetadata } = await generateText({
       model,
-      system: systemPrompt,
-      prompt: userPrompt,
+      messages,
       temperature: 0.7,
       maxTokens: 20000,
     });
+
+    // Log cache stats if available
+    if (providerMetadata?.anthropic?.cacheCreationInputTokens) {
+      console.log(`  📦 Cache created: ${providerMetadata.anthropic.cacheCreationInputTokens} tokens`);
+    }
+    if (providerMetadata?.anthropic?.cacheReadInputTokens) {
+      console.log(`  ♻️  Cache hit: ${providerMetadata.anthropic.cacheReadInputTokens} tokens`);
+    }
 
     let notation = text;
 

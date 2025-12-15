@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { modifyCompositionWithClaude, generateDescription, validateAbcNotation, cleanAbcNotation } from '../utils/claude.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
 import { config } from '../utils/config.js';
-import { extractInstruments } from './generate-abc.js';
+import { extractInstrumentsFromAbc } from '../utils/gm-instruments.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -109,7 +109,7 @@ export async function modifyComposition(options) {
   }
   
   // Extract the instruments used in the modified composition
-  const instruments = extractInstruments(modifiedAbc);
+  const instruments = extractInstrumentsFromAbc(modifiedAbc);
   const instrumentString = instruments.length > 0 
     ? instruments.join(', ') 
     : 'Default Instrument';

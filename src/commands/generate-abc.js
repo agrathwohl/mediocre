@@ -10,19 +10,10 @@ import {
 import { generateCreativeGenreName } from "../utils/genre-generator.js";
 import { config } from "../utils/config.js";
 import { extractInstrumentsFromAbc } from "../utils/gm-instruments.js";
+import * as logger from "../utils/logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-/**
- * Extract MIDI instrument names from ABC notation
- * @deprecated Use extractInstrumentsFromAbc from ../utils/gm-instruments.js instead
- * @param {string} abcNotation - ABC notation
- * @returns {Array<string>} Array of instrument names
- */
-export function extractInstruments(abcNotation) {
-  return extractInstrumentsFromAbc(abcNotation);
-}
 
 /**
  * Parse hybrid genre name into components
@@ -189,11 +180,11 @@ export async function generateAbc(options) {
       });
 
       // Extract the instruments used in the composition
-      const instruments = extractInstruments(abcNotation);
+      const instruments = extractInstrumentsFromAbc(abcNotation);
       const instrumentString =
         instruments.length > 0 ? instruments.join(", ") : "Default Instrument";
 
-      console.log(`Using instruments: ${instrumentString}`);
+      logger.music(`Using instruments: ${instrumentString}`);
 
       // Validate requested instruments if specified
       if (requestedInstruments) {
@@ -202,9 +193,9 @@ export async function generateAbc(options) {
         const missing = requested.filter(r => !foundLower.some(f => f.includes(r) || r.includes(f)));
 
         if (missing.length > 0) {
-          console.warn(`⚠️ WARNING: Requested instruments not found: ${missing.join(', ')}`);
-          console.warn(`  Requested: ${requestedInstruments}`);
-          console.warn(`  Found: ${instrumentString}`);
+          logger.warn(`Requested instruments not found: ${missing.join(', ')}`);
+          logger.warn(`  Requested: ${requestedInstruments}`);
+          logger.warn(`  Found: ${instrumentString}`);
         }
       }
 
@@ -218,14 +209,14 @@ export async function generateAbc(options) {
 
       // If there are issues, log and use the fixed version
       if (!validation.isValid) {
-        console.warn(
-          `⚠️ WARNING: ABC notation validation issues found for ${filename}.abc:`,
+        logger.warn(
+          `ABC notation validation issues found for ${filename}.abc:`,
         );
-        validation.issues.forEach((issue) => console.warn(`  - ${issue}`));
-        console.warn(`Auto-fixing ${validation.issues.length} issues...`);
+        validation.issues.forEach((issue) => logger.warn(`  - ${issue}`));
+        logger.warn(`Auto-fixing ${validation.issues.length} issues...`);
         cleanedAbcNotation = validation.fixedNotation;
       } else {
-        console.log(`✅ ABC notation validation passed for ${filename}.abc`);
+        logger.success(`ABC notation validation passed for ${filename}.abc`);
       }
 
       // Save the cleaned and validated ABC notation to a file
@@ -234,7 +225,7 @@ export async function generateAbc(options) {
       generatedFiles.push(abcFilePath);
 
       // Generate and save the description
-      console.log("Generating description document...");
+      logger.generate("Generating description document...");
       const description = await generateDescription({
         abcNotation,
         genre: creativeGenreName || genre, // Use creative name if available
@@ -288,9 +279,9 @@ ${description.analysis}
       const mdFilePath = path.join(outputDir, `${filename}.md`);
       fs.writeFileSync(mdFilePath, mdContent);
 
-      console.log(`Generated ${abcFilePath}`);
+      logger.success(`Generated ${abcFilePath}`);
     } catch (error) {
-      console.error(`Error generating composition ${i + 1}:`, error);
+      logger.error(`Error generating composition ${i + 1}:`, error);
     }
   }
 

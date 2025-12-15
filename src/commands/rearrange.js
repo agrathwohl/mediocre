@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from '../utils/config.js';
 import { modifyCompositionWithClaude, validateAbcNotation } from '../utils/claude.js';
-import { extractInstruments } from './generate-abc.js';
+import { extractInstrumentsFromAbc } from '../utils/gm-instruments.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -109,7 +109,7 @@ export async function rearrangeComposition(options) {
   }
   
   // Extract the instruments used in the rearranged composition
-  const usedInstruments = extractInstruments(rearrangedAbc);
+  const usedInstruments = extractInstrumentsFromAbc(rearrangedAbc);
   const instrumentString = usedInstruments.length > 0 
     ? usedInstruments.join(', ') 
     : 'Default Instrument';

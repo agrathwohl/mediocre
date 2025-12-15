@@ -1164,12 +1164,31 @@ async function generateChoreographyWithFallbacks(prompt, metadata, description, 
     }
 
     try {
-      const { text } = await generateText({
+      // Build messages array with cache control
+      const messages = [
+        {
+          role: 'user',
+          content: prompt + "\n\nIMPORTANT: Return ONLY the JSON object, no other text.",
+          providerOptions: {
+            anthropic: { cacheControl: { type: 'ephemeral' } }
+          }
+        }
+      ];
+
+      const { text, providerMetadata } = await generateText({
         model,
-        prompt: prompt + "\n\nIMPORTANT: Return ONLY the JSON object, no other text.",
+        messages,
         temperature: 0.7,
         maxTokens: 64000, // Maximum for Claude Sonnet 4.5
       });
+
+      // Log cache stats if available
+      if (providerMetadata?.anthropic?.cacheCreationInputTokens) {
+        console.log(`  📦 Cache created: ${providerMetadata.anthropic.cacheCreationInputTokens} tokens`);
+      }
+      if (providerMetadata?.anthropic?.cacheReadInputTokens) {
+        console.log(`  ♻️  Cache hit: ${providerMetadata.anthropic.cacheReadInputTokens} tokens`);
+      }
 
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
