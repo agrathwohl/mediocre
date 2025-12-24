@@ -17,7 +17,7 @@ import { combineCompositions } from './commands/combine-compositions.js';
 import { generateLyrics } from './commands/generate-lyrics.js';
 import { mixAndMatch } from './commands/mix-and-match.js';
 import { createDatasetBrowser } from './ui/index.js';
-import { validateAbcNotation, cleanAbcNotation } from './utils/claude.js';
+import { validateAbcNotation, cleanAbcNotation, evaluateCompositionCompleteness } from './utils/claude.js';
 
 // Set up the CLI program
 program
@@ -63,6 +63,7 @@ program
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
+  .option('--sequential', 'Use sequential LLM expansion to create longer, more developed compositions through chained modifications')
   .action(async (options) => {
     try {
       let genres = [];
@@ -134,13 +135,220 @@ program
           solo: options.solo || false,
           recordLabel: options.recordLabel || '',
           producer: options.producer || '',
-          instruments: options.instruments || ''
+          instruments: options.instruments || '',
+          sequentialMode: options.sequential || false // Tell initial generation to focus on quality, not completeness
         };
         
         const files = await generateAbc(genreOptions);
+
+        // If sequential mode is enabled, let the LLM decide when the composition is complete
+        if (options.sequential && files.length > 0) {
+          console.log('\n🔗 Sequential expansion mode enabled - LLM will evaluate and expand until complete...\n');
+
+          const MAX_PASSES = 10; // Safety limit to prevent infinite loops
+
+          // Helper function to validate ABC with abc2midi - STOP ON FAILURE
+          const validateWithAbc2Midi = async (abcFilePath) => {
+            const { execSync } = await import('child_process');
+            const tempMidiPath = abcFilePath.replace('.abc', '_validation_temp.mid');
+
+            try {
+              // Run abc2midi and capture output
+              execSync(`abc2midi "${abcFilePath}" -o "${tempMidiPath}" 2>&1`, {
+                timeout: 30000, // 30 second timeout
+                encoding: 'utf8'
+              });
+
+              // Check if MIDI file was created
+              if (fs.existsSync(tempMidiPath)) {
+                // Clean up temp file
+                fs.unlinkSync(tempMidiPath);
+                return { valid: true, error: null };
+              } else {
+                return { valid: false, error: 'abc2midi did not produce output file' };
+              }
+            } catch (error) {
+              // Clean up temp file if it exists
+              if (fs.existsSync(tempMidiPath)) {
+                fs.unlinkSync(tempMidiPath);
+              }
+
+              // Check for segfault or other fatal errors
+              if (error.signal === 'SIGSEGV') {
+                return { valid: false, error: 'abc2midi SEGFAULTED - ABC notation is invalid' };
+              }
+              if (error.killed) {
+                return { valid: false, error: 'abc2midi timed out - ABC notation may be malformed' };
+              }
+
+              return { valid: false, error: `abc2midi failed: ${error.message}` };
+            }
+          };
+
+          for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+            let currentFile = files[fileIndex];
+            let currentAbc = fs.readFileSync(currentFile, 'utf8');
+            console.log(`\n📝 Evaluating composition ${fileIndex + 1}/${files.length}: ${currentFile}`);
+
+            // Validate initial generation with abc2midi
+            console.log(`  🔧 Validating initial generation with abc2midi...`);
+            let initialValidation = await validateWithAbc2Midi(currentFile);
+
+            if (!initialValidation.valid) {
+              console.warn(`  ⚠️ Initial generation failed abc2midi: ${initialValidation.error}`);
+              console.log(`  🔧 Attempting to fix initial ABC notation...`);
+
+              const fixedFile = await modifyComposition({
+                abcFile: currentFile,
+                instructions: `FIX THIS ABC NOTATION - IT FAILED abc2midi VALIDATION WITH ERROR: "${initialValidation.error}".
+DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE ABC NOTATION.
+Return the FIXED ABC notation that will pass abc2midi without errors.`,
+                output: options.output,
+                solo: options.solo || false,
+                recordLabel: options.recordLabel || '',
+                producer: options.producer || '',
+                instruments: options.instruments || ''
+              });
+
+              initialValidation = await validateWithAbc2Midi(fixedFile);
+              if (!initialValidation.valid) {
+                console.error(`  ❌ FATAL: Cannot fix initial generation. Skipping this composition.`);
+                continue;
+              }
+
+              console.log(`  ✅ Initial ABC notation fixed!`);
+              currentFile = fixedFile;
+              currentAbc = fs.readFileSync(currentFile, 'utf8');
+            } else {
+              console.log(`  ✅ Initial generation passes abc2midi validation`);
+            }
+
+            // Extract genre info from filename for evaluation
+            const baseFilename = path.basename(currentFile, '.abc');
+            let genre = 'Classical_x_Contemporary';
+            let classicalGenre = 'Classical';
+            let modernGenre = 'Contemporary';
+
+            if (baseFilename.includes('_x_')) {
+              genre = baseFilename.split('-score')[0];
+              const parts = genre.split('_x_');
+              if (parts.length === 2) {
+                classicalGenre = parts[0];
+                modernGenre = parts[1];
+              }
+            }
+
+            let passNumber = 0;
+            let needsExpansion = true;
+
+            while (needsExpansion && passNumber < MAX_PASSES) {
+              passNumber++;
+              console.log(`\n  🔍 Pass ${passNumber}: Evaluating composition completeness...`);
+
+              try {
+                // Ask the LLM to evaluate if the composition needs more work
+                const evaluation = await evaluateCompositionCompleteness({
+                  abcNotation: currentAbc,
+                  genre,
+                  classicalGenre,
+                  modernGenre,
+                  currentPass: passNumber
+                });
+
+                console.log(`  📊 Evaluation: ${evaluation.reasoning}`);
+
+                if (!evaluation.needsExpansion) {
+                  console.log(`  ✅ Composition is complete!`);
+                  needsExpansion = false;
+                  break;
+                }
+
+                console.log(`  📝 Expanding: ${evaluation.instructions.substring(0, 100)}...`);
+
+                // Apply the LLM-suggested modifications
+                const modifiedFile = await modifyComposition({
+                  abcFile: currentFile,
+                  instructions: evaluation.instructions,
+                  output: options.output,
+                  solo: options.solo || false,
+                  recordLabel: options.recordLabel || '',
+                  producer: options.producer || '',
+                  instruments: options.instruments || ''
+                });
+
+                // VALIDATE with abc2midi after each expansion
+                console.log(`  🔧 Validating with abc2midi...`);
+                let validation = await validateWithAbc2Midi(modifiedFile);
+
+                if (!validation.valid) {
+                  console.warn(`  ⚠️ abc2midi validation failed: ${validation.error}`);
+                  console.log(`  🔧 Attempting to fix the ABC notation...`);
+
+                  // Try to fix the ABC notation
+                  const fixedFile = await modifyComposition({
+                    abcFile: modifiedFile,
+                    instructions: `FIX THIS ABC NOTATION - IT FAILED abc2midi VALIDATION WITH ERROR: "${validation.error}".
+
+DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE ABC NOTATION.
+Common issues to check and fix:
+- Blank lines between voice sections (REMOVE them)
+- Malformed MIDI directives
+- Unbalanced bar lines
+- Invalid note durations or time signatures
+- Missing or malformed headers
+
+Return the FIXED ABC notation that will pass abc2midi without errors.`,
+                    output: options.output,
+                    solo: options.solo || false,
+                    recordLabel: options.recordLabel || '',
+                    producer: options.producer || '',
+                    instruments: options.instruments || ''
+                  });
+
+                  // Validate the fix
+                  validation = await validateWithAbc2Midi(fixedFile);
+
+                  if (!validation.valid) {
+                    console.error(`  ❌ FATAL: Fix attempt also failed abc2midi: ${validation.error}`);
+                    console.error(`  ❌ STOPPING GENERATION - ABC notation is unfixable`);
+                    needsExpansion = false;
+                    currentFile = modifiedFile; // Keep the last valid-ish file
+                    break;
+                  }
+
+                  console.log(`  ✅ ABC notation fixed successfully!`);
+                  currentFile = fixedFile;
+                  currentAbc = fs.readFileSync(currentFile, 'utf8');
+                } else {
+                  console.log(`  ✅ abc2midi validation passed`);
+                  currentFile = modifiedFile;
+                  currentAbc = fs.readFileSync(currentFile, 'utf8');
+                }
+
+                console.log(`  ✅ Pass ${passNumber} complete: ${currentFile}`);
+
+              } catch (passError) {
+                console.error(`  ❌ Error in pass ${passNumber}:`, passError.message);
+                // Break on error to avoid infinite error loops
+                break;
+              }
+            }
+
+            if (passNumber >= MAX_PASSES) {
+              console.log(`  ⚠️ Reached maximum ${MAX_PASSES} passes - stopping expansion`);
+            }
+
+            // Replace the original file reference with the final expanded version
+            files[fileIndex] = currentFile;
+            console.log(`\n  🎵 Final composition after ${passNumber} passes: ${currentFile}`);
+          }
+
+          console.log('\n🎵 Sequential expansion complete!\n');
+        }
+
         allFiles.push(...files);
       }
-      
+
       console.log(`\nGenerated ${allFiles.length} composition(s) total`);
     } catch (error) {
       console.error('Error generating compositions:', error);
@@ -492,6 +700,7 @@ if (process.argv.length === 2) {
     mediocre generate -g "baroque_x_jazz" --record-label "Merge Records"
     mediocre generate -g "baroque_x_jazz" --producer "Phil Spector"
     mediocre generate -g "baroque_x_jazz" --instruments "Violin,Piano,Trumpet"
+    mediocre generate -g "baroque_x_jazz" --sequential    # LLM evaluates and expands until complete
     mediocre generate -g "baroque_x_jazz" --creative-names # EXPERIMENTAL FEATURE
     mediocre list --sort length --limit 10
     mediocre info "/path/to/baroque_x_grunge-score1-1744572129572.abc"

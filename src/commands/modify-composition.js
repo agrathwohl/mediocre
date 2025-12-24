@@ -92,6 +92,7 @@ export async function modifyComposition(options) {
     producer: options.producer || '',
     instruments: options.instruments || ''
   });
+
   
   // Validate the ABC notation
   const validation = validateAbcNotation(modifiedAbc);
@@ -155,8 +156,7 @@ ${modifiedAbc}
 
 ## Analysis
 
-${description.analysis}
-`;
+${description.analysis}`;
   const mdFilePath = path.join(outputDir, `${modifiedFilename}.md`);
   fs.writeFileSync(mdFilePath, mdContent);
   

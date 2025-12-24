@@ -21,7 +21,10 @@
     "build:dataset": "node src/index.js dataset",
     "types": "tsc --project jsconfig.json --declaration --emitDeclarationOnly --outDir types",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "publish:composition": "node scripts/publish-composition.js",
+    "site:serve": "npx http-server site -p 3000",
+    "site:open": "xdg-open site/index.html"
   },
   "keywords": [
     "music",
@@ -44,6 +47,7 @@
     "execa": "^8.0.1",
     "neo-blessed": "^0.2.0",
     "node-mpv": "^1.5.0",
+    "soundfont2": "^0.5.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

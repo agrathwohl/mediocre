@@ -6,7 +6,7 @@ import { generateText } from 'ai';
 import { spawn } from 'child_process';
 import { config } from '../utils/config.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
-import { modifyCompositionWithClaude, generateDescription, getAnthropic, cleanAbcNotation, validateAbcNotation } from '../utils/claude.js';
+import { modifyCompositionWithClaude, generateDescription, getAnthropic, cleanAbcNotation, validateAbcNotation, getTimidityConfigInfo } from '../utils/claude.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,7 +42,7 @@ export async function combineCompositions(options) {
 
   console.log(`Searching for compositions under ${durationLimit} seconds...`);
 
-  console.log(`Looking for .wav files in ${directory}...`);
+  console.log(`Looking for .abc files in ${directory}...`);
 
   function getDur(file) {
     return new Promise((resolve) => {
@@ -58,21 +58,42 @@ export async function combineCompositions(options) {
         })
         .stdout.on('data', d => {
           duration = Number(`${d}`)
-          //console.log({path: path.resolve(file), duration})
         })
     })
   }
 
-  // Get all WAV files
+  // Get all ABC files and try to find corresponding WAV for duration
   let filesWithDuration = await Promise.all(
     fs.readdirSync(directory)
-      .filter(file => file.endsWith('.wav'))
+      .filter(file => file.endsWith('.abc'))
       .map(file => path.join(directory, file))
-      .map(async (file) => { return { path: path.resolve(file), duration: await getDur(file) } }))
+      .map(async (abcFile) => {
+        const baseName = path.basename(abcFile, '.abc');
+        // Try to find corresponding WAV file for duration
+        const possibleWavFiles = [
+          path.join(directory, `${baseName}.wav`),
+          path.join(directory, `${baseName}.mid.wav`)
+        ];
+        let duration = null;
+        for (const wavFile of possibleWavFiles) {
+          if (fs.existsSync(wavFile)) {
+            duration = await getDur(wavFile);
+            if (duration) break;
+          }
+        }
+        const stats = fs.statSync(abcFile);
+        return {
+          path: path.resolve(abcFile),
+          duration,
+          created: stats.birthtime,
+          modified: stats.mtime
+        };
+      }))
 
 
-  filesWithDuration = filesWithDuration.filter(file => file.duration >= 1)
-  console.log(filesWithDuration)
+  // Keep files with duration >= 1 OR files without duration info (ABC-only)
+  filesWithDuration = filesWithDuration.filter(file => file.duration === null || file.duration >= 1)
+  console.log(`Found ${filesWithDuration.length} ABC files`)
 
   /*
   // Get duration using ffprobe for each file
@@ -116,9 +137,9 @@ export async function combineCompositions(options) {
     return 0;
   });
 
-  // Filter by duration
+  // Filter by duration (include files without duration info)
   let shortPieces = filesWithDuration.filter(file => {
-    return file.duration && file.duration <= durationLimit;
+    return file.duration === null || file.duration <= durationLimit;
   });
 
   console.log(`Found ${shortPieces.length} compositions under ${durationLimit} seconds`);
@@ -137,7 +158,7 @@ export async function combineCompositions(options) {
   // Filter by genre if specified
   if (genres.length > 0) {
     shortPieces = shortPieces.filter(file => {
-      const baseFilename = path.basename(file.path, '.wav');
+      const baseFilename = path.basename(file.path, '.abc');
       const pieceInfo = getMusicPieceInfo(baseFilename, directory);
 
       if (!pieceInfo.genre) return false;
@@ -171,14 +192,18 @@ export async function combineCompositions(options) {
 
     // Collect ABC notations and genres from each piece in the group
     for (const piece of group) {
-      const baseFilename = path.basename(piece.path, '.wav');
-      const pieceInfo = getMusicPieceInfo(baseFilename, directory);
+      const baseFilename = path.basename(piece.path, '.abc');
+      // Read ABC content directly since we're searching ABC files
+      const abcContent = fs.readFileSync(piece.path, 'utf8');
+      abcNotations.push(abcContent);
 
-      if (pieceInfo.files && pieceInfo.files.abc) {
-        abcNotations.push(pieceInfo.files.abc.content);
-        if (pieceInfo.genre) {
-          genres.push(pieceInfo.genre);
-        }
+      // Try to get genre from description file or filename
+      const pieceInfo = getMusicPieceInfo(baseFilename, directory);
+      if (pieceInfo.genre) {
+        genres.push(pieceInfo.genre);
+      } else if (baseFilename.includes('_x_')) {
+        // Extract genre from filename pattern
+        genres.push(baseFilename.split('-score')[0]);
       }
     }
 
@@ -217,8 +242,9 @@ export async function combineCompositions(options) {
 
       // Create a markdown file with details about the source pieces
       const sourceDetails = group.map(piece => {
-        const baseFilename = path.basename(piece.path, '.mid.wav');
-        return `- ${baseFilename} (${piece.duration.toFixed(2)}s)`;
+        const baseFilename = path.basename(piece.path, '.abc');
+        const durationStr = piece.duration ? `${piece.duration.toFixed(2)}s` : 'unknown duration';
+        return `- ${baseFilename} (${durationStr})`;
       }).join('\n');
 
       const mdContent = `# Combined ${combinedGenre} Composition
@@ -355,15 +381,21 @@ Technical guidelines:
 ${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
 ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
 ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
-${instruments ? `- Your composition MUST include these specific instruments: ${instruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
+${instruments ? `- Your composition MUST include at minimum these instruments: ${instruments}. Use the appropriate MIDI program numbers for each instrument. You are encouraged to add additional instruments that complement these and that are authentic to the ${combinedGenre} genre fusion.` : ''}
 
-ONLY USE THESE SUPPORTED EXTENSIONS:
-1. Channel and Program selection:
-   - %%MIDI program [channel] n
-2. Dynamics:
-   - Use standard ABC dynamics notation: !p!, !f!, !mf!, !ff!
-3. Simple chord accompaniment:
-   - %%MIDI gchord string
+ABC2MIDI EXTENSIONS - Use these freely for rich compositions:
+
+1. INSTRUMENTS: %%MIDI program [channel] n (0-127 General MIDI)
+2. DRUMS: %%MIDI drum string [programs] [velocities] + %%MIDI drumon/drumoff
+   Example: %%MIDI drum dddd 36 38 42 46 110 90 70 70
+   Programs: 35=Bass Drum, 36=Kick, 38=Snare, 42=Closed HH, 46=Open HH, 49=Crash
+   Use %%MIDI drumbars n to spread patterns over multiple bars
+3. DYNAMICS: !ppp! to !fff!, %%MIDI beat a b c n, %%MIDI beatmod n
+4. ARTICULATION: %%MIDI trim x/y (staccato), %%MIDI expand x/y (legato)
+5. CHORDS: %%MIDI gchord with f,c,b,z and g,h,i,j for arpeggios
+   %%MIDI chordprog n, %%MIDI bassprog n, %%MIDI chordvol n, %%MIDI bassvol n
+6. DRONES: %%MIDI drone / %%MIDI droneon / %%MIDI droneoff
+7. EXPRESSION: %%MIDI chordattack n, %%MIDI beatstring, %%MIDI gracedivider n
 
 IMPORTANT COMPATIBILITY RULES:
 - MIDI program declarations must come AFTER header fields (X,T,M,L,K) but BEFORE any music notation
@@ -382,19 +414,28 @@ Return ONLY the complete ABC notation for the new combined composition, with no 
 
 ${sourcePiecesText}
 
-Create a new composition in ABC notation that combines these pieces into a cohesive whole. The new piece should maintain the character of the ${combinedGenre} genre but feel like a complete, original composition. Select the most interesting motifs, harmonies, or sections from each source piece and weave them together with appropriate transitions.${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${instruments ? `\n\nYour composition MUST include these specific instruments: ${instruments}. Find the most appropriate MIDI program number for each instrument.` : ''}
+Create a new composition in ABC notation that combines these pieces into a cohesive whole. The new piece should maintain the character of the ${combinedGenre} genre but feel like a complete, original composition. Select the most interesting motifs, harmonies, or sections from each source piece and weave them together with appropriate transitions.${includeSolo ? '\n\nInclude a dedicated solo section for the lead instrument.' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${instruments ? `\n\nYour composition MUST include at minimum these instruments: ${instruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${combinedGenre} genre fusion.` : ''}
 
 The piece MUST be longer in duration than the combined lengths of each piece you will be combining. It may never be shorter than either piece or all pieces combined.
 
-IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure all headers come first (X:1, T:, M:, L:, Q:, K:), then any MIDI program declarations, then voice declarations, then music.`;
+IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure all headers come first (X:1, T:, M:, L:, Q:, K:), then any MIDI program declarations, then voice declarations, then music.
+${getTimidityConfigInfo()}`;
 
   try {
     const { text } = await generateText({
       model,
-      system: systemPrompt,
-      prompt: userPrompt,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+          experimental_providerMetadata: {
+            anthropic: { cacheControl: { type: 'ephemeral' } }
+          }
+        },
+        { role: 'user', content: userPrompt }
+      ],
       temperature: 0.7,
-      maxTokens: 20000,
+      maxTokens: 40000,
     });
 
     let notation = text;

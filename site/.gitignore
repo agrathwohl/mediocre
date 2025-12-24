@@ -1,0 +1,3 @@
+# Keep media directory but allow tracking individual files
+# Media files are generated and should be committed for gh-pages to work
+# !media/

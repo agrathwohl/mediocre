@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MEDIOCRE | Machine Hallucinations in Sound</title>
+  <meta name="description" content="Post-ironic algorithmic compositions you've probably never heard of">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="logo">
+        <span class="logo-icon">&#9835;</span>
+        MEDIOCRE
+      </h1>
+      <p class="tagline">Algorithmic Fever Dreams Since 2024</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="intro">
+      <p>Neural networks dreaming in baroque counterpoint. Machines taught themselves music theory and this is what came out. You're welcome.</p>
+    </section>
+
+    <section class="filters">
+      <div class="filter-group">
+        <label for="genre-filter">Filter by genre:</label>
+        <select id="genre-filter">
+          <option value="">All Genres</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="sort-by">Sort by:</label>
+        <select id="sort-by">
+          <option value="date-desc">Newest First</option>
+          <option value="date-asc">Oldest First</option>
+          <option value="title">Title A-Z</option>
+        </select>
+      </div>
+    </section>
+
+    <music-gallery id="gallery"></music-gallery>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Generated with <a href="https://github.com/yourusername/mediocre" target="_blank">mediocre-music</a></p>
+    </div>
+  </footer>
+
+  <!-- Modal for composition details -->
+  <div id="composition-modal" class="modal" hidden>
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">&times;</button>
+      <music-player id="modal-player"></music-player>
+      <div id="modal-details" class="composition-details"></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/components/music-card.js"></script>
+  <script type="module" src="js/components/music-player.js"></script>
+  <script type="module" src="js/components/music-gallery.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

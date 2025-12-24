@@ -151,8 +151,16 @@ IMPORTANT GUIDELINES:
   // Generate the creative genre name
   const { text } = await generateText({
     model,
-    system: systemPrompt,
-    prompt: userPrompt,
+    messages: [
+      {
+        role: 'system',
+        content: systemPrompt,
+        experimental_providerMetadata: {
+          anthropic: { cacheControl: { type: 'ephemeral' } }
+        }
+      },
+      { role: 'user', content: userPrompt }
+    ],
     temperature: options.temperature || 0.9,
     maxTokens: 50, // Short response is all we need
   });

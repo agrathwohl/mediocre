@@ -82,7 +82,7 @@ export async function generateLyrics(options) {
   const modernGenre = genreComponents.length === 2 ? genreComponents[1] : 'Contemporary';
   
   // Generate lyrics and apply them to the ABC notation
-  const abcWithLyrics = await addLyricsWithClaude({
+  let abcWithLyrics = await addLyricsWithClaude({
     abcNotation: originalAbc,
     lyricsPrompt,
     genre,
@@ -94,7 +94,8 @@ export async function generateLyrics(options) {
     producer: options.producer || '',
     instruments: options.instruments || ''
   });
-  
+
+
   // Validate the ABC notation
   const validation = validateAbcNotation(abcWithLyrics);
   
@@ -141,8 +142,7 @@ ${instrumentString}
 
 \`\`\`
 ${finalAbc}
-\`\`\`
-`;
+\`\`\``;
   const mdFilePath = path.join(outputDir, `${lyricsFilename}.md`);
   fs.writeFileSync(mdFilePath, mdContent);
   

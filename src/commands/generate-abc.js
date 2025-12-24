@@ -118,6 +118,7 @@ function parseHybridGenre(genreName) {
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
+ * @param {boolean} [options.sequentialMode] - If true, focus on quality over completeness (another agent will expand)
  * @returns {Promise<string[]>} Array of generated file paths
  */
 export async function generateAbc(options) {
@@ -132,6 +133,7 @@ export async function generateAbc(options) {
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
   const requestedInstruments = options.instruments || '';
+  const sequentialMode = options.sequentialMode || false;
   
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
@@ -196,7 +198,8 @@ export async function generateAbc(options) {
         solo: includeSolo,
         recordLabel: recordLabel,
         producer: producer,
-        instruments: requestedInstruments
+        instruments: requestedInstruments,
+        sequentialMode: sequentialMode
       });
       
       // Extract the instruments used in the composition
@@ -249,7 +252,7 @@ export async function generateAbc(options) {
       
       // Create a markdown file with both the ABC notation and description
       const mdContent = `# ${creativeGenreName || genre} Composition in ${style} Style
-      
+
 ## Genre Fusion${creativeGenreName ? `\n- Creative Genre Name: "${creativeGenreName}"` : ''}
 - Classical Element: ${genreComponents.classical}
 - Modern Element: ${genreComponents.modern}
@@ -265,8 +268,7 @@ ${abcNotation}
 
 ## Analysis
 
-${description.analysis}
-`;
+${description.analysis}`;
       const mdFilePath = path.join(outputDir, `${filename}.md`);
       fs.writeFileSync(mdFilePath, mdContent);
       
