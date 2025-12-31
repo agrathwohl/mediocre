@@ -1,5 +1,5 @@
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
-import { generateText } from "ai";
+import { generateText, streamText } from "ai";
 import { config } from "./config.js";
 import fs from "fs";
 import path from "path";
@@ -351,29 +351,134 @@ export function validateAbcNotation(abcNotation) {
 
 /**
  * Cleans up ABC notation to ensure proper formatting for abc2midi
+ * Prevents segfaults by removing malformed content that crashes the parser
  * @param {string} abcNotation - ABC notation to clean
  * @returns {string} Cleaned ABC notation
  */
 export function cleanAbcNotation(abcNotation) {
   let cleanedText = abcNotation
+    // === SEGFAULT PREVENTION: Remove LLM artifacts ===
+    // Remove markdown code block markers (LLM often wraps ABC in these)
+    .replace(/^```(?:abc|ABC|text)?\s*\n?/gm, "")
+    .replace(/\n?```\s*$/gm, "")
+    .replace(/```/g, "") // Catch any remaining backticks
+
+    // Remove UTF-8 BOM if present (causes silent parsing failures)
+    .replace(/^\uFEFF/, "")
+
+    // Remove carriage returns (Windows line endings cause issues)
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+
+    // Remove control characters except newline and tab (cause segfaults)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+
+    // Remove any non-ASCII characters that aren't valid ABC notation
+    // Keep: standard ASCII, common accidentals, and typical music symbols
+    .replace(/[^\x09\x0A\x20-\x7E\xC0-\xFF]/g, "")
+
+    // === BLANK LINE HANDLING ===
     // Remove ALL blank lines between ANY content (most aggressive approach)
     .replace(/\n\s*\n/g, "\n")
 
-    // Ensure proper voice, lyric, and section formatting
+    // === VOICE AND LYRIC FORMATTING ===
     .replace(/\n\s*(\[V:)/g, "\n$1") // Fix spacing before bracketed voice declarations
     .replace(/\n\s*(V:)/g, "\nV:") // Fix spacing before unbracketed voice declarations
     .replace(/\n\s*(%\s*Section)/g, "\n$1") // Fix spacing before section comments
     .replace(/\n\s*(w:)/g, "\nw:") // Fix spacing before lyrics lines
 
-    // Fix common notation issues
+    // === SEGFAULT PREVENTION: Fix malformed bar lines ===
+    // Fix double bar lines with spaces (causes parser confusion)
+    .replace(/\|\s+\|/g, "||")
+    .replace(/:\s*\|/g, ":|") // Fix repeat endings
+    .replace(/\|\s*:/g, "|:") // Fix repeat beginnings
+    .replace(/\|\]\s+/g, "|]") // Fix thick-thin bar lines
+    .replace(/\s+\[\|/g, "[|") // Fix thin-thick bar lines
+
+    // Fix repeat bars with extra spaces or malformed patterns
+    .replace(/::\s*/g, "::") // Double repeat
+    .replace(/\|1\s+/g, "|1") // First ending
+    .replace(/\|2\s+/g, "|2") // Second ending
+    .replace(/\[\s*1/g, "[1") // Alternative first ending notation
+    .replace(/\[\s*2/g, "[2") // Alternative second ending notation
+
+    // === COMMON NOTATION ISSUES ===
     .replace(/\]\s*\n\s*\[/g, "]\n[") // Ensure clean line breaks between bracketed elements
     .replace(/\n\s+/g, "\n") // Remove leading whitespace on any line
-    .replace(/\[Q:([^\]]+)\]/g, "Q:$1") // Fix Q: tempo markings
+    .replace(/\[Q:([^\]]+)\]/g, "Q:$1") // Fix Q: tempo markings (Q: should not be in brackets)
     .replace(/%%MIDI\s+program\s+(\d+)\s+(\d+)/g, "%%MIDI program $1 $2") // Fix MIDI program spacing
-    .trim(); // Remove any trailing whitespace
 
-  // Ensure the file ends with a single newline
+    // === SEGFAULT PREVENTION: Fix incomplete/malformed MIDI directives ===
+    // Remove MIDI directives with missing values (cause segfaults)
+    .replace(/%%MIDI\s+program\s*\n/g, "") // Empty program directive
+    .replace(/%%MIDI\s+channel\s*\n/g, "") // Empty channel directive
+    .replace(/%%MIDI\s+transpose\s*\n/g, "") // Empty transpose directive
+    .replace(/%%MIDI\s+gchord\s*\n/g, "") // Empty gchord directive
+
+    // Fix MIDI directives with invalid program numbers (must be 1-128)
+    .replace(/%%MIDI\s+program\s+(\d+)\s+(\d+)/g, (match, channel, program) => {
+      const prog = parseInt(program, 10);
+      if (prog < 1 || prog > 128) {
+        return `%%MIDI program ${channel} 1`; // Default to piano
+      }
+      return match;
+    })
+
+    // === TRAILING WHITESPACE ===
+    .trim();
+
+  // Ensure the file ends with a single newline (required by abc2midi)
   return cleanedText + "\n";
+}
+
+/**
+ * Validates ABC notation by running it through abc2midi
+ * Detects segfaults, timeouts, and other fatal errors
+ * @param {string} abcFilePath - Path to the ABC file to validate
+ * @returns {Promise<{valid: boolean, error: string|null}>} Validation result
+ */
+export async function validateWithAbc2Midi(abcFilePath) {
+  const { execSync } = await import("child_process");
+  const fs = await import("fs");
+  const tempMidiPath = abcFilePath.replace(".abc", "_validation_temp.mid");
+
+  try {
+    // Run abc2midi and capture output
+    execSync(`abc2midi "${abcFilePath}" -o "${tempMidiPath}" 2>&1`, {
+      timeout: 30000, // 30 second timeout
+      encoding: "utf8",
+    });
+
+    // Check if MIDI file was created
+    if (fs.existsSync(tempMidiPath)) {
+      // Clean up temp file
+      fs.unlinkSync(tempMidiPath);
+      return { valid: true, error: null };
+    } else {
+      return { valid: false, error: "abc2midi did not produce output file" };
+    }
+  } catch (error) {
+    // Clean up temp file if it exists
+    if (fs.existsSync(tempMidiPath)) {
+      fs.unlinkSync(tempMidiPath);
+    }
+
+    // Check for segfault or other fatal errors
+    if (error.signal === "SIGSEGV") {
+      return {
+        valid: false,
+        error: "abc2midi SEGFAULTED - ABC notation is invalid",
+      };
+    }
+    if (error.killed) {
+      return {
+        valid: false,
+        error: "abc2midi timed out - ABC notation may be malformed",
+      };
+    }
+
+    return { valid: false, error: `abc2midi failed: ${error.message}` };
+  }
 }
 
 /**
@@ -506,6 +611,24 @@ ABC2MIDI EXTENSIONS REFERENCE - Use these freely:
    - %%MIDI drumoff - Disable drum pattern
    - %%MIDI drumbars n - Spread drum pattern over n bars for variation
    - %%MIDI drummap note midipitch - Map ABC notes to specific drum sounds
+   
+   CRITICAL - DRUM KIT SELECTION (Channel 10 program changes):
+   When selecting drum KITS via %%MIDI program 10 N, you MUST ONLY use these available programs:
+   0-66, 76-77, 80, 85, 95-96, 99-110, 118, 125-127
+   DO NOT use programs: 67-75, 78-79, 81-84, 86-94, 97-98, 111-117, 119-124
+   These missing programs do not exist in our soundfont collection and will cause playback failures.
+    Safest choice: Use programs 0-56 (standard GM drum kits guaranteed in all soundfonts).
+
+    BANNED MELODIC INSTRUMENTS - NEVER USE THESE PROGRAMS:
+    78 (Whistle), 120 (Guitar Fret Noise), 121 (Breath Noise), 122 (Seashore),
+    123 (Bird Tweet), 124 (Telephone Ring), 125 (Helicopter), 126 (Applause), 127 (Gunshot)
+    These are novelty sound effects that sound terrible in compositions. DO NOT USE THEM.
+
+    BANNED DRUM NOTES - NEVER USE THESE IN %%MIDI drum OR %%MIDI drummap:
+    71 (Short Whistle - B4), 72 (Long Whistle - C5), 73 (Short Guiro - C#5), 74 (Long Guiro - D5),
+    78 (Mute Cuica - F#5), 79 (Open Cuica - G5)
+    These percussion sounds are annoying novelty effects. Use standard drums only:
+    35-36 (kicks), 38-40 (snares), 42/44/46 (hi-hats), 49/51/52/55/57/59 (cymbals), 41/43/45/47/48/50 (toms)
 
 3. DYNAMICS & EXPRESSION:
    - Standard dynamics: !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff!
@@ -556,18 +679,44 @@ The composition should be a genuine artistic fusion that respects and represents
     `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? " Include a dedicated solo section for the lead instrument." : ""}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? ` Your composition MUST include at minimum these instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""}${sequentialMode ? ` IMPORTANT: Focus on QUALITY over length. Create exceptional thematic material in 16-32 measures. Another agent will expand your work - your job is to create brilliant foundational ideas worth developing.` : ` Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`}`;
 
   // Generate the ABC notation
+  const messages = [
+    {
+      role: 'system',
+      content: systemPrompt,
+      experimental_providerMetadata: {
+        anthropic: { cacheControl: { type: 'ephemeral' } }
+      }
+    },
+    { role: 'user', content: userPrompt }
+  ];
+
+  // Use streaming if requested - helps avoid timeout errors on large generations
+  if (options.useStreaming) {
+    console.log('Using streaming mode for generation...');
+    const result = await streamText({
+      model,
+      messages,
+      temperature: options.temperature || 0.7,
+      maxTokens: 40000,
+    });
+
+    // Collect the full response from the stream
+    let text = '';
+    for await (const chunk of result.textStream) {
+      text += chunk;
+      // Show progress indicator
+      if (text.length % 1000 === 0) {
+        process.stdout.write('.');
+      }
+    }
+    console.log('\nStreaming complete.');
+    return text;
+  }
+
+  // Non-streaming mode (original behavior)
   const { text } = await generateText({
     model,
-    messages: [
-      {
-        role: 'system',
-        content: systemPrompt,
-        experimental_providerMetadata: {
-          anthropic: { cacheControl: { type: 'ephemeral' } }
-        }
-      },
-      { role: 'user', content: userPrompt }
-    ],
+    messages,
     temperature: options.temperature || 0.7,
     maxTokens: 40000,
   });
@@ -653,6 +802,15 @@ ABC2MIDI EXTENSIONS REFERENCE - Use these freely:
    - %%MIDI drumon / %%MIDI drumoff - Toggle drums
    - %%MIDI drumbars n - Spread pattern over n bars
    - %%MIDI drummap note midipitch - Map notes to drum sounds
+   
+   CRITICAL - DRUM KIT SELECTION (Channel 10 program changes):
+   When selecting drum KITS via %%MIDI program 10 N, ONLY use these available programs:
+   0-66, 76-77, 80, 85, 95-96, 99-110, 118, 125-127
+   DO NOT use: 67-75, 78-79, 81-84, 86-94, 97-98, 111-117, 119-124 (not in soundfonts).
+    Safest: Use programs 0-56 (standard GM drum kits).
+
+    BANNED MELODIC INSTRUMENTS - NEVER USE: 78 (Whistle), 120-127 (Sound Effects)
+    BANNED DRUM NOTES - NEVER USE IN %%MIDI drum OR %%MIDI drummap: 71 (Short Whistle), 72 (Long Whistle), 73 (Short Guiro), 74 (Long Guiro), 78 (Mute Cuica), 79 (Open Cuica)
 
 3. DYNAMICS & EXPRESSION:
    - Standard dynamics: !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff!
@@ -679,18 +837,44 @@ Your modifications should respect both the user's instructions and the musical i
   // Generate the modified ABC notation
   const userPrompt = `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nModify this composition according to these instructions:\n${instructions}${includeSolo ? "\n\nInclude a dedicated solo section for the lead instrument." : ""}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? `\n\nYour composition MUST include at minimum these instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""}\n\nReturn the complete modified ABC notation.`;
 
+  const messages = [
+    {
+      role: 'system',
+      content: systemPrompt,
+      experimental_providerMetadata: {
+        anthropic: { cacheControl: { type: 'ephemeral' } }
+      }
+    },
+    { role: 'user', content: userPrompt }
+  ];
+
+  // Use streaming if requested - helps avoid timeout errors on large generations
+  if (options.useStreaming) {
+    console.log('Using streaming mode for modification...');
+    const result = await streamText({
+      model,
+      messages,
+      temperature: options.temperature || 0.7,
+      maxTokens: 40000,
+    });
+
+    // Collect the full response from the stream
+    let text = '';
+    for await (const chunk of result.textStream) {
+      text += chunk;
+      // Show progress indicator
+      if (text.length % 1000 === 0) {
+        process.stdout.write('.');
+      }
+    }
+    console.log('\nStreaming complete.');
+    return cleanAbcNotation(text);
+  }
+
+  // Non-streaming mode (original behavior)
   const { text } = await generateText({
     model,
-    messages: [
-      {
-        role: 'system',
-        content: systemPrompt,
-        experimental_providerMetadata: {
-          anthropic: { cacheControl: { type: 'ephemeral' } }
-        }
-      },
-      { role: 'user', content: userPrompt }
-    ],
+    messages,
     temperature: options.temperature || 0.7,
     maxTokens: 40000,
   });

@@ -255,6 +255,11 @@ ABC2MIDI EXTENSIONS - Use these freely for rich compositions:
    Example: %%MIDI drum dddd 36 38 42 46 110 90 70 70
    Programs: 35=Bass Drum, 36=Kick, 38=Snare, 42=Closed HH, 46=Open HH, 49=Crash
    Use %%MIDI drumbars n to spread patterns over multiple bars
+   CRITICAL - DRUM KIT SELECTION: When using %%MIDI program 10 N for drum kits,
+   ONLY use programs: 0-66, 76-77, 80, 85, 95-96, 99-110, 118, 125-127
+    DO NOT use: 67-75, 78-79, 81-84, 86-94, 97-98, 111-117, 119-124 (missing from soundfonts)
+    BANNED MELODIC INSTRUMENTS - NEVER USE: 78 (Whistle), 120-127 (Sound Effects)
+    BANNED DRUM NOTES - NEVER USE IN %%MIDI drum OR %%MIDI drummap: 71 (Short Whistle), 72 (Long Whistle), 73 (Short Guiro), 74 (Long Guiro), 78 (Mute Cuica), 79 (Open Cuica)
 3. DYNAMICS: !ppp! to !fff!, %%MIDI beat a b c n, %%MIDI beatmod n
 4. ARTICULATION: %%MIDI trim x/y (staccato), %%MIDI expand x/y (legato)
 5. CHORDS: %%MIDI gchord with f,c,b,z and g,h,i,j for arpeggios

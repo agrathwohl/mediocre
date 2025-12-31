@@ -2,6 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { program } from 'commander';
 import { config } from './utils/config.js';
 import { parseGenreList, generateMultipleHybridGenres } from './utils/genre-generator.js';
@@ -17,7 +18,30 @@ import { combineCompositions } from './commands/combine-compositions.js';
 import { generateLyrics } from './commands/generate-lyrics.js';
 import { mixAndMatch } from './commands/mix-and-match.js';
 import { createDatasetBrowser } from './ui/index.js';
-import { validateAbcNotation, cleanAbcNotation, evaluateCompositionCompleteness } from './utils/claude.js';
+import { validateAbcNotation, cleanAbcNotation, evaluateCompositionCompleteness, validateWithAbc2Midi } from './utils/claude.js';
+
+const INVALID_DRUM_PROGRAMS = new Set([
+  67, 68, 69, 70, 71, 72, 73, 74, 75,
+  78, 79,
+  81, 82, 83, 84,
+  86, 87, 88, 89, 90, 91, 92, 93, 94,
+  97, 98,
+  111, 112, 113, 114, 115, 116, 117,
+  119, 120, 121, 122, 123, 124
+]);
+
+function detectInvalidDrumPrograms(abcContent) {
+  const invalidFound = [];
+  const drumProgramRegex = /%%MIDI\s+(?:program\s+10|channel\s+10\s+program|drum(?:map)?)\s+(\d+)/gi;
+  let match;
+  while ((match = drumProgramRegex.exec(abcContent)) !== null) {
+    const progNum = parseInt(match[1], 10);
+    if (INVALID_DRUM_PROGRAMS.has(progNum)) {
+      invalidFound.push(progNum);
+    }
+  }
+  return [...new Set(invalidFound)];
+}
 
 // Set up the CLI program
 program
@@ -64,6 +88,9 @@ program
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .option('--sequential', 'Use sequential LLM expansion to create longer, more developed compositions through chained modifications')
+  .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
+  .option('--midi', 'Run abc2midi on generated ABC files (enabled by default)', true)
+  .option('--no-midi', 'Skip abc2midi conversion')
   .action(async (options) => {
     try {
       let genres = [];
@@ -136,9 +163,10 @@ program
           recordLabel: options.recordLabel || '',
           producer: options.producer || '',
           instruments: options.instruments || '',
-          sequentialMode: options.sequential || false // Tell initial generation to focus on quality, not completeness
+          sequentialMode: options.sequential || false, // Tell initial generation to focus on quality, not completeness
+          useStreaming: options.streamText || false // Use streaming mode to avoid timeout errors
         };
-        
+
         const files = await generateAbc(genreOptions);
 
         // If sequential mode is enabled, let the LLM decide when the composition is complete
@@ -146,44 +174,6 @@ program
           console.log('\n🔗 Sequential expansion mode enabled - LLM will evaluate and expand until complete...\n');
 
           const MAX_PASSES = 10; // Safety limit to prevent infinite loops
-
-          // Helper function to validate ABC with abc2midi - STOP ON FAILURE
-          const validateWithAbc2Midi = async (abcFilePath) => {
-            const { execSync } = await import('child_process');
-            const tempMidiPath = abcFilePath.replace('.abc', '_validation_temp.mid');
-
-            try {
-              // Run abc2midi and capture output
-              execSync(`abc2midi "${abcFilePath}" -o "${tempMidiPath}" 2>&1`, {
-                timeout: 30000, // 30 second timeout
-                encoding: 'utf8'
-              });
-
-              // Check if MIDI file was created
-              if (fs.existsSync(tempMidiPath)) {
-                // Clean up temp file
-                fs.unlinkSync(tempMidiPath);
-                return { valid: true, error: null };
-              } else {
-                return { valid: false, error: 'abc2midi did not produce output file' };
-              }
-            } catch (error) {
-              // Clean up temp file if it exists
-              if (fs.existsSync(tempMidiPath)) {
-                fs.unlinkSync(tempMidiPath);
-              }
-
-              // Check for segfault or other fatal errors
-              if (error.signal === 'SIGSEGV') {
-                return { valid: false, error: 'abc2midi SEGFAULTED - ABC notation is invalid' };
-              }
-              if (error.killed) {
-                return { valid: false, error: 'abc2midi timed out - ABC notation may be malformed' };
-              }
-
-              return { valid: false, error: `abc2midi failed: ${error.message}` };
-            }
-          };
 
           for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
             let currentFile = files[fileIndex];
@@ -207,7 +197,8 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
                 solo: options.solo || false,
                 recordLabel: options.recordLabel || '',
                 producer: options.producer || '',
-                instruments: options.instruments || ''
+                instruments: options.instruments || '',
+                useStreaming: options.streamText || false
               });
 
               initialValidation = await validateWithAbc2Midi(fixedFile);
@@ -265,15 +256,32 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
 
                 console.log(`  📝 Expanding: ${evaluation.instructions.substring(0, 100)}...`);
 
+                // Check for invalid drum programs and warn if found
+                const invalidDrums = detectInvalidDrumPrograms(currentAbc);
+                let finalInstructions = evaluation.instructions;
+                if (invalidDrums.length > 0) {
+                  console.warn(`  ⚠️ INVALID DRUM PROGRAMS DETECTED: ${invalidDrums.join(', ')}`);
+                  finalInstructions = `🚨 CRITICAL WARNING: The current ABC contains INVALID drum program numbers that DO NOT EXIST in any soundfont: ${invalidDrums.join(', ')}
+
+YOU MUST FIX THESE IMMEDIATELY. Replace them with VALID drum programs ONLY:
+Valid: 0-66, 76-77, 80, 85, 95-96, 99-110, 118, 125-127
+INVALID (DO NOT USE): 67-75, 78-79, 81-84, 86-94, 97-98, 111-117, 119-124
+
+Standard GM drum kits: 0=Standard, 8=Room, 16=Power, 24=Electronic, 25=TR-808, 32=Jazz, 40=Brush, 48=Orchestra, 56=SFX
+
+${evaluation.instructions}`;
+                }
+
                 // Apply the LLM-suggested modifications
                 const modifiedFile = await modifyComposition({
                   abcFile: currentFile,
-                  instructions: evaluation.instructions,
+                  instructions: finalInstructions,
                   output: options.output,
                   solo: options.solo || false,
                   recordLabel: options.recordLabel || '',
                   producer: options.producer || '',
-                  instruments: options.instruments || ''
+                  instruments: options.instruments || '',
+                  useStreaming: options.streamText || false
                 });
 
                 // VALIDATE with abc2midi after each expansion
@@ -302,7 +310,8 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
                     solo: options.solo || false,
                     recordLabel: options.recordLabel || '',
                     producer: options.producer || '',
-                    instruments: options.instruments || ''
+                    instruments: options.instruments || '',
+                    useStreaming: options.streamText || false
                   });
 
                   // Validate the fix
@@ -347,6 +356,20 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
         }
 
         allFiles.push(...files);
+      }
+
+      if (options.midi !== false && allFiles.length > 0) {
+        console.log('\n🎹 Running abc2midi on generated files...');
+        for (const abcFile of allFiles) {
+          try {
+            const midiFiles = await convertToMidi({ input: abcFile, output: options.output });
+            if (midiFiles.length > 0) {
+              console.log(`  ✅ ${path.basename(abcFile)} → MIDI`);
+            }
+          } catch (midiError) {
+            console.warn(`  ⚠️ abc2midi failed for ${path.basename(abcFile)}: ${midiError.message}`);
+          }
+        }
       }
 
       console.log(`\nGenerated ${allFiles.length} composition(s) total`);
@@ -470,10 +493,14 @@ program
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
+  .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
+  .option('--sequential', 'Enable sequential mode: validates with abc2midi and auto-fixes issues')
+  .option('--midi', 'Run abc2midi on successful output (default: true)', true)
+  .option('--no-midi', 'Skip abc2midi conversion')
   .action(async (abcFile, options) => {
     try {
       let instructions = options.instructions;
-      
+
       // If instructions file is provided, read from it
       if (options.instructionsFile && !instructions) {
         try {
@@ -484,17 +511,75 @@ program
           process.exit(1);
         }
       }
-      
+
       if (!instructions) {
         console.error('Instructions are required. Use --instructions or --instructions-file.');
         process.exit(1);
       }
-      
-      await modifyComposition({ 
-        ...options, 
+
+      const modifiedFile = await modifyComposition({
+        ...options,
         abcFile,
-        instructions
+        instructions,
+        useStreaming: options.streamText || false
       });
+
+      // If sequential mode is enabled, validate with abc2midi and auto-fix
+      if (options.sequential && modifiedFile) {
+        console.log('\n🔗 Sequential mode enabled - validating with abc2midi...\n');
+
+        let currentFile = modifiedFile;
+        let validation = await validateWithAbc2Midi(currentFile);
+        const MAX_FIX_ATTEMPTS = 3;
+        let fixAttempt = 0;
+
+        while (!validation.valid && fixAttempt < MAX_FIX_ATTEMPTS) {
+          fixAttempt++;
+          console.warn(`  ⚠️ abc2midi validation failed: ${validation.error}`);
+          console.log(`  🔧 Fix attempt ${fixAttempt}/${MAX_FIX_ATTEMPTS}...`);
+
+          try {
+            const fixedFile = await modifyComposition({
+              abcFile: currentFile,
+              instructions: `FIX THIS ABC NOTATION - IT FAILED abc2midi VALIDATION WITH ERROR: "${validation.error}".
+DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE ABC NOTATION.
+Return the FIXED ABC notation that will pass abc2midi without errors.`,
+              output: options.output,
+              solo: options.solo || false,
+              recordLabel: options.recordLabel || '',
+              producer: options.producer || '',
+              instruments: options.instruments || '',
+              useStreaming: options.streamText || false
+            });
+
+            currentFile = fixedFile;
+            validation = await validateWithAbc2Midi(currentFile);
+
+            if (validation.valid) {
+              console.log(`  ✅ ABC notation fixed on attempt ${fixAttempt}!`);
+            }
+          } catch (fixError) {
+            console.error(`  ❌ Fix attempt ${fixAttempt} failed: ${fixError.message}`);
+          }
+        }
+
+        if (validation.valid) {
+          console.log(`\n✅ Final validation passed: ${currentFile}`);
+        } else {
+          console.error(`\n❌ Could not fix ABC notation after ${MAX_FIX_ATTEMPTS} attempts.`);
+          console.error(`   Last error: ${validation.error}`);
+        }
+      }
+
+      if (options.midi && modifiedFile) {
+        const midiFile = modifiedFile.replace(/\.abc$/, '.mid');
+        try {
+          execSync(`abc2midi "${modifiedFile}" -o "${midiFile}"`, { stdio: 'pipe' });
+          console.log(`🎵 MIDI generated: ${midiFile}`);
+        } catch (midiError) {
+          console.warn(`⚠️ abc2midi conversion failed: ${midiError.message}`);
+        }
+      }
     } catch (error) {
       console.error('Error modifying composition:', error);
     }

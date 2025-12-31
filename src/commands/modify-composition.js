@@ -90,10 +90,13 @@ export async function modifyComposition(options) {
     solo: options.solo || false,
     recordLabel: options.recordLabel || '',
     producer: options.producer || '',
-    instruments: options.instruments || ''
+    instruments: options.instruments || '',
+    useStreaming: options.useStreaming || false
   });
 
-  
+  // First pass: clean the notation (must match generate-abc.js behavior)
+  modifiedAbc = cleanAbcNotation(modifiedAbc);
+
   // Validate the ABC notation
   const validation = validateAbcNotation(modifiedAbc);
   

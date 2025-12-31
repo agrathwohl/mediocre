@@ -199,7 +199,8 @@ export async function generateAbc(options) {
         recordLabel: recordLabel,
         producer: producer,
         instruments: requestedInstruments,
-        sequentialMode: sequentialMode
+        sequentialMode: sequentialMode,
+        useStreaming: options.useStreaming || false
       });
       
       // Extract the instruments used in the composition
@@ -231,27 +232,29 @@ export async function generateAbc(options) {
       fs.writeFileSync(abcFilePath, cleanedAbcNotation);
       generatedFiles.push(abcFilePath);
       
-      // Generate and save the description
-      console.log('Generating description document...');
-      const description = await generateDescription({
-        abcNotation,
-        genre: creativeGenreName || genre, // Use creative name if available
-        classicalGenre: genreComponents.classical,
-        modernGenre: genreComponents.modern,
-        style
-      });
-      
-      // Add creative genre name to the description if one was generated
-      if (creativeGenreName) {
-        description.creativeGenreName = creativeGenreName;
-      }
-      
-      // Save the description as JSON
-      const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
-      fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
-      
-      // Create a markdown file with both the ABC notation and description
-      const mdContent = `# ${creativeGenreName || genre} Composition in ${style} Style
+      // Only generate description documents if ABC validation passed
+      if (validation.isValid) {
+        // Generate and save the description
+        console.log('Generating description document...');
+        const description = await generateDescription({
+          abcNotation,
+          genre: creativeGenreName || genre, // Use creative name if available
+          classicalGenre: genreComponents.classical,
+          modernGenre: genreComponents.modern,
+          style
+        });
+        
+        // Add creative genre name to the description if one was generated
+        if (creativeGenreName) {
+          description.creativeGenreName = creativeGenreName;
+        }
+        
+        // Save the description as JSON
+        const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
+        fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
+        
+        // Create a markdown file with both the ABC notation and description
+        const mdContent = `# ${creativeGenreName || genre} Composition in ${style} Style
 
 ## Genre Fusion${creativeGenreName ? `\n- Creative Genre Name: "${creativeGenreName}"` : ''}
 - Classical Element: ${genreComponents.classical}
@@ -269,8 +272,11 @@ ${abcNotation}
 ## Analysis
 
 ${description.analysis}`;
-      const mdFilePath = path.join(outputDir, `${filename}.md`);
-      fs.writeFileSync(mdFilePath, mdContent);
+        const mdFilePath = path.join(outputDir, `${filename}.md`);
+        fs.writeFileSync(mdFilePath, mdContent);
+      } else {
+        console.log('⚠️ Skipping description document generation - ABC validation failed');
+      }
       
       console.log(`Generated ${abcFilePath}`);
     } catch (error) {
