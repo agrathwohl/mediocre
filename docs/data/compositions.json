@@ -16,7 +16,54 @@
     "mediaSrc": "media/chromatic-freedom-1766599579962.webm",
     "pdfSrc": "media/chromatic-freedom-1766599579962-score.pdf",
     "abcFile": "babbit_x_ornette coleman-modified-1766599525830.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (40 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (40 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Introduction - Serial row establishment with free jazz elements",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Development - Ornette's harmolodic approach with Babbitt's serial organization",
+        "startTime": 102.86
+      },
+      {
+        "numeral": "III",
+        "title": "B Section - Contrasting row transformations with increased complexity",
+        "startTime": 205.71
+      },
+      {
+        "numeral": "IV",
+        "title": "Flute Solo - Coleman-inspired free expression",
+        "startTime": 308.57
+      },
+      {
+        "numeral": "V",
+        "title": "Clarinet Solo - Babbitt's serial organization with Coleman's freedom",
+        "startTime": 411.43
+      },
+      {
+        "numeral": "VI",
+        "title": "Metric Modulation Section - Babbitt-inspired rhythmic transformation",
+        "startTime": 514.29
+      },
+      {
+        "numeral": "VII",
+        "title": "Baritone Sax Solo with Complex Bass Support",
+        "startTime": 771.43
+      },
+      {
+        "numeral": "VIII",
+        "title": "Recapitulation - Reinterpreting the opening material",
+        "startTime": 878.57
+      },
+      {
+        "numeral": "IX",
+        "title": "Coda - Increased rhythmic complexity",
+        "startTime": 981.43
+      }
+    ]
   },
   {
     "id": "verdispeeder-a-tragic-velocity-1766822241096",
@@ -35,7 +82,704 @@
     "mediaSrc": "media/verdispeeder-a-tragic-velocity-1766822241096.webm",
     "pdfSrc": "media/verdispeeder-a-tragic-velocity-1766822241096-score.pdf",
     "abcFile": "verdi_x_speedcore-modified-1766822179481.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (40 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (40 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Dramatic Verdian Overture",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Introduction - Ominous Verdi-style chord progression with speedcore rhythmic elements",
+        "startTime": 17.45
+      },
+      {
+        "numeral": "III",
+        "title": "Section A - Main Theme - Dramatic Verdian melody with speedcore intensity",
+        "startTime": 21.82
+      },
+      {
+        "numeral": "IV",
+        "title": "Development - Intensifying with speedcore rhythms",
+        "startTime": 30.55
+      },
+      {
+        "numeral": "V",
+        "title": "Section B - Contrasting Middle Section with Chromatic Progressions",
+        "startTime": 39.27
+      },
+      {
+        "numeral": "VI",
+        "title": "Virtuosic Cabaletta Section",
+        "startTime": 56.73
+      },
+      {
+        "numeral": "VII",
+        "title": "Half - time Breakdown",
+        "startTime": 63.27
+      },
+      {
+        "numeral": "VIII",
+        "title": "Section A' - Final Climactic Reprise",
+        "startTime": 69.82
+      },
+      {
+        "numeral": "IX",
+        "title": "Recitative - Bridge to Aria",
+        "startTime": 89.45
+      },
+      {
+        "numeral": "X",
+        "title": "Aria - Vocal Melody Development",
+        "startTime": 103.64
+      },
+      {
+        "numeral": "XI",
+        "title": "Aria - Dramatic Climax",
+        "startTime": 138.55
+      },
+      {
+        "numeral": "XII",
+        "title": "Lamento - Verdian Pathos",
+        "startTime": 156
+      },
+      {
+        "numeral": "XIII",
+        "title": "Lamento Vocal Line",
+        "startTime": 173.45
+      },
+      {
+        "numeral": "XIV",
+        "title": "Extended Development Section",
+        "startTime": 190.91
+      },
+      {
+        "numeral": "XV",
+        "title": "Extreme Gabber Breakdown",
+        "startTime": 225.82
+      },
+      {
+        "numeral": "XVI",
+        "title": "Stretta - Final Climactic Build",
+        "startTime": 249.82
+      },
+      {
+        "numeral": "XVII",
+        "title": "Introduction",
+        "startTime": 302.18
+      },
+      {
+        "numeral": "XVIII",
+        "title": "Section A - Main Theme",
+        "startTime": 306.55
+      },
+      {
+        "numeral": "XIX",
+        "title": "Development",
+        "startTime": 315.27
+      },
+      {
+        "numeral": "XX",
+        "title": "Section B - Contrasting Middle Section",
+        "startTime": 324
+      },
+      {
+        "numeral": "XXI",
+        "title": "Speedcore Breakdown",
+        "startTime": 334.91
+      },
+      {
+        "numeral": "XXII",
+        "title": "Virtuosic Cabaletta Section",
+        "startTime": 341.45
+      },
+      {
+        "numeral": "XXIII",
+        "title": "Half - time Breakdown",
+        "startTime": 348
+      },
+      {
+        "numeral": "XXIV",
+        "title": "Section A' - Final Climactic Reprise",
+        "startTime": 354.55
+      },
+      {
+        "numeral": "XXV",
+        "title": "Recitative - Bridge to Aria",
+        "startTime": 374.18
+      },
+      {
+        "numeral": "XXVI",
+        "title": "Aria - Vocal Melody Development",
+        "startTime": 388.36
+      },
+      {
+        "numeral": "XXVII",
+        "title": "Aria - Dramatic Climax",
+        "startTime": 423.27
+      },
+      {
+        "numeral": "XXVIII",
+        "title": "Lamento - Verdian Pathos",
+        "startTime": 440.73
+      },
+      {
+        "numeral": "XXIX",
+        "title": "Lamento Vocal Line",
+        "startTime": 458.18
+      },
+      {
+        "numeral": "XXX",
+        "title": "Extended Development Section",
+        "startTime": 475.64
+      },
+      {
+        "numeral": "XXXI",
+        "title": "Extreme Gabber Breakdown",
+        "startTime": 510.55
+      },
+      {
+        "numeral": "XXXII",
+        "title": "Stretta - Final Climactic Build",
+        "startTime": 534.55
+      },
+      {
+        "numeral": "XXXIII",
+        "title": "Introduction",
+        "startTime": 586.91
+      },
+      {
+        "numeral": "XXXIV",
+        "title": "Section A - Main Theme",
+        "startTime": 591.27
+      },
+      {
+        "numeral": "XXXV",
+        "title": "Development",
+        "startTime": 600
+      },
+      {
+        "numeral": "XXXVI",
+        "title": "Section B - Contrasting Middle Section",
+        "startTime": 608.73
+      },
+      {
+        "numeral": "XXXVII",
+        "title": "Speedcore Breakdown",
+        "startTime": 619.64
+      },
+      {
+        "numeral": "XXXVIII",
+        "title": "Virtuosic Cabaletta Section",
+        "startTime": 626.18
+      },
+      {
+        "numeral": "XXXIX",
+        "title": "Half - time Breakdown",
+        "startTime": 632.73
+      },
+      {
+        "numeral": "XL",
+        "title": "Section A' - Final Climactic Reprise",
+        "startTime": 639.27
+      },
+      {
+        "numeral": "XLI",
+        "title": "Recitative - Bridge to Aria",
+        "startTime": 658.91
+      },
+      {
+        "numeral": "XLII",
+        "title": "Aria - Vocal Melody Development",
+        "startTime": 673.09
+      },
+      {
+        "numeral": "XLIII",
+        "title": "Aria - Dramatic Climax",
+        "startTime": 708
+      },
+      {
+        "numeral": "XLIV",
+        "title": "Lamento - Verdian Pathos",
+        "startTime": 725.45
+      },
+      {
+        "numeral": "XLV",
+        "title": "Lamento Vocal Line",
+        "startTime": 742.91
+      },
+      {
+        "numeral": "XLVI",
+        "title": "Extended Development Section",
+        "startTime": 760.36
+      },
+      {
+        "numeral": "XLVII",
+        "title": "Extreme Gabber Breakdown",
+        "startTime": 795.27
+      },
+      {
+        "numeral": "XLVIII",
+        "title": "Stretta - Final Climactic Build",
+        "startTime": 817.09
+      },
+      {
+        "numeral": "XLIX",
+        "title": "Introduction",
+        "startTime": 869.45
+      },
+      {
+        "numeral": "L",
+        "title": "Section A - Main Theme",
+        "startTime": 873.82
+      },
+      {
+        "numeral": "LI",
+        "title": "Development",
+        "startTime": 882.55
+      },
+      {
+        "numeral": "LII",
+        "title": "Section B - Contrasting Middle Section",
+        "startTime": 891.27
+      },
+      {
+        "numeral": "LIII",
+        "title": "Speedcore Breakdown",
+        "startTime": 902.18
+      },
+      {
+        "numeral": "LIV",
+        "title": "Virtuosic Cabaletta Section",
+        "startTime": 908.73
+      },
+      {
+        "numeral": "LV",
+        "title": "Half - time Breakdown",
+        "startTime": 915.27
+      },
+      {
+        "numeral": "LVI",
+        "title": "Section A' - Final Climactic Reprise",
+        "startTime": 921.82
+      },
+      {
+        "numeral": "LVII",
+        "title": "Recitative - Bridge to Aria",
+        "startTime": 941.45
+      },
+      {
+        "numeral": "LVIII",
+        "title": "Aria - Vocal Melody Development",
+        "startTime": 955.64
+      },
+      {
+        "numeral": "LIX",
+        "title": "Aria - Dramatic Climax",
+        "startTime": 990.55
+      },
+      {
+        "numeral": "LX",
+        "title": "Lamento - Verdian Pathos",
+        "startTime": 1008
+      },
+      {
+        "numeral": "LXI",
+        "title": "Lamento Vocal Line",
+        "startTime": 1025.45
+      },
+      {
+        "numeral": "LXII",
+        "title": "Extended Development Section",
+        "startTime": 1042.91
+      },
+      {
+        "numeral": "LXIII",
+        "title": "Extreme Gabber Breakdown",
+        "startTime": 1077.82
+      },
+      {
+        "numeral": "LXIV",
+        "title": "Stretta - Final Climactic Build",
+        "startTime": 1099.64
+      },
+      {
+        "numeral": "LXV",
+        "title": "Introduction - Ominous Verdi-style chord progression with speedcore rhythmic elements",
+        "startTime": 1152
+      },
+      {
+        "numeral": "LXVI",
+        "title": "Section A - Main Theme - Dramatic Verdian melody with speedcore intensity",
+        "startTime": 1156.36
+      },
+      {
+        "numeral": "LXVII",
+        "title": "Development - Intensifying with speedcore rhythms",
+        "startTime": 1165.09
+      },
+      {
+        "numeral": "LXVIII",
+        "title": "Section B - Contrasting Middle Section with Chromatic Progressions",
+        "startTime": 1173.82
+      },
+      {
+        "numeral": "LXIX",
+        "title": "Virtuosic Cabaletta Section",
+        "startTime": 1191.27
+      },
+      {
+        "numeral": "LXX",
+        "title": "Half - time Breakdown",
+        "startTime": 1197.82
+      },
+      {
+        "numeral": "LXXI",
+        "title": "Section A' - Final Climactic Reprise",
+        "startTime": 1204.36
+      },
+      {
+        "numeral": "LXXII",
+        "title": "Recitative - Bridge to Aria",
+        "startTime": 1224
+      },
+      {
+        "numeral": "LXXIII",
+        "title": "Aria - Vocal Melody Development",
+        "startTime": 1238.18
+      },
+      {
+        "numeral": "LXXIV",
+        "title": "Aria - Dramatic Climax",
+        "startTime": 1273.09
+      },
+      {
+        "numeral": "LXXV",
+        "title": "Lamento - Verdian Pathos",
+        "startTime": 1290.55
+      },
+      {
+        "numeral": "LXXVI",
+        "title": "Lamento Vocal Line",
+        "startTime": 1308
+      },
+      {
+        "numeral": "LXXVII",
+        "title": "Extended Development Section",
+        "startTime": 1325.45
+      },
+      {
+        "numeral": "LXXVIII",
+        "title": "Extreme Gabber Breakdown",
+        "startTime": 1360.36
+      },
+      {
+        "numeral": "LXXIX",
+        "title": "Stretta - Final Climactic Build",
+        "startTime": 1384.36
+      },
+      {
+        "numeral": "LXXX",
+        "title": "Introduction - Ominous Verdi-style chord progression with speedcore rhythmic elements",
+        "startTime": 1436.73
+      },
+      {
+        "numeral": "LXXXI",
+        "title": "Section A - Main Theme - Dramatic Verdian melody with speedcore intensity",
+        "startTime": 1441.09
+      },
+      {
+        "numeral": "LXXXII",
+        "title": "Development - Intensifying with speedcore rhythms",
+        "startTime": 1449.82
+      },
+      {
+        "numeral": "LXXXIII",
+        "title": "Section B - Contrasting Middle Section with Chromatic Progressions",
+        "startTime": 1458.55
+      },
+      {
+        "numeral": "LXXXIV",
+        "title": "Virtuosic Cabaletta Section",
+        "startTime": 1476
+      },
+      {
+        "numeral": "LXXXV",
+        "title": "Half - time Breakdown",
+        "startTime": 1482.55
+      },
+      {
+        "numeral": "LXXXVI",
+        "title": "Section A' - Final Climactic Reprise",
+        "startTime": 1489.09
+      },
+      {
+        "numeral": "LXXXVII",
+        "title": "Recitative - Bridge to Aria",
+        "startTime": 1508.73
+      },
+      {
+        "numeral": "LXXXVIII",
+        "title": "Aria - Vocal Melody Development",
+        "startTime": 1522.91
+      },
+      {
+        "numeral": "LXXXIX",
+        "title": "Aria - Dramatic Climax",
+        "startTime": 1557.82
+      },
+      {
+        "numeral": "XC",
+        "title": "Lamento - Verdian Pathos",
+        "startTime": 1575.27
+      },
+      {
+        "numeral": "XCI",
+        "title": "Lamento Vocal Line",
+        "startTime": 1592.73
+      },
+      {
+        "numeral": "XCII",
+        "title": "Extended Development Section",
+        "startTime": 1610.18
+      },
+      {
+        "numeral": "XCIII",
+        "title": "Extreme Gabber Breakdown",
+        "startTime": 1645.09
+      },
+      {
+        "numeral": "XCIV",
+        "title": "Stretta - Final Climactic Build",
+        "startTime": 1669.09
+      },
+      {
+        "numeral": "XCV",
+        "title": "Introduction - Ominous Verdi-style chord progression with speedcore rhythmic elements",
+        "startTime": 1721.45
+      },
+      {
+        "numeral": "XCVI",
+        "title": "Section A - Main Theme - Dramatic Verdian melody with speedcore intensity",
+        "startTime": 1725.82
+      },
+      {
+        "numeral": "XCVII",
+        "title": "Development - Intensifying with speedcore rhythms",
+        "startTime": 1734.55
+      },
+      {
+        "numeral": "XCVIII",
+        "title": "Section B - Contrasting Middle Section with Chromatic Progressions",
+        "startTime": 1743.27
+      },
+      {
+        "numeral": "XCIX",
+        "title": "Speedcore Breakdown",
+        "startTime": 1754.18
+      },
+      {
+        "numeral": "C",
+        "title": "Virtuosic Cabaletta Section",
+        "startTime": 1760.73
+      },
+      {
+        "numeral": "CI",
+        "title": "Half - time Breakdown",
+        "startTime": 1767.27
+      },
+      {
+        "numeral": "CII",
+        "title": "Section A' - Final Climactic Reprise",
+        "startTime": 1773.82
+      },
+      {
+        "numeral": "CIII",
+        "title": "Recitative - Bridge to Aria",
+        "startTime": 1793.45
+      },
+      {
+        "numeral": "CIV",
+        "title": "Aria - Vocal Melody Development with Extended Orchestration",
+        "startTime": 1807.64
+      },
+      {
+        "numeral": "CV",
+        "title": "Aria - Dramatic Climax with Added Bass Lines",
+        "startTime": 1842.55
+      },
+      {
+        "numeral": "CVI",
+        "title": "Lamento - Verdian Pathos with Expanded Bass",
+        "startTime": 1860
+      },
+      {
+        "numeral": "CVII",
+        "title": "Lamento Vocal Line with Expanded Orchestration",
+        "startTime": 1877.45
+      },
+      {
+        "numeral": "CVIII",
+        "title": "Extended Development Section with Enhanced Orchestration",
+        "startTime": 1894.91
+      },
+      {
+        "numeral": "CIX",
+        "title": "Extreme Gabber Breakdown with Enhanced Bass",
+        "startTime": 1929.82
+      },
+      {
+        "numeral": "CX",
+        "title": "Stretta - Final Climactic Build with Full Orchestration",
+        "startTime": 1951.64
+      },
+      {
+        "numeral": "CXI",
+        "title": "Introduction - Ominous Verdi-style chord progression with speedcore rhythmic elements",
+        "startTime": 2004
+      },
+      {
+        "numeral": "CXII",
+        "title": "Section A - Main Theme - Dramatic Verdian melody with speedcore intensity",
+        "startTime": 2008.36
+      },
+      {
+        "numeral": "CXIII",
+        "title": "Development - Intensifying with speedcore rhythms",
+        "startTime": 2017.09
+      },
+      {
+        "numeral": "CXIV",
+        "title": "Section B - Contrasting Middle Section with Chromatic Progressions",
+        "startTime": 2025.82
+      },
+      {
+        "numeral": "CXV",
+        "title": "Speedcore Breakdown",
+        "startTime": 2036.73
+      },
+      {
+        "numeral": "CXVI",
+        "title": "Virtuosic Cabaletta Section",
+        "startTime": 2043.27
+      },
+      {
+        "numeral": "CXVII",
+        "title": "Half - time Breakdown",
+        "startTime": 2049.82
+      },
+      {
+        "numeral": "CXVIII",
+        "title": "Section A' - Final Climactic Reprise",
+        "startTime": 2056.36
+      },
+      {
+        "numeral": "CXIX",
+        "title": "Recitative - Bridge to Aria",
+        "startTime": 2076
+      },
+      {
+        "numeral": "CXX",
+        "title": "Aria - Vocal Melody Development with Expanded Orchestration",
+        "startTime": 2090.18
+      },
+      {
+        "numeral": "CXXI",
+        "title": "Aria - Dramatic Climax with Added Bass Lines",
+        "startTime": 2125.09
+      },
+      {
+        "numeral": "CXXII",
+        "title": "Lamento - Verdian Pathos with Expanded Bass",
+        "startTime": 2142.55
+      },
+      {
+        "numeral": "CXXIII",
+        "title": "Lamento Vocal Line with Expanded Orchestration",
+        "startTime": 2160
+      },
+      {
+        "numeral": "CXXIV",
+        "title": "Extended Development Section with Enhanced Orchestration",
+        "startTime": 2177.45
+      },
+      {
+        "numeral": "CXXV",
+        "title": "Extreme Gabber Breakdown with Enhanced Bass",
+        "startTime": 2212.36
+      },
+      {
+        "numeral": "CXXVI",
+        "title": "Stretta - Final Climactic Build with Full Orchestration",
+        "startTime": 2234.18
+      },
+      {
+        "numeral": "CXXVII",
+        "title": "Dramatic Verdian Overture",
+        "startTime": 2269.09
+      },
+      {
+        "numeral": "CXXVIII",
+        "title": "Introduction - Ominous Verdi-style chord progression with speedcore rhythmic elements",
+        "startTime": 2286.55
+      },
+      {
+        "numeral": "CXXIX",
+        "title": "Section A - Main Theme",
+        "startTime": 2290.91
+      },
+      {
+        "numeral": "CXXX",
+        "title": "Development - Intensifying with speedcore rhythms",
+        "startTime": 2299.64
+      },
+      {
+        "numeral": "CXXXI",
+        "title": "Section B - Contrasting Middle Section",
+        "startTime": 2308.36
+      },
+      {
+        "numeral": "CXXXII",
+        "title": "Speedcore Breakdown - Distorted Gabber Kicks at 300+ BPM",
+        "startTime": 2319.27
+      },
+      {
+        "numeral": "CXXXIII",
+        "title": "Virtuosic Cabaletta Section with Blast Beats",
+        "startTime": 2325.82
+      },
+      {
+        "numeral": "CXXXIV",
+        "title": "Half - time Breakdown",
+        "startTime": 2332.36
+      },
+      {
+        "numeral": "CXXXV",
+        "title": "Section A' - Final Climactic Reprise with Complex Percussion",
+        "startTime": 2338.91
+      },
+      {
+        "numeral": "CXXXVI",
+        "title": "Recitative - Bridge to Aria",
+        "startTime": 2358.55
+      },
+      {
+        "numeral": "CXXXVII",
+        "title": "Aria - Vocal Melody Development",
+        "startTime": 2372.73
+      },
+      {
+        "numeral": "CXXXVIII",
+        "title": "Aria - Dramatic Climax",
+        "startTime": 2407.64
+      },
+      {
+        "numeral": "CXXXIX",
+        "title": "Lamento - Verdian Pathos",
+        "startTime": 2425.09
+      }
+    ]
   },
   {
     "id": "harmolodic-bassoon-1766945832070",
@@ -54,7 +798,269 @@
     "mediaSrc": "media/harmolodic-bassoon-1766945832070.webm",
     "pdfSrc": "media/harmolodic-bassoon-1766945832070-score.pdf",
     "abcFile": "bassoon_x_ornette coleman-modified-1766945771352.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (40 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (40 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Introduction",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Theme A - Harmolodic Exploration",
+        "startTime": 88.62
+      },
+      {
+        "numeral": "III",
+        "title": "Theme A' - Variation",
+        "startTime": 177.23
+      },
+      {
+        "numeral": "IV",
+        "title": "Theme B - Free Jazz Section",
+        "startTime": 265.85
+      },
+      {
+        "numeral": "V",
+        "title": "Development Section - Expanding Harmolodic Ideas",
+        "startTime": 354.46
+      },
+      {
+        "numeral": "VI",
+        "title": "Development Continued - Increasing Complexity",
+        "startTime": 443.08
+      },
+      {
+        "numeral": "VII",
+        "title": "Virtuosic Bassoon Passage",
+        "startTime": 531.69
+      },
+      {
+        "numeral": "VIII",
+        "title": "Contrasting Middle Section - Different Rhythmic Feel",
+        "startTime": 620.31
+      },
+      {
+        "numeral": "IX",
+        "title": "Contrasting Middle Section Continued",
+        "startTime": 708.92
+      },
+      {
+        "numeral": "X",
+        "title": "Extended Theme C - Ornette-Inspired Development",
+        "startTime": 797.54
+      },
+      {
+        "numeral": "XI",
+        "title": "Theme C Development",
+        "startTime": 886.15
+      },
+      {
+        "numeral": "XII",
+        "title": "Free Jazz Improvisational Section",
+        "startTime": 974.77
+      },
+      {
+        "numeral": "XIII",
+        "title": "Free Jazz Continued",
+        "startTime": 1063.38
+      },
+      {
+        "numeral": "XIV",
+        "title": "Free Jazz Improvisational Peak",
+        "startTime": 1152
+      },
+      {
+        "numeral": "XV",
+        "title": "Recapitulation - Transformed Theme A",
+        "startTime": 1240.62
+      },
+      {
+        "numeral": "XVI",
+        "title": "Recapitulation - Transformed Theme B",
+        "startTime": 1329.23
+      },
+      {
+        "numeral": "XVII",
+        "title": "Final Climactic Section",
+        "startTime": 1417.85
+      },
+      {
+        "numeral": "XVIII",
+        "title": "Coda",
+        "startTime": 1506.46
+      },
+      {
+        "numeral": "XIX",
+        "title": "NEW MOVEMENT - Introspective Section",
+        "startTime": 1595.08
+      },
+      {
+        "numeral": "XX",
+        "title": "Introspective Theme Development",
+        "startTime": 1683.69
+      },
+      {
+        "numeral": "XXI",
+        "title": "Introspective Bassoon Solo",
+        "startTime": 1772.31
+      },
+      {
+        "numeral": "XXII",
+        "title": "Introspective Harmonic Exploration",
+        "startTime": 1860.92
+      },
+      {
+        "numeral": "XXIII",
+        "title": "Introspective Build",
+        "startTime": 1949.54
+      },
+      {
+        "numeral": "XXIV",
+        "title": "Introspective to Energetic Transition",
+        "startTime": 2038.15
+      },
+      {
+        "numeral": "XXV",
+        "title": "Extended Improvisational Section",
+        "startTime": 2126.77
+      },
+      {
+        "numeral": "XXVI",
+        "title": "Complex Harmonic Progressions",
+        "startTime": 2215.38
+      },
+      {
+        "numeral": "XXVII",
+        "title": "Complex Harmonic Progressions Continued",
+        "startTime": 2304
+      },
+      {
+        "numeral": "XXVIII",
+        "title": "Rhythmic Interplay Section",
+        "startTime": 2392.62
+      },
+      {
+        "numeral": "XXIX",
+        "title": "Rhythmic Complexity",
+        "startTime": 2481.23
+      },
+      {
+        "numeral": "XXX",
+        "title": "Virtuosic Bassoon Cadenza",
+        "startTime": 2569.85
+      },
+      {
+        "numeral": "XXXI",
+        "title": "Cadenza Continued - Solo Bassoon",
+        "startTime": 2658.46
+      },
+      {
+        "numeral": "XXXII",
+        "title": "Cadenza Climax",
+        "startTime": 2747.08
+      },
+      {
+        "numeral": "XXXIII",
+        "title": "Dramatic Ensemble Re - entry",
+        "startTime": 2835.69
+      },
+      {
+        "numeral": "XXXIV",
+        "title": "Transformed Themes - Complex Recapitulation",
+        "startTime": 2924.31
+      },
+      {
+        "numeral": "XXXV",
+        "title": "Dramatic Build to Final Climax",
+        "startTime": 3012.92
+      },
+      {
+        "numeral": "XXXVI",
+        "title": "Ultimate Climax",
+        "startTime": 3101.54
+      },
+      {
+        "numeral": "XXXVII",
+        "title": "Final Resolution - Extended Coda",
+        "startTime": 3190.15
+      },
+      {
+        "numeral": "XXXVIII",
+        "title": "NEW MOVEMENT - SCHERZO SECTION",
+        "startTime": 3323.08
+      },
+      {
+        "numeral": "XXXIX",
+        "title": "Scherzo Theme A",
+        "startTime": 3411.69
+      },
+      {
+        "numeral": "XL",
+        "title": "Scherzo Theme A continued",
+        "startTime": 3500.31
+      },
+      {
+        "numeral": "XLI",
+        "title": "Scherzo Theme B - Angular Rhythms",
+        "startTime": 3588.92
+      },
+      {
+        "numeral": "XLII",
+        "title": "Scherzo Theme B continued - Complex Rhythms",
+        "startTime": 3677.54
+      },
+      {
+        "numeral": "XLIII",
+        "title": "Scherzo Theme B Development",
+        "startTime": 3766.15
+      },
+      {
+        "numeral": "XLIV",
+        "title": "Scherzo Theme B Climax",
+        "startTime": 3854.77
+      },
+      {
+        "numeral": "XLV",
+        "title": "Scherzo Theme C - Harmolodic Exploration",
+        "startTime": 3943.38
+      },
+      {
+        "numeral": "XLVI",
+        "title": "Scherzo Theme C - Harmolodic Offsetting",
+        "startTime": 4032
+      },
+      {
+        "numeral": "XLVII",
+        "title": "Scherzo - Virtuosic Bassoon Passages",
+        "startTime": 4120.62
+      },
+      {
+        "numeral": "XLVIII",
+        "title": "Scherzo - Contrabassoon Virtuosic Solo",
+        "startTime": 4209.23
+      },
+      {
+        "numeral": "XLIX",
+        "title": "Scherzo - Ensemble Virtuosity",
+        "startTime": 4297.85
+      },
+      {
+        "numeral": "L",
+        "title": "Scherzo - Rhythmic Complexity Climax",
+        "startTime": 4386.46
+      },
+      {
+        "numeral": "LI",
+        "title": "Scherzo - Final Climactic Passage",
+        "startTime": 4475.08
+      },
+      {
+        "numeral": "LII",
+        "title": "FINALE - Grand Synthesis of Movements",
+        "startTime": 4563.69
+      }
+    ]
   },
   {
     "id": "modes-of-value-and-intensity-extended-1767160840064",
@@ -73,7 +1079,109 @@
     "mediaSrc": "media/modes-of-value-and-intensity-extended-1767160840064.webm",
     "pdfSrc": null,
     "abcFile": "messiaen_x_math rock-modified-1767160774652.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (40 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (40 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "INTRO - Messiaen-inspired mode with math rock rhythm",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Section A - Complex time signature changes with Messiaen harmonies",
+        "startTime": 94.5
+      },
+      {
+        "numeral": "III",
+        "title": "Section B - Intricate polyrhythms with birdsong-like patterns",
+        "startTime": 141.75
+      },
+      {
+        "numeral": "IV",
+        "title": "EXPOSITION - Developing Messiaen's modes of limited transposition",
+        "startTime": 189
+      },
+      {
+        "numeral": "V",
+        "title": "BIRDSONG DEVELOPMENT - Elaborate birdsong figures and polyrhythms",
+        "startTime": 283.5
+      },
+      {
+        "numeral": "VI",
+        "title": "MATH ROCK BREAKDOWN - Intense rhythmic shifts and instrumental interplay",
+        "startTime": 378
+      },
+      {
+        "numeral": "VII",
+        "title": "RECAPITULATION - Combining elements from previous sections",
+        "startTime": 460.69
+      },
+      {
+        "numeral": "VIII",
+        "title": "CODA - Final climactic section",
+        "startTime": 555.19
+      },
+      {
+        "numeral": "IX",
+        "title": "NEW MOVEMENT - Contrasting Material with SOPHIE-inspired production",
+        "startTime": 649.69
+      },
+      {
+        "numeral": "X",
+        "title": "BIRDSONG CATALOG - Extensive development of birdsong motifs",
+        "startTime": 765.19
+      },
+      {
+        "numeral": "XI",
+        "title": "BIRDSONG CATALOG - Continued (8 distinct bird calls)",
+        "startTime": 859.69
+      },
+      {
+        "numeral": "XII",
+        "title": "NON - RETROGRADABLE RHYTHMS with Math Rock Angular Patterns",
+        "startTime": 1048.69
+      },
+      {
+        "numeral": "XIII",
+        "title": "EXTREME QUIET SECTION - Dramatic dynamic contrast",
+        "startTime": 1143.19
+      },
+      {
+        "numeral": "XIV",
+        "title": "MASSIVE CLIMAX - Extreme contrast",
+        "startTime": 1237.69
+      },
+      {
+        "numeral": "XV",
+        "title": "COLOR - CHORD PROGRESSION SECTION - Messiaen's harmonic language",
+        "startTime": 1332.19
+      },
+      {
+        "numeral": "XVI",
+        "title": "COLOR - CHORD PROGRESSION - Continued",
+        "startTime": 1426.69
+      },
+      {
+        "numeral": "XVII",
+        "title": "MATH ROCK BREAKDOWN - With metric modulations",
+        "startTime": 1521.19
+      },
+      {
+        "numeral": "XVIII",
+        "title": "MATH ROCK BREAKDOWN - Second metric modulation",
+        "startTime": 1615.69
+      },
+      {
+        "numeral": "XIX",
+        "title": "MATH ROCK BREAKDOWN - Third metric modulation",
+        "startTime": 1710.19
+      },
+      {
+        "numeral": "XX",
+        "title": "FINAL CLIMACTIC SECTION - SOPHIE-inspired production techniques",
+        "startTime": 1804.69
+      }
+    ]
   },
   {
     "id": "fragmented-symphony-1767343572814",
@@ -92,7 +1200,94 @@
     "mediaSrc": "media/fragmented-symphony-1767343572814.webm",
     "pdfSrc": "media/fragmented-symphony-1767343572814-score.pdf",
     "abcFile": "mahler_x_fred frith-modified-1767343519557.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Introduction - Mahler-inspired melodic fragments with Frith's textural approach",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Extended Introduction - SOPHIE-inspired hypercompression textures",
+        "startTime": 140
+      },
+      {
+        "numeral": "III",
+        "title": "Main theme - Mahler's harmonic language with Frith's experimental articulations",
+        "startTime": 280
+      },
+      {
+        "numeral": "IV",
+        "title": "Main theme expansion - Tzadik-style dissonant counterpoint",
+        "startTime": 420
+      },
+      {
+        "numeral": "V",
+        "title": "Development - Frithian rhythmic disruption with Mahler's orchestration",
+        "startTime": 560
+      },
+      {
+        "numeral": "VI",
+        "title": "Development expansion - Intricate Mahlerian counterpoint",
+        "startTime": 700
+      },
+      {
+        "numeral": "VII",
+        "title": "SOPHIE - inspired Hyperprocessed Transition",
+        "startTime": 840
+      },
+      {
+        "numeral": "VIII",
+        "title": "Extended SOPHIE - inspired Hyperprocessed Section",
+        "startTime": 980
+      },
+      {
+        "numeral": "IX",
+        "title": "Adagio Development - Expanded Mahlerian counterpoint",
+        "startTime": 1680
+      },
+      {
+        "numeral": "X",
+        "title": "Extended Adagio - Part 1",
+        "startTime": 2240
+      },
+      {
+        "numeral": "XI",
+        "title": "Extended Adagio - Part 2",
+        "startTime": 2800
+      },
+      {
+        "numeral": "XII",
+        "title": "Extended Adagio - Part 3 (Climactic section)",
+        "startTime": 3360
+      },
+      {
+        "numeral": "XIII",
+        "title": "Extended Frith - style Noise Section - SOPHIE Hyperprocessed",
+        "startTime": 4200
+      },
+      {
+        "numeral": "XIV",
+        "title": "Extended Frith - style Noise Section - Part 2",
+        "startTime": 4340
+      },
+      {
+        "numeral": "XV",
+        "title": "New Frith - style Prepared Instrument Movement - Part 1",
+        "startTime": 4480
+      },
+      {
+        "numeral": "XVI",
+        "title": "New Frith - style Prepared Instrument Movement - Part 2",
+        "startTime": 4760
+      },
+      {
+        "numeral": "XVII",
+        "title": "New Frith - style Prepared Instrument Movement - Part 3 (Climax)",
+        "startTime": 5040
+      }
+    ]
   },
   {
     "id": "chaotic-serialist-freak-out-hyperdub-x-a-g-cook-re-1767428767976",
@@ -111,7 +1306,119 @@
     "mediaSrc": "media/chaotic-serialist-freak-out-hyperdub-x-a-g-cook-re-1767428767976.webm",
     "pdfSrc": "media/chaotic-serialist-freak-out-hyperdub-x-a-g-cook-re-1767428767976-score.pdf",
     "abcFile": "babbit_x_eugene chadbourne-modified-1767428716579.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Section A - Serialist Introduction",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Section B - Experimental Breakdown",
+        "startTime": 26.67
+      },
+      {
+        "numeral": "III",
+        "title": "Section C - Solo Section",
+        "startTime": 53.33
+      },
+      {
+        "numeral": "IV",
+        "title": "Section D - Retrograde Transformations (Babbitt-style)",
+        "startTime": 80
+      },
+      {
+        "numeral": "V",
+        "title": "Section E - Inversion & Microtonal Explorations (Chadbourne-style)",
+        "startTime": 113.33
+      },
+      {
+        "numeral": "VI",
+        "title": "Section F - Lead Instrument Solo (Hyperdub/A.G. Cook Style)",
+        "startTime": 193.33
+      },
+      {
+        "numeral": "VII",
+        "title": "Section G - Retrograde-Inversion & Extreme Processing",
+        "startTime": 240
+      },
+      {
+        "numeral": "VIII",
+        "title": "Section H - Outro with Extreme Timbral Explorations",
+        "startTime": 346.67
+      },
+      {
+        "numeral": "IX",
+        "title": "Section I - Development Section (Babbitt-style Combinatoriality)",
+        "startTime": 400
+      },
+      {
+        "numeral": "X",
+        "title": "Section J - Derived Sets & Matrix Transformations",
+        "startTime": 453.33
+      },
+      {
+        "numeral": "XI",
+        "title": "Section K - Free Improvisation Section (Chadbourne-style)",
+        "startTime": 506.67
+      },
+      {
+        "numeral": "XII",
+        "title": "Section L - Extreme Timbral Explorations (Continued)",
+        "startTime": 600
+      },
+      {
+        "numeral": "XIII",
+        "title": "Section M - Microtonal & Prepared Instrument Techniques",
+        "startTime": 653.33
+      },
+      {
+        "numeral": "XIV",
+        "title": "Section N - Complex Rhythmic Structures & Polyrhythms",
+        "startTime": 706.67
+      },
+      {
+        "numeral": "XV",
+        "title": "Section O - Lead Instrument Solo (Extended)",
+        "startTime": 813.33
+      },
+      {
+        "numeral": "XVI",
+        "title": "Section P - Coda (Climactic Synthesis)",
+        "startTime": 866.67
+      },
+      {
+        "numeral": "XVII",
+        "title": "Section Q - Extreme Timbral Explorations (Chadbourne-style)",
+        "startTime": 926.67
+      },
+      {
+        "numeral": "XVIII",
+        "title": "Section R - Serialist Material Transformations",
+        "startTime": 1040
+      },
+      {
+        "numeral": "XIX",
+        "title": "Section S - Climax (Fusion of Traditions)",
+        "startTime": 1133.33
+      },
+      {
+        "numeral": "XX",
+        "title": "Subsection S1 - Babbit meets Chadbourne",
+        "startTime": 1133.33
+      },
+      {
+        "numeral": "XXI",
+        "title": "Subsection S2 - Hyperdub/A.G. Cook Production Style",
+        "startTime": 1186.67
+      },
+      {
+        "numeral": "XXII",
+        "title": "Subsection S3 - Maximum Fusion",
+        "startTime": 1240
+      }
+    ]
   },
   {
     "id": "serialized-drone-collapse-extended-1767422990766",
@@ -130,7 +1437,119 @@
     "mediaSrc": "media/serialized-drone-collapse-extended-1767422990766.webm",
     "pdfSrc": "media/serialized-drone-collapse-extended-1767422990766-score.pdf",
     "abcFile": "babbit_x_sunn 0)))-modified-1767422935336.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Introduction - Establishing drone atmosphere",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Extended Drone Introduction - Glacial atmosphere establishing",
+        "startTime": 96
+      },
+      {
+        "numeral": "III",
+        "title": "Hyperdub - style atmospheric elements emerge",
+        "startTime": 192
+      },
+      {
+        "numeral": "IV",
+        "title": "Further extended introduction with microtonal elements",
+        "startTime": 256
+      },
+      {
+        "numeral": "V",
+        "title": "Section A - Serialist pattern emerges from drone",
+        "startTime": 288
+      },
+      {
+        "numeral": "VI",
+        "title": "Section B - Intensifying serialist patterns with sunn 0))) drone characteristics",
+        "startTime": 544
+      },
+      {
+        "numeral": "VII",
+        "title": "Extended Hyperdub - style rhythmic elements",
+        "startTime": 768
+      },
+      {
+        "numeral": "VIII",
+        "title": "Section C - Systematic serialist matrix permutations with Hyperdub-style production",
+        "startTime": 832
+      },
+      {
+        "numeral": "IX",
+        "title": "NEW - Extensive Babbitt-style 48 Row Form Exploration - Part 1 (P0-P11)",
+        "startTime": 1152
+      },
+      {
+        "numeral": "X",
+        "title": "NEW - Extensive Babbitt-style 48 Row Form Exploration - Part 2 (I0-I11)",
+        "startTime": 1440
+      },
+      {
+        "numeral": "XI",
+        "title": "NEW - Extensive Babbitt-style 48 Row Form Exploration - Part 3 (R0-R11)",
+        "startTime": 1728
+      },
+      {
+        "numeral": "XII",
+        "title": "NEW - Extensive Babbitt-style 48 Row Form Exploration - Part 4 (RI0-RI11)",
+        "startTime": 2016
+      },
+      {
+        "numeral": "XIII",
+        "title": "NEW - Combinatorial Hexachord Development with Hyperdub-style Production",
+        "startTime": 2304
+      },
+      {
+        "numeral": "XIV",
+        "title": "Section C2 - Retrograde and inversion transformations with Hyperdub bass",
+        "startTime": 2624
+      },
+      {
+        "numeral": "XV",
+        "title": "NEW - Extended Glacial Drone Section (Part 1) - Sunn O))) style",
+        "startTime": 2944
+      },
+      {
+        "numeral": "XVI",
+        "title": "NEW - Extended Glacial Drone Section (Part 2) - Sunn O))) style",
+        "startTime": 3264
+      },
+      {
+        "numeral": "XVII",
+        "title": "NEW - Extended Glacial Drone Section (Part 3) - Microtonal Exploration",
+        "startTime": 3584
+      },
+      {
+        "numeral": "XVIII",
+        "title": "NEW - Extended Glacial Drone Section (Part 4) - Final Drone Transformation",
+        "startTime": 3904
+      },
+      {
+        "numeral": "XIX",
+        "title": "Section D2 - Continued glacial progression with A.G. Cook-style production elements",
+        "startTime": 4224
+      },
+      {
+        "numeral": "XX",
+        "title": "Section E - Climactic section with maximum textural density and A.G. Cook-style glitchy textures",
+        "startTime": 4544
+      },
+      {
+        "numeral": "XXI",
+        "title": "NEW - Additional Climactic Section with Maximum Textural Density",
+        "startTime": 4864
+      },
+      {
+        "numeral": "XXII",
+        "title": "Coda - Gradual dissolution of material",
+        "startTime": 5312
+      }
+    ]
   },
   {
     "id": "stochastic-drone-ritual-hyperdub-edition-1767430535043",
@@ -210,7 +1629,49 @@
     "mediaSrc": "media/stochastic-voltage-1767426307965.webm",
     "pdfSrc": "media/stochastic-voltage-1767426307965-score.pdf",
     "abcFile": "xenakis_x_lightning bolt-modified-1767426255652.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Introduction - Stochastic Texture",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Section A - Dense Rhythmic Texture",
+        "startTime": 9.33
+      },
+      {
+        "numeral": "III",
+        "title": "Section B - Lightning Bolt Intensity",
+        "startTime": 28
+      },
+      {
+        "numeral": "IV",
+        "title": "Section C - Stochastic Process Section",
+        "startTime": 65.33
+      },
+      {
+        "numeral": "V",
+        "title": "Section D - Lead Solo (Xenakis Harmonics with Lightning Bolt Energy)",
+        "startTime": 102.67
+      },
+      {
+        "numeral": "VI",
+        "title": "Section E - Climax (Lightning Bolt Noise Saturation)",
+        "startTime": 140
+      },
+      {
+        "numeral": "VII",
+        "title": "Section F - Hyperdub/A.G. Cook Production Elements",
+        "startTime": 177.33
+      },
+      {
+        "numeral": "VIII",
+        "title": "Outro - Stochastic Dissipation",
+        "startTime": 210
+      }
+    ]
   },
   {
     "id": "prepared-noise-meditation-extended-1767423295425",
@@ -229,7 +1690,59 @@
     "mediaSrc": "media/prepared-noise-meditation-extended-1767423295425.webm",
     "pdfSrc": "media/prepared-noise-meditation-extended-1767423295425-score.pdf",
     "abcFile": "john cage_x_merzbow-modified-1767423248917.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Introduction - Prepared Piano Section",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Drone and Percussion Section",
+        "startTime": 80
+      },
+      {
+        "numeral": "III",
+        "title": "Drums",
+        "startTime": 186.67
+      },
+      {
+        "numeral": "IV",
+        "title": "Ambient Section with Harsh Noise",
+        "startTime": 213.33
+      },
+      {
+        "numeral": "V",
+        "title": "Extended Development Section - Hyperdub/A.G. Cook Style",
+        "startTime": 346.67
+      },
+      {
+        "numeral": "VI",
+        "title": "Prepared Piano with Metal Chain Scraping",
+        "startTime": 346.67
+      },
+      {
+        "numeral": "VII",
+        "title": "Textural Intensification - A.G. Cook Hyper-Processed Sounds",
+        "startTime": 533.33
+      },
+      {
+        "numeral": "VIII",
+        "title": "Merzbow - Style Noise Climax",
+        "startTime": 746.67
+      },
+      {
+        "numeral": "IX",
+        "title": "Coda - Silence and Noise Juxtaposition",
+        "startTime": 986.67
+      },
+      {
+        "numeral": "X",
+        "title": "Final Silence with Barely Audible Noise",
+        "startTime": 1226.67
+      }
+    ]
   },
   {
     "id": "prepared-noise-meditation-extended-hyperreal-1767423777375",
@@ -248,6 +1761,184 @@
     "mediaSrc": "media/prepared-noise-meditation-extended-hyperreal-1767423777375.webm",
     "pdfSrc": "media/prepared-noise-meditation-extended-hyperreal-1767423777375-score.pdf",
     "abcFile": "john cage_x_merzbow-modified-1767423731851.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "The extended silences are not empty but filled with possibility - the listener's environment becomes",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Introduction - Prepared Piano Section",
+        "startTime": 0
+      },
+      {
+        "numeral": "III",
+        "title": "Drone and Percussion Section",
+        "startTime": 80
+      },
+      {
+        "numeral": "IV",
+        "title": "Drums",
+        "startTime": 186.67
+      },
+      {
+        "numeral": "V",
+        "title": "Ambient Section with Harsh Noise",
+        "startTime": 213.33
+      },
+      {
+        "numeral": "VI",
+        "title": "Extended Development Section - Hyperdub/A.G. Cook Style",
+        "startTime": 346.67
+      },
+      {
+        "numeral": "VII",
+        "title": "Prepared Piano with Metal Chain Scraping",
+        "startTime": 346.67
+      },
+      {
+        "numeral": "VIII",
+        "title": "Textural Intensification - A.G. Cook Hyper-Processed Sounds",
+        "startTime": 533.33
+      },
+      {
+        "numeral": "IX",
+        "title": "Merzbow - Style Noise Climax",
+        "startTime": 746.67
+      },
+      {
+        "numeral": "X",
+        "title": "Coda - Silence and Noise Juxtaposition",
+        "startTime": 986.67
+      },
+      {
+        "numeral": "XI",
+        "title": "Final Silence with Barely Audible Noise",
+        "startTime": 1226.67
+      },
+      {
+        "numeral": "XII",
+        "title": "EXTENDED SECTIONS BELOW",
+        "startTime": 1320
+      },
+      {
+        "numeral": "XIII",
+        "title": "Prepared Silence Section - Cage-Inspired (2 minutes)",
+        "startTime": 1320
+      },
+      {
+        "numeral": "XIV",
+        "title": "For performers - This section explores the concept of \"prepared silence\" - the piano is silent",
+        "startTime": 1320
+      },
+      {
+        "numeral": "XV",
+        "title": "Chance - Determined Silences with Harsh Noise Bursts - Middle Section",
+        "startTime": 2226.67
+      },
+      {
+        "numeral": "XVI",
+        "title": "Extended Noise Climax Development - Merzbow-Style (3 minutes)",
+        "startTime": 3186.67
+      }
+    ]
+  },
+  {
+    "id": "combined-gregorian-chant-x-math-rock-composition-7-1767501813356",
+    "title": "Combined gregorian chant_x_math rock Composition 7",
+    "composer": "AI Composer",
+    "key": "Amin",
+    "meter": "7/8",
+    "tempo": "100",
+    "genre": "gregorian chant_x_math rock",
+    "classicalGenre": "gregorian chant",
+    "modernGenre": "math rock",
+    "style": "standard",
+    "instruments": null,
+    "analysis": "# Analysis of Gregorian Chant × Math Rock Fusion Composition\n\n## 1. Overview of the Hybrid Genre Approach\n\nThis composition represents a fascinating fusion of Gregorian chant's ancient, sacred modality with math rock's angular complexity and technical precision. The piece navigates between contemplative, flowing passages reminiscent of medieval ecclesiastical music and rhythmically intricate sections featuring complex meters and angular patterns typical of math rock. Rather than simply juxtaposing these elements, the composition integrates them organically, creating a cohesive sonic language that honors both traditions while establishing something entirely new.\n\n## 2. Gregorian Chant Elements Present in the Composition\n\n- **Modal harmony**: The piece primarily operates in A minor and E Phrygian modes, connecting directly to the church modes of Gregorian tradition\n- **Melismatic passages**: Extended melodic lines on sustained notes, particularly evident in the contemplative middle section (e.g., e5, a5, etc.)\n- **Monophonic/homophonic textures**: The opening section features unison singing and homophonic movement characteristic of chant\n- **Call-and-response structure**: The section marked \"Call-and-response section between chant-like solo lines and full ensemble\" directly references antiphonal chant traditions\n- **Legato phrasing**: Many sections are explicitly marked \"legato,\" reflecting the smooth, connected delivery of Gregorian melodies\n- **Long sustained notes**: The meditative quality of extended note durations echoes the unhurried, timeless quality of chant\n\n## 3. Math Rock Elements Present in the Composition\n\n- **Irregular time signatures**: The composition employs 7/8, 5/8, 11/8, 10/8, and 13/8 meters, showcasing math rock's signature metric complexity\n- **Angular rhythmic patterns**: The electric guitar part (V5) features intricate, interlocking rhythmic figures typical of math rock\n- **Polyrhythms**: Different voices often operate in contrasting implied meters, creating rhythmic tension\n- **Metric modulation**: The section explicitly labeled \"metric modulation where the pulse shifts between voices\" is quintessential math rock\n- **Complex harmonic structures**: Extended chords and dissonance enhance harmonic complexity\n- **Technical percussion**: The detailed drum patterns (notated as \"BhChorBhC,\" etc.) reflect math rock's precise, technical approach to rhythm\n- **Dynamic extremes**: Sudden shifts between quiet (pp) and loud (ffff) sections typical of math rock's dramatic dynamic range\n\n## 4. Technical Elements (Instrumentation, Structure)\n\n**Instrumentation:**\n- Traditional SATB vocal arrangement (Soprano, Alto, Tenor, Bass)\n- Electric guitar with math rock articulations\n- Complex percussion setup\n- Electronic processing (indicated by MIDI trim/expand parameters)\n\n**Structure:**\nThe composition follows a sophisticated multi-section form:\n1. Introduction blending chant melody with math rock rhythms\n2. Development section with increasingly complex meters\n3. \"Tzadik/SOPHIE influence\" section introducing electronic elements\n4. Transitional passage to E Phrygian\n5. Contemplative middle section combining melismatic vocals with polyrhythms\n6. Intricate buildup sections with increasing textural density\n7. Climactic full ensemble section\n8. Resolution and peaceful coda\n\nThe piece effectively uses contrast between sparse, chant-like sections and dense, rhythmically complex passages to create dramatic tension and release.\n\n## 5. Artistic Assessment of the Fusion\n\nThis composition achieves a remarkably successful integration of seemingly incompatible traditions. The juxtaposition of Gregorian chant's spiritual serenity with math rock's intellectual complexity creates a fascinating dialogue between ancient and modern, sacred and secular, contemplative and energetic.\n\nParticularly effective is how the composer:\n- Uses modal harmonies as a bridge between traditions\n- Employs dynamics to transition between stylistic elements\n- Maintains rhythmic integrity while exploring complex meters\n- Balances electronic elements with acoustic sonorities\n- Creates dramatic arc through careful structural planning\n\nThe composition doesn't simply borrow superficial elements from each genre but demonstrates deep understanding of both traditions' fundamental characteristics, resulting in a genuine hybrid rather than a pastiche.\n\n## 6. Audio Processing Suggestions\n\nThe composition is generally well-constructed for audio realization, but a few specific sections may benefit from careful attention:\n\n- **Measures with extreme dynamic markings**: The \"Final climactic section\" with multiple parts marked ffff-ffffff could potentially create distortion or balance issues. Consider subtle compression on these passages to maintain clarity.\n\n- **Dense textures in the 13/8 sections**: The multiple layered parts with intricate rhythms might benefit from careful panning and EQ to ensure each voice remains distinct.\n\n- **Metric modulation section**: Where V4 shifts to 14/16 while other parts remain in 7/8, there's potential for rhythmic phase issues. Ensure precise synchronization or embrace the metric tension as an intentional effect.\n\n- **MIDI trim/expand settings**: The extreme settings (1/120, 1/100) in some sections may create unnatural articulations if implemented literally. Consider a more moderate approach to these effects to maintain musical coherence.",
+    "timestamp": "2026-01-04T04:43:33.356Z",
+    "mediaSrc": "media/combined-gregorian-chant-x-math-rock-composition-7-1767501813356.webm",
+    "pdfSrc": "media/combined-gregorian-chant-x-math-rock-composition-7-1767501813356-score.pdf",
+    "abcFile": "gregorian chant_x_math rock-combined-1767501763240.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Introduction - Gregorian-inspired melody with math rock rhythms",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Math rock section with complex time signatures and angular patterns",
+        "startTime": 56
+      },
+      {
+        "numeral": "III",
+        "title": "Chant - inspired melodic passage with math rock accompaniment",
+        "startTime": 112
+      },
+      {
+        "numeral": "IV",
+        "title": "Transitional passage to new section - E Phrygian modal shift",
+        "startTime": 259
+      },
+      {
+        "numeral": "V",
+        "title": "Contemplative middle section - Gregorian-style melismatic passages over math rock polyrhythms",
+        "startTime": 343
+      },
+      {
+        "numeral": "VI",
+        "title": "Phrygian modal exploration with math rock rhythms",
+        "startTime": 427
+      },
+      {
+        "numeral": "VII",
+        "title": "Glitchy electronic textures with SOPHIE - inspired production",
+        "startTime": 511
+      },
+      {
+        "numeral": "VIII",
+        "title": "Extended development with greater contrapuntal complexity",
+        "startTime": 595
+      },
+      {
+        "numeral": "IX",
+        "title": "Call - and-response section between chant-like solo lines and full ensemble",
+        "startTime": 679
+      },
+      {
+        "numeral": "X",
+        "title": "Call - and-response continues with greater intensity",
+        "startTime": 747.25
+      },
+      {
+        "numeral": "XI",
+        "title": "Section with metric modulation where the pulse shifts between voices",
+        "startTime": 815.5
+      },
+      {
+        "numeral": "XII",
+        "title": "Climactic build section with layered vocal parts and increasing instrumental complexity",
+        "startTime": 899.5
+      },
+      {
+        "numeral": "XIII",
+        "title": "Recapitulation that transforms earlier themes",
+        "startTime": 983.5
+      },
+      {
+        "numeral": "XIV",
+        "title": "Final climactic section with full ensemble",
+        "startTime": 1067.5
+      },
+      {
+        "numeral": "XV",
+        "title": "Coda - peaceful resolution combining Gregorian and math rock elements",
+        "startTime": 1151.5
+      }
+    ]
   }
 ]

@@ -601,6 +601,35 @@ body::before {
   text-shadow: 0 0 10px var(--accent-secondary);
 }
 
+/* ─── Section Links (Audio Navigation) ─────────────────────────────────── */
+.composition-details .section-link {
+  color: var(--accent-tertiary);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent-tertiary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.composition-details .section-link::before {
+  content: '>';
+  font-size: 0.7em;
+  margin-right: 0.2em;
+  opacity: 0;
+  transition: opacity 0.2s ease, margin-right 0.2s ease;
+}
+
+.composition-details .section-link:hover {
+  color: #fff;
+  border-bottom-style: solid;
+  text-shadow: 0 0 15px var(--accent-tertiary);
+}
+
+.composition-details .section-link:hover::before {
+  opacity: 1;
+  margin-right: 0.3em;
+}
+
 /* ─── Code Blocks ───────────────────────────────────────────────────────── */
 .composition-details .term-codeblock {
   background: #060609;

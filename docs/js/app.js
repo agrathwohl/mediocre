@@ -109,6 +109,17 @@ class App {
           this.closeModal();
         }
       });
+
+      // Section link clicks - seek audio player
+      this.modal.addEventListener('click', (e) => {
+        if (e.target.classList.contains('section-link')) {
+          e.preventDefault();
+          const time = parseFloat(e.target.dataset.time);
+          if (this.modalPlayer && !isNaN(time)) {
+            this.modalPlayer.currentTime = time;
+          }
+        }
+      });
     }
   }
 
@@ -157,9 +168,33 @@ class App {
   }
 
   /**
+   * Convert section references to clickable links
+   */
+  linkifySections(html, sections) {
+    if (!sections || sections.length === 0) return html;
+
+    // Build lookup map with validation
+    const sectionMap = {};
+    sections.forEach(s => {
+      if (typeof s.startTime === 'number' && !isNaN(s.startTime) && s.startTime >= 0) {
+        sectionMap[s.numeral] = s.startTime;
+      }
+    });
+
+    // Match "Section I", "Section II", etc.
+    return html.replace(/\bSection\s+([IVXLCDM]+)\b/gi, (match, numeral) => {
+      const upper = numeral.toUpperCase();
+      if (sectionMap[upper] !== undefined) {
+        return `<a href="#" class="section-link" data-time="${sectionMap[upper]}">${match}</a>`;
+      }
+      return match;
+    });
+  }
+
+  /**
    * Parse markdown to terminal-styled HTML
    */
-  parseMarkdown(text) {
+  parseMarkdown(text, sections) {
     if (!text) return '';
 
     let html = text;
@@ -213,6 +248,11 @@ class App {
     html = html.replace(/<p class="term-p"><\/p>/g, '');
     html = html.replace(/<p class="term-p">(<[huo])/g, '$1');
     html = html.replace(/(<\/[huo][l1-3]>)<\/p>/g, '$1');
+
+    // Linkify section references if sections provided
+    if (sections) {
+      html = this.linkifySections(html, sections);
+    }
 
     return html;
   }
@@ -274,14 +314,14 @@ class App {
         ${data.prompt ? `
           <div class="term-section">
             <div class="term-section-header">PROMPT</div>
-            <div class="term-content-block term-prompt">${this.parseMarkdown(data.prompt)}</div>
+            <div class="term-content-block term-prompt">${this.parseMarkdown(data.prompt, data.sections)}</div>
           </div>
         ` : ''}
 
         ${data.analysis ? `
           <div class="term-section">
             <div class="term-section-header">ANALYSIS</div>
-            <div class="term-content-block">${this.parseMarkdown(data.analysis)}</div>
+            <div class="term-content-block">${this.parseMarkdown(data.analysis, data.sections)}</div>
           </div>
         ` : ''}
 
