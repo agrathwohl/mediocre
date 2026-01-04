@@ -121,10 +121,16 @@ class App {
       c.mediaSrc === compositionData.mediaSrc
     ) || compositionData;
 
-    // Set player source
+    // Set player source and sections
     if (this.modalPlayer && fullData.mediaSrc) {
       this.modalPlayer.setAttribute('src', fullData.mediaSrc);
       this.modalPlayer.setAttribute('title', fullData.title || 'Now Playing');
+      // Pass sections for timeline display
+      if (fullData.sections && fullData.sections.length > 0) {
+        this.modalPlayer.setAttribute('sections', JSON.stringify(fullData.sections));
+      } else {
+        this.modalPlayer.removeAttribute('sections');
+      }
     }
 
     // Render details

@@ -5,7 +5,7 @@
  */
 class MusicPlayer extends HTMLElement {
   static get observedAttributes() {
-    return ['src', 'title'];
+    return ['src', 'title', 'sections'];
   }
 
   constructor() {
@@ -14,6 +14,7 @@ class MusicPlayer extends HTMLElement {
     this._isPlaying = false;
     this._duration = 0;
     this._currentTime = 0;
+    this._sections = [];
   }
 
   connectedCallback() {
@@ -41,8 +42,59 @@ class MusicPlayer extends HTMLElement {
         if (titleEl) {
           titleEl.textContent = newValue;
         }
+      } else if (name === 'sections') {
+        this.parseSections(newValue);
       }
     }
+  }
+
+  /**
+   * Parse sections from JSON string attribute
+   */
+  parseSections(sectionsJson) {
+    try {
+      this._sections = sectionsJson ? JSON.parse(sectionsJson) : [];
+    } catch {
+      this._sections = [];
+    }
+    this.renderSectionTimeline();
+  }
+
+  /**
+   * Set sections programmatically
+   */
+  setSections(sections) {
+    this._sections = Array.isArray(sections) ? sections : [];
+    this.renderSectionTimeline();
+  }
+
+  /**
+   * Render section markers on the timeline
+   */
+  renderSectionTimeline() {
+    const timeline = this.shadowRoot?.querySelector('.section-timeline');
+    if (!timeline || !this._duration || this._sections.length === 0) return;
+
+    timeline.innerHTML = '';
+
+    this._sections.forEach((section, idx) => {
+      const percent = (section.startTime / this._duration) * 100;
+      if (percent < 0 || percent > 100) return;
+
+      const marker = document.createElement('div');
+      marker.className = 'section-marker';
+      marker.style.left = `${percent}%`;
+      marker.dataset.time = section.startTime;
+      marker.dataset.index = idx;
+
+      const label = document.createElement('span');
+      label.className = 'section-label';
+      label.textContent = section.numeral;
+      label.title = `${section.numeral}: ${section.title}`;
+
+      marker.appendChild(label);
+      timeline.appendChild(marker);
+    });
   }
 
   get src() {
@@ -313,6 +365,65 @@ class MusicPlayer extends HTMLElement {
         .error-message.visible {
           display: block;
         }
+
+        /* Section Timeline */
+        .section-timeline {
+          width: 100%;
+          height: 16px;
+          position: relative;
+          margin-bottom: 4px;
+          background: transparent;
+        }
+
+        .section-marker {
+          position: absolute;
+          top: 0;
+          transform: translateX(-50%);
+          cursor: pointer;
+          z-index: 2;
+        }
+
+        .section-marker::before {
+          content: '';
+          position: absolute;
+          top: 12px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 2px;
+          height: 12px;
+          background: linear-gradient(180deg, #00f0ff 0%, rgba(0, 240, 255, 0.3) 100%);
+        }
+
+        .section-label {
+          display: inline-block;
+          padding: 1px 4px;
+          font-size: 0.65rem;
+          font-family: 'JetBrains Mono', monospace;
+          font-weight: 600;
+          color: #00f0ff;
+          background: rgba(0, 240, 255, 0.15);
+          border: 1px solid rgba(0, 240, 255, 0.3);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          transition: all 200ms ease;
+          white-space: nowrap;
+        }
+
+        .section-marker:hover .section-label {
+          background: rgba(0, 240, 255, 0.3);
+          border-color: #00f0ff;
+          color: #fff;
+          box-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
+        }
+
+        .section-marker:hover::before {
+          background: linear-gradient(180deg, #00f0ff 0%, #00f0ff 100%);
+          box-shadow: 0 0 6px rgba(0, 240, 255, 0.8);
+        }
+
+        .section-timeline:empty {
+          display: none;
+        }
       </style>
 
       <div class="player">
@@ -337,6 +448,7 @@ class MusicPlayer extends HTMLElement {
           </button>
 
           <div class="progress-container">
+            <div class="section-timeline"></div>
             <div class="progress-bar">
               <div class="progress-fill"></div>
             </div>
@@ -417,6 +529,21 @@ class MusicPlayer extends HTMLElement {
     video.addEventListener('loadedmetadata', () => {
       totalTimeEl.textContent = this.formatTime(video.duration);
       this._duration = video.duration;
+      // Parse sections from attribute if present
+      const sectionsAttr = this.getAttribute('sections');
+      if (sectionsAttr) {
+        this.parseSections(sectionsAttr);
+      }
+      this.renderSectionTimeline();
+    });
+
+    // Section timeline click handling
+    const sectionTimeline = this.shadowRoot.querySelector('.section-timeline');
+    sectionTimeline.addEventListener('click', (e) => {
+      const marker = e.target.closest('.section-marker');
+      if (marker && marker.dataset.time) {
+        video.currentTime = parseFloat(marker.dataset.time);
+      }
     });
 
     // Seek
