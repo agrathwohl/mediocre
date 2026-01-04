@@ -149,7 +149,49 @@
     "mediaSrc": "media/stochastic-drone-ritual-hyperdub-edition-1767430535043.webm",
     "pdfSrc": "media/stochastic-drone-ritual-hyperdub-edition-1767430535043-score.pdf",
     "abcFile": "xenakis_x_sunn 0)))-modified-1767430488609.abc",
-    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)"
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Ritual Introduction - Sunn O))) inspired",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Near-Silence Drone Material (Sunn O))) Aesthetics)",
+        "startTime": 355.2
+      },
+      {
+        "numeral": "III",
+        "title": "Deep Drone Evolution - Extended Sunn O))) section",
+        "startTime": 1046.4
+      },
+      {
+        "numeral": "IV",
+        "title": "'Metastasis'-inspired Glissandi & Microtonality",
+        "startTime": 1737.6
+      },
+      {
+        "numeral": "V",
+        "title": "'Black One'-inspired Low-End Focus with Textural Accumulation",
+        "startTime": 2572.8
+      },
+      {
+        "numeral": "VI",
+        "title": "Xenakis Stochastic Sound Mass with Enhanced Algorithmic Complexity",
+        "startTime": 3955.2
+      },
+      {
+        "numeral": "VII",
+        "title": "A.G. Cook-style Hyperdub Solo with Extreme Distortion",
+        "startTime": 4819.2
+      },
+      {
+        "numeral": "VIII",
+        "title": "Climax and Dissolution",
+        "startTime": 5510.4
+      }
+    ]
   },
   {
     "id": "stochastic-voltage-1767426307965",
