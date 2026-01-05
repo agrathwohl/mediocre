@@ -2,11 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { anthropic, createAnthropic } from '@ai-sdk/anthropic';
-import { generateText } from 'ai';
+import { generateText, streamText } from 'ai';
 import { spawn } from 'child_process';
 import { config } from '../utils/config.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
-import { modifyCompositionWithClaude, generateDescription, getAnthropic, cleanAbcNotation, validateAbcNotation, getTimidityConfigInfo } from '../utils/claude.js';
+import { modifyCompositionWithClaude, generateDescription, getAnthropic, cleanAbcNotation, validateAbcNotation, validateWithAbc2Midi, getTimidityConfigInfo } from '../utils/claude.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +24,7 @@ const __dirname = path.dirname(__filename);
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
+ * @param {boolean} [options.useStreaming] - Use streaming mode for API calls (helps avoid timeout errors)
  * @returns {Promise<Array<string>>} Paths to the generated compositions
  */
 export async function combineCompositions(options) {
@@ -36,6 +37,7 @@ export async function combineCompositions(options) {
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
   const requestedInstruments = options.instruments || '';
+  const useStreaming = options.useStreaming || false;
 
   // Parse genres list
   const genres = options.genres ? options.genres.split(',').map(g => g.trim()) : [];
@@ -213,7 +215,7 @@ export async function combineCompositions(options) {
     }
 
     // Create a combined piece using Claude
-    const newPiece = await createCombinedPiece(abcNotations, genres, i, includeSolo, recordLabel, producer, requestedInstruments);
+    const newPiece = await createCombinedPiece(abcNotations, genres, i, includeSolo, recordLabel, producer, requestedInstruments, useStreaming);
 
     // Save the new composition
     if (newPiece) {
@@ -224,6 +226,53 @@ export async function combineCompositions(options) {
 
       fs.writeFileSync(abcFilePath, newPiece);
       console.log(`Created combined composition: ${abcFilePath}`);
+
+      // VALIDATE WITH ABC2MIDI IMMEDIATELY - prevent segfaults
+      console.log(`  🔧 Validating with abc2midi...`);
+      let validation = await validateWithAbc2Midi(abcFilePath);
+      const MAX_FIX_ATTEMPTS = 3;
+      let fixAttempt = 0;
+
+      while (!validation.valid && fixAttempt < MAX_FIX_ATTEMPTS) {
+        fixAttempt++;
+        console.warn(`  ⚠️ abc2midi validation failed: ${validation.error}`);
+        console.log(`  🔧 Fix attempt ${fixAttempt}/${MAX_FIX_ATTEMPTS}...`);
+
+        try {
+          const fixedAbc = await modifyCompositionWithClaude({
+            abcNotation: fs.readFileSync(abcFilePath, 'utf8'),
+            instructions: `FIX THIS ABC NOTATION - IT FAILED abc2midi VALIDATION WITH ERROR: "${validation.error}".
+
+DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE ABC NOTATION.
+Common issues to check and fix:
+- Blank lines between voice sections (REMOVE them)
+- Malformed MIDI directives
+- Unbalanced bar lines
+- Invalid note durations or time signatures
+- Missing or malformed headers
+
+Return the FIXED ABC notation that will pass abc2midi without errors.`,
+            useStreaming
+          });
+
+          fs.writeFileSync(abcFilePath, fixedAbc);
+          validation = await validateWithAbc2Midi(abcFilePath);
+
+          if (validation.valid) {
+            console.log(`  ✅ ABC notation fixed on attempt ${fixAttempt}!`);
+          }
+        } catch (fixError) {
+          console.error(`  ❌ Fix attempt ${fixAttempt} failed: ${fixError.message}`);
+        }
+      }
+
+      if (!validation.valid) {
+        console.error(`  ❌ Could not fix ABC notation after ${MAX_FIX_ATTEMPTS} attempts. Skipping this composition.`);
+        fs.unlinkSync(abcFilePath); // Delete the bad file
+        continue;
+      }
+
+      console.log(`  ✅ abc2midi validation passed`);
 
       // Generate and save description
       const genreComponents = combinedGenre.split('_x_');
@@ -344,9 +393,10 @@ function combineGenres(genres) {
  * @param {string} [recordLabel=''] - Make it sound like it was released on this record label
  * @param {string} [producer=''] - Make it sound as if it was produced by this record producer
  * @param {string} [instruments=''] - Comma-separated list of instruments the output ABC notations must include
+ * @param {boolean} [useStreaming=false] - Use streaming mode for API calls
  * @returns {Promise<string>} Combined ABC notation
  */
-async function createCombinedPiece(abcNotations, genres, groupIndex, includeSolo = false, recordLabel = '', producer = '', instruments = '') {
+async function createCombinedPiece(abcNotations, genres, groupIndex, includeSolo = false, recordLabel = '', producer = '', instruments = '', useStreaming = false) {
   const myAnthropic = getAnthropic();
   const model = myAnthropic('claude-3-7-sonnet-20250219');
 
@@ -383,24 +433,99 @@ ${recordLabel ? `- Style the composition to sound like it was released on the re
 ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
 ${instruments ? `- Your composition MUST include at minimum these instruments: ${instruments}. Use the appropriate MIDI program numbers for each instrument. You are encouraged to add additional instruments that complement these and that are authentic to the ${combinedGenre} genre fusion.` : ''}
 
-ABC2MIDI EXTENSIONS - Use these freely for rich compositions:
+CRITICAL FORMATTING RULES:
+- NEVER include blank lines between voice sections in your ABC notation
+- Each voice section ([V:1], [V:2], etc.) should be on its own line with no blank lines before or after
+- Each section comment (% Section A, etc.) can be on its own line with no blank lines before or after
+- When voice sections follow each other, they must be immediately adjacent with no blank lines between them
+- This is EXTREMELY IMPORTANT for proper parsing by abc2midi
 
-1. INSTRUMENTS: %%MIDI program [channel] n (0-127 General MIDI)
-2. DRUMS: %%MIDI drum string [programs] [velocities] + %%MIDI drumon/drumoff
-   Example: %%MIDI drum dddd 36 38 42 46 110 90 70 70
-   Programs: 35=Bass Drum, 36=Kick, 38=Snare, 42=Closed HH, 46=Open HH, 49=Crash
-   Use %%MIDI drumbars n to spread patterns over multiple bars
-   CRITICAL - DRUM KIT SELECTION: When using %%MIDI program 10 N for drum kits,
-   ONLY use programs: 0-66, 76-77, 80, 85, 95-96, 99-110, 118, 125-127
-    DO NOT use: 67-75, 78-79, 81-84, 86-94, 97-98, 111-117, 119-124 (missing from soundfonts)
-    BANNED MELODIC INSTRUMENTS - NEVER USE: 78 (Whistle), 120-127 (Sound Effects)
-    BANNED DRUM NOTES - NEVER USE IN %%MIDI drum OR %%MIDI drummap: 71 (Short Whistle), 72 (Long Whistle), 73 (Short Guiro), 74 (Long Guiro), 78 (Mute Cuica), 79 (Open Cuica)
-3. DYNAMICS: !ppp! to !fff!, %%MIDI beat a b c n, %%MIDI beatmod n
-4. ARTICULATION: %%MIDI trim x/y (staccato), %%MIDI expand x/y (legato)
-5. CHORDS: %%MIDI gchord with f,c,b,z and g,h,i,j for arpeggios
-   %%MIDI chordprog n, %%MIDI bassprog n, %%MIDI chordvol n, %%MIDI bassvol n
-6. DRONES: %%MIDI drone / %%MIDI droneon / %%MIDI droneoff
-7. EXPRESSION: %%MIDI chordattack n, %%MIDI beatstring, %%MIDI gracedivider n
+ABC2MIDI EXTENSIONS REFERENCE - Use these freely:
+
+1. INSTRUMENTS & CHANNELS:
+   - %%MIDI program [channel] n - Select instrument (0-127 General MIDI)
+     Example: %%MIDI program 1 40 (violin on channel 1)
+   - %%MIDI channel n - Select melody channel (1-16)
+
+2. DRUMS & PERCUSSION (USE THESE FOR MODERN GENRES!):
+   - %%MIDI drum string [programs] [velocities] - Define drum pattern
+     Example: %%MIDI drum dddd 36 38 42 46 110 90 70 70
+     The string uses 'd' for drum hit, 'z' for rest. Programs are GM drum numbers:
+     35=Acoustic Bass Drum, 36=Bass Drum 1, 38=Acoustic Snare, 40=Electric Snare,
+     42=Closed Hi-Hat, 44=Pedal Hi-Hat, 46=Open Hi-Hat, 49=Crash Cymbal,
+     51=Ride Cymbal, 39=Hand Clap, 37=Side Stick, 47/48=Toms, 56=Cowbell
+   - %%MIDI drumon - Enable drum pattern
+   - %%MIDI drumoff - Disable drum pattern
+   - %%MIDI drumbars n - Spread drum pattern over n bars for variation
+   - %%MIDI drummap note midipitch - Map ABC notes to specific drum sounds
+
+   CRITICAL - DRUM KIT SELECTION (Channel 10 program changes):
+   When selecting drum KITS via %%MIDI program 10 N, you MUST ONLY use these available programs:
+   0-66, 76-77, 80, 85, 95-96, 99-110, 118, 125-127
+   DO NOT use programs: 67-75, 78-79, 81-84, 86-94, 97-98, 111-117, 119-124
+   These missing programs do not exist in our soundfont collection and will cause playback failures.
+    Safest choice: Use programs 0-56 (standard GM drum kits guaranteed in all soundfonts).
+
+    BANNED MELODIC INSTRUMENTS - NEVER USE THESE PROGRAMS:
+    78 (Whistle), 120 (Guitar Fret Noise), 121 (Breath Noise), 122 (Seashore),
+    123 (Bird Tweet), 124 (Telephone Ring), 125 (Helicopter), 126 (Applause), 127 (Gunshot)
+    These are novelty sound effects that sound terrible in compositions. DO NOT USE THEM.
+
+    BANNED DRUM NOTES - NEVER USE THESE IN %%MIDI drum OR %%MIDI drummap:
+    71 (Short Whistle - B4), 72 (Long Whistle - C5), 73 (Short Guiro - C#5), 74 (Long Guiro - D5),
+    78 (Mute Cuica - F#5), 79 (Open Cuica - G5)
+    These percussion sounds are annoying novelty effects.
+
+    ⚠️ CRITICAL SOURCE MATERIAL SANITIZATION ⚠️
+    The source compositions you are combining MAY CONTAIN banned drum notes (71, 72, 73, 74, 78, 79).
+    You MUST NOT allow ANY of these banned sounds into your combined output!
+    If you find ANY of these drum notes in the source material:
+    - IMMEDIATELY REPLACE them with proper drum sounds (36=kick, 38=snare, 42=hi-hat, etc.)
+    - DO NOT copy them verbatim into the combined piece
+    - Scan ALL %%MIDI drum and %%MIDI drummap directives for these banned values
+    - Replace whistle/guiro/cuica sounds with standard kit percussion
+    This is NON-NEGOTIABLE. These novelty sounds DESTROY the composition quality.
+
+3. DYNAMICS & EXPRESSION:
+   - Standard dynamics: !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff!
+   - %%MIDI beat a b c n - Velocity control (first note, strong, weak, beat divisor)
+     Example: %%MIDI beat 105 95 80 1
+   - %%MIDI beatmod n - Increment/decrement velocity (use for crescendo/diminuendo)
+   - %%MIDI beatstring fmpfmp - Custom accent pattern (f=forte, m=mezzo, p=piano)
+   - %%MIDI deltaloudness n - Set crescendo/diminuendo step size
+
+4. ARTICULATION & PHRASING:
+   - %%MIDI trim x/y - Add staccato gaps between notes
+     Example: %%MIDI trim 1/16
+   - %%MIDI expand x/y - Overlap notes for legato effect
+   - %%MIDI chordattack n - Expressivo rolled chords (n in MIDI ticks)
+   - %%MIDI randomchordattack n - Random chord roll for natural feel
+
+5. GUITAR CHORDS & ACCOMPANIMENT:
+   - %%MIDI gchord string - Chord/bass pattern using f,c,b,z and g,h,i,j for arpeggios
+     Example: %%MIDI gchord ghihghih (arpeggiated)
+     Example: %%MIDI gchord fzczfzcz (standard boom-chick)
+   - %%MIDI gchordon / %%MIDI gchordoff - Toggle accompaniment
+   - %%MIDI gchordbars n - Spread gchord pattern over n bars
+   - %%MIDI chordprog n octave=m - Set chord instrument with octave shift
+   - %%MIDI bassprog n octave=m - Set bass instrument with octave shift
+   - %%MIDI chordvol n - Chord velocity (0-127)
+   - %%MIDI bassvol n - Bass velocity (0-127)
+   - %%MIDI chordname name n1 n2 n3... - Define custom chord voicings
+
+6. DRONES & PADS (for ambient, bagpipe, or sustained textures):
+   - %%MIDI drone prog pitch1 pitch2 vel1 vel2 - Configure drone
+     Example: %%MIDI drone 70 45 33 80 80
+   - %%MIDI droneon / %%MIDI droneoff - Toggle drone
+
+7. TRANSPOSITION & TUNING:
+   - %%MIDI transpose n - Transpose by n semitones
+   - %%MIDI rtranspose n - Relative transpose (adds to current)
+   - %%MIDI c n - Set middle C MIDI pitch (default 60)
+
+8. GRACE NOTES:
+   - %%MIDI grace a/b - Grace note takes a/b of following note
+   - %%MIDI gracedivider n - Fixed grace note duration (1/L * 1/n)
 
 IMPORTANT COMPATIBILITY RULES:
 - MIDI program declarations must come AFTER header fields (X,T,M,L,K) but BEFORE any music notation
@@ -408,6 +533,8 @@ IMPORTANT COMPATIBILITY RULES:
 - Avoid special symbols like !tremolo!, which may not be supported by abc2midi
 - Ensure all bar lines are properly balanced in each voice
 - Avoid using unusual time signatures or complex tuplets
+
+The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. We do not need a bunch of music that sounds like stuff already out there. We want to see what YOU, the artificial intelligence, think is most interesting about these genre hybrids.
 
 Return ONLY the complete ABC notation for the new combined composition, with no explanation or additional text.`;
 
@@ -427,21 +554,49 @@ IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure a
 ${getTimidityConfigInfo()}`;
 
   try {
-    const { text } = await generateText({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-          experimental_providerMetadata: {
-            anthropic: { cacheControl: { type: 'ephemeral' } }
-          }
-        },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.7,
-      maxTokens: 40000,
-    });
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompt,
+        experimental_providerMetadata: {
+          anthropic: { cacheControl: { type: 'ephemeral' } }
+        }
+      },
+      { role: 'user', content: userPrompt }
+    ];
+
+    let text;
+
+    // Use streaming if requested - helps avoid timeout errors on large generations
+    if (useStreaming) {
+      console.log('Using streaming mode for generation...');
+      const result = await streamText({
+        model,
+        messages,
+        temperature: 0.7,
+        maxTokens: 40000,
+      });
+
+      // Collect the full response from the stream
+      text = '';
+      for await (const chunk of result.textStream) {
+        text += chunk;
+        // Show progress indicator
+        if (text.length % 1000 === 0) {
+          process.stdout.write('.');
+        }
+      }
+      console.log('\nStreaming complete.');
+    } else {
+      // Non-streaming mode (original behavior)
+      const result = await generateText({
+        model,
+        messages,
+        temperature: 0.7,
+        maxTokens: 40000,
+      });
+      text = result.text;
+    }
 
     let notation = text;
 

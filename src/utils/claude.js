@@ -4,7 +4,10 @@ import { config } from "./config.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { loadSoundFontIndex, generateLLMContext } from "./soundfont-analyzer.js";
+import {
+  loadSoundFontIndex,
+  generateLLMContext,
+} from "./soundfont-analyzer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,6 +15,108 @@ const __dirname = path.dirname(__filename);
 // Cached soundfont index for efficient reuse
 let cachedSoundFontIndex = null;
 let cachedSoundFontContext = null;
+
+/**
+ * Load existing composition titles from docs/data/compositions.json
+ * Used to prevent LLM from reusing titles
+ * @returns {Set<string>} Set of existing titles (lowercase for comparison), or empty set if file doesn't exist
+ */
+function getExistingTitlesSet() {
+  const possiblePaths = [
+    path.join(__dirname, "../../docs/data/compositions.json"),
+    path.join(process.cwd(), "docs/data/compositions.json"),
+  ];
+
+  for (const compositionsPath of possiblePaths) {
+    try {
+      if (fs.existsSync(compositionsPath)) {
+        const content = fs.readFileSync(compositionsPath, "utf8");
+        const compositions = JSON.parse(content);
+        if (Array.isArray(compositions)) {
+          const titles = compositions
+            .map((c) => c.title)
+            .filter((t) => t && typeof t === "string")
+            .map((t) => t.toLowerCase().trim());
+          return new Set(titles);
+        }
+      }
+    } catch (error) {
+      // Continue to next path or return empty
+    }
+  }
+
+  return new Set();
+}
+
+/**
+ * Extract title from ABC notation
+ * @param {string} abcNotation - ABC notation
+ * @returns {string|null} Title or null if not found
+ */
+function extractTitleFromAbc(abcNotation) {
+  const match = abcNotation.match(/^T:\s*(.+)$/m);
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * Check if a title already exists in compositions.json
+ * @param {string} title - Title to check
+ * @returns {boolean} True if title exists
+ */
+function titleExists(title) {
+  const existingTitles = getExistingTitlesSet();
+  return existingTitles.has(title.toLowerCase().trim());
+}
+
+/**
+ * Generate a unique title for a composition if the current one is taken
+ * Makes a small API call to rename the title, with retry if new title also collides
+ * @param {string} abcNotation - ABC notation with potentially duplicate title
+ * @param {string} genre - Genre for context
+ * @returns {Promise<string>} ABC notation with unique title
+ */
+async function ensureUniqueTitle(abcNotation, genre) {
+  let currentTitle = extractTitleFromAbc(abcNotation);
+  let result = abcNotation;
+  let attempts = 0;
+  const maxAttempts = 3;
+
+  while (currentTitle && titleExists(currentTitle) && attempts < maxAttempts) {
+    attempts++;
+    console.log(`Title "${currentTitle}" already exists, generating unique title (attempt ${attempts})...`);
+
+    const myAnthropic = getAnthropic();
+    const model = myAnthropic("claude-3-5-haiku-20241022"); // Use Haiku for this tiny task
+
+    const { text } = await generateText({
+      model,
+      messages: [
+        {
+          role: "user",
+          content: `The title "${currentTitle}" is already taken. Generate ONE new unique creative title for this ${genre} composition. Return ONLY the new title, nothing else. Be specific and inventive - avoid generic titles like "Serialist Chaos" or "Prepared Noise".`,
+        },
+      ],
+      temperature: 0.9 + (attempts * 0.05), // Increase randomness on retries
+      maxTokens: 50,
+    });
+
+    const newTitle = text.trim().replace(/^["']|["']$/g, ''); // Remove any quotes
+    console.log(`New title: "${newTitle}"`);
+
+    // Replace the title in the ABC notation
+    result = result.replace(/^T:\s*.+$/m, `T:${newTitle}`);
+    currentTitle = newTitle;
+  }
+
+  if (attempts >= maxAttempts && titleExists(currentTitle)) {
+    // Last resort: append timestamp to make unique
+    const uniqueTitle = `${currentTitle} (${Date.now()})`;
+    console.log(`Max attempts reached, using timestamped title: "${uniqueTitle}"`);
+    result = result.replace(/^T:\s*.+$/m, `T:${uniqueTitle}`);
+  }
+
+  return result;
+}
 
 /**
  * Load and cache the soundfont index for LLM context generation
@@ -154,7 +259,7 @@ export function getSoundFontInstrumentContext() {
       if (preset.bank === 0 && gmInstruments[preset.program]) {
         gmInstruments[preset.program].presets.push({
           soundfont: sf.filename,
-          presetName: preset.name
+          presetName: preset.name,
         });
       }
     }
@@ -171,29 +276,32 @@ Here are instruments with high-quality samples available:
 
   // Group by category
   const categories = {
-    "KEYBOARDS": [0, 1, 2, 4, 5, 6, 7, 16, 18, 19],
+    KEYBOARDS: [0, 1, 2, 4, 5, 6, 7, 16, 18, 19],
     "GUITARS & BASS": [24, 25, 26, 27, 28, 29, 30, 32, 33, 34, 35, 36, 38],
-    "STRINGS": [40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
-    "BRASS": [56, 57, 58, 59, 60, 61, 62],
+    STRINGS: [40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
+    BRASS: [56, 57, 58, 59, 60, 61, 62],
     "WOODWINDS & REEDS": [64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 79],
-    "SYNTHS": [80, 81, 88, 89, 90, 91, 99],
+    SYNTHS: [80, 81, 88, 89, 90, 91, 99],
     "VOCALS & CHOIR": [52, 53],
     "PERCUSSION & MALLETS": [11, 12, 114, 115, 116],
-    "ETHNIC": [104, 105],
+    ETHNIC: [104, 105],
   };
 
   for (const [category, programs] of Object.entries(categories)) {
     const availableInCategory = programs
-      .filter(p => gmInstruments[p] && gmInstruments[p].presets.length > 0)
-      .map(p => {
+      .filter((p) => gmInstruments[p] && gmInstruments[p].presets.length > 0)
+      .map((p) => {
         const inst = gmInstruments[p];
         const sampleCount = inst.presets.length;
-        const topSoundfonts = inst.presets.slice(0, 3).map(pr => pr.soundfont.replace('.sf2', '')).join(', ');
+        const topSoundfonts = inst.presets
+          .slice(0, 3)
+          .map((pr) => pr.soundfont.replace(".sf2", ""))
+          .join(", ");
         return `  ${p}: ${inst.name} (${sampleCount} versions: ${topSoundfonts}...)`;
       });
 
     if (availableInCategory.length > 0) {
-      context += `${category}:\n${availableInCategory.join('\n')}\n\n`;
+      context += `${category}:\n${availableInCategory.join("\n")}\n\n`;
     }
   }
 
@@ -458,26 +566,37 @@ export async function validateWithAbc2Midi(abcFilePath) {
       return { valid: false, error: "abc2midi did not produce output file" };
     }
   } catch (error) {
-    // Clean up temp file if it exists
-    if (fs.existsSync(tempMidiPath)) {
-      fs.unlinkSync(tempMidiPath);
-    }
-
-    // Check for segfault or other fatal errors
+    // Check for segfault FIRST - this is a real failure
     if (error.signal === "SIGSEGV") {
+      if (fs.existsSync(tempMidiPath)) {
+        fs.unlinkSync(tempMidiPath);
+      }
       return {
         valid: false,
         error: "abc2midi SEGFAULTED - ABC notation is invalid",
       };
     }
+
     if (error.killed) {
+      if (fs.existsSync(tempMidiPath)) {
+        fs.unlinkSync(tempMidiPath);
+      }
       return {
         valid: false,
         error: "abc2midi timed out - ABC notation may be malformed",
       };
     }
 
-    return { valid: false, error: `abc2midi failed: ${error.message}` };
+    // CRITICAL: If MIDI file was created, it's VALID even with warnings!
+    // abc2midi returns non-zero for warnings too, but the file is still usable
+    if (fs.existsSync(tempMidiPath)) {
+      fs.unlinkSync(tempMidiPath);
+      return { valid: true, error: null };
+    }
+
+    // Only fail if no MIDI file was created (real errors, not just warnings)
+    const actualError = error.stdout || error.stderr || error.message;
+    return { valid: false, error: `abc2midi errors:\n${actualError}` };
   }
 }
 
@@ -530,6 +649,7 @@ export async function generateMusicWithClaude(options) {
   // Use Claude 3.7 Sonnet for best music generation capabilities
   const model = myAnthropic("claude-3-7-sonnet-20250219");
   //const model = myAnthropic("claude-opus-4-5");
+
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt =
     options.customSystemPrompt ||
@@ -560,9 +680,8 @@ Guidelines for the ${genre} fusion:
 3. Technical guidelines:
 ${
   sequentialMode
-    ? `   ⚠️ SEQUENTIAL MODE - QUALITY OVER COMPLETENESS ⚠️
-   You are the FIRST agent in a chain. Another AI agent will expand and develop your work.
-   DO NOT worry about:
+    ? `
+   You are NOT LIKELY to be the only agent working on this piece. If you are beginning a new piece from scratch you are only the first agent in a chain of agents. Another AI agent may expand and develop your work based upon the findings of the "Composition Completion" agent once your work has finished. So, DO NOT worry about:
    - Making the piece long enough
    - Creating a complete structure with full development and conclusion
    - Filling out all sections
@@ -574,7 +693,7 @@ ${
    - Setting up ideas that have potential for expansion
    - Making every measure COUNT - quality over quantity
 
-   Create a strong FOUNDATION (16-32 measures is fine) with brilliant ideas. The next agent will expand it.`
+   Create a strong FOUNDATION with brilliant ideas or expanding upon the brilliant ideas of the agents that came before you. The next agent, if the composition completion agent decides it is necessary, will expand it to get closer to completion.`
     : `   - Create a composition that is 64 or more measures long`
 }
    - Use appropriate time signatures, key signatures, and tempos that bridge both genres
@@ -627,8 +746,7 @@ ABC2MIDI EXTENSIONS REFERENCE - Use these freely:
     BANNED DRUM NOTES - NEVER USE THESE IN %%MIDI drum OR %%MIDI drummap:
     71 (Short Whistle - B4), 72 (Long Whistle - C5), 73 (Short Guiro - C#5), 74 (Long Guiro - D5),
     78 (Mute Cuica - F#5), 79 (Open Cuica - G5)
-    These percussion sounds are annoying novelty effects. Use standard drums only:
-    35-36 (kicks), 38-40 (snares), 42/44/46 (hi-hats), 49/51/52/55/57/59 (cymbals), 41/43/45/47/48/50 (toms)
+    These percussion sounds are annoying novelty effects.
 
 3. DYNAMICS & EXPRESSION:
    - Standard dynamics: !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff!
@@ -681,18 +799,18 @@ The composition should be a genuine artistic fusion that respects and represents
   // Generate the ABC notation
   const messages = [
     {
-      role: 'system',
+      role: "system",
       content: systemPrompt,
       experimental_providerMetadata: {
-        anthropic: { cacheControl: { type: 'ephemeral' } }
-      }
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
     },
-    { role: 'user', content: userPrompt }
+    { role: "user", content: userPrompt },
   ];
 
   // Use streaming if requested - helps avoid timeout errors on large generations
   if (options.useStreaming) {
-    console.log('Using streaming mode for generation...');
+    console.log("Using streaming mode for generation...");
     const result = await streamText({
       model,
       messages,
@@ -701,16 +819,17 @@ The composition should be a genuine artistic fusion that respects and represents
     });
 
     // Collect the full response from the stream
-    let text = '';
+    let text = "";
     for await (const chunk of result.textStream) {
       text += chunk;
       // Show progress indicator
       if (text.length % 1000 === 0) {
-        process.stdout.write('.');
+        process.stdout.write(".");
       }
     }
-    console.log('\nStreaming complete.');
-    return text;
+    console.log("\nStreaming complete.");
+    // Ensure unique title before returning
+    return await ensureUniqueTitle(text, genre);
   }
 
   // Non-streaming mode (original behavior)
@@ -721,7 +840,8 @@ The composition should be a genuine artistic fusion that respects and represents
     maxTokens: 40000,
   });
 
-  return text;
+  // Ensure unique title before returning
+  return await ensureUniqueTitle(text, genre);
 }
 
 /**
@@ -745,6 +865,40 @@ export async function modifyCompositionWithClaude(options) {
 
   const abcNotation = options.abcNotation;
   const instructions = options.instructions;
+
+  // Detect if this is a FIX operation (minimal prompt) vs MODIFY operation (full prompt)
+  const isFixOperation = instructions.includes('FIX') &&
+    (instructions.includes('abc2midi') || instructions.includes('VALIDATION') || instructions.includes('validation'));
+
+  if (isFixOperation) {
+    // MINIMAL prompt for fixing ABC syntax errors - NO composition rules, NO banned notes, JUST fix the syntax
+    const fixSystemPrompt = `You are an ABC notation syntax expert. Your ONLY job is to fix ABC notation errors.
+
+Given ABC notation that failed abc2midi validation, fix the SYNTAX ERRORS ONLY.
+Do NOT change the music, do NOT add or remove notes, do NOT change instruments.
+ONLY fix technical syntax issues that prevent abc2midi from parsing the file.
+
+Return ONLY the fixed ABC notation, nothing else.`;
+
+    const fixUserPrompt = `${instructions}
+
+ABC NOTATION TO FIX:
+${abcNotation}`;
+
+    const { text } = await generateText({
+      model,
+      messages: [
+        { role: 'system', content: fixSystemPrompt },
+        { role: 'user', content: fixUserPrompt },
+      ],
+      temperature: 0.2,
+      maxTokens: 32000,
+    });
+
+    return cleanAbcNotation(text);
+  }
+
+  // Regular MODIFY operation - use full prompt
   const genre = options.genre || "Classical_x_Contemporary";
   const classicalGenre = options.classicalGenre || "Classical";
   const modernGenre = options.modernGenre || "Contemporary";
@@ -839,18 +993,18 @@ Your modifications should respect both the user's instructions and the musical i
 
   const messages = [
     {
-      role: 'system',
+      role: "system",
       content: systemPrompt,
       experimental_providerMetadata: {
-        anthropic: { cacheControl: { type: 'ephemeral' } }
-      }
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
     },
-    { role: 'user', content: userPrompt }
+    { role: "user", content: userPrompt },
   ];
 
   // Use streaming if requested - helps avoid timeout errors on large generations
   if (options.useStreaming) {
-    console.log('Using streaming mode for modification...');
+    console.log("Using streaming mode for modification...");
     const result = await streamText({
       model,
       messages,
@@ -859,16 +1013,18 @@ Your modifications should respect both the user's instructions and the musical i
     });
 
     // Collect the full response from the stream
-    let text = '';
+    let text = "";
     for await (const chunk of result.textStream) {
       text += chunk;
       // Show progress indicator
       if (text.length % 1000 === 0) {
-        process.stdout.write('.');
+        process.stdout.write(".");
       }
     }
-    console.log('\nStreaming complete.');
-    return cleanAbcNotation(text);
+    console.log("\nStreaming complete.");
+    // Clean and ensure unique title before returning
+    const cleaned = cleanAbcNotation(text);
+    return await ensureUniqueTitle(cleaned, genre);
   }
 
   // Non-streaming mode (original behavior)
@@ -879,7 +1035,9 @@ Your modifications should respect both the user's instructions and the musical i
     maxTokens: 40000,
   });
 
-  return cleanAbcNotation(text);
+  // Clean and ensure unique title before returning
+  const cleaned = cleanAbcNotation(text);
+  return await ensureUniqueTitle(cleaned, genre);
 }
 
 /**
@@ -929,13 +1087,13 @@ Organize your analysis into these sections:
     model,
     messages: [
       {
-        role: 'system',
+        role: "system",
         content: systemPrompt,
         experimental_providerMetadata: {
-          anthropic: { cacheControl: { type: 'ephemeral' } }
-        }
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
       },
-      { role: 'user', content: userPrompt }
+      { role: "user", content: userPrompt },
     ],
     temperature: 0.5,
     maxTokens: 2000,
@@ -1023,13 +1181,13 @@ Respond with JSON only. Be DEMANDING.`;
     model,
     messages: [
       {
-        role: 'system',
+        role: "system",
         content: systemPrompt,
         experimental_providerMetadata: {
-          anthropic: { cacheControl: { type: 'ephemeral' } }
-        }
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
       },
-      { role: 'user', content: userPrompt }
+      { role: "user", content: userPrompt },
     ],
     temperature: 0.3,
     maxTokens: 1500,
@@ -1142,13 +1300,13 @@ ${getSoundFontInstrumentContext()}`;
     model,
     messages: [
       {
-        role: 'system',
+        role: "system",
         content: systemPrompt,
         experimental_providerMetadata: {
-          anthropic: { cacheControl: { type: 'ephemeral' } }
-        }
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
       },
-      { role: 'user', content: userPrompt }
+      { role: "user", content: userPrompt },
     ],
     temperature: options.temperature || 0.9,
     maxTokens: 40000,

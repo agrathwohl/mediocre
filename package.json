@@ -23,7 +23,7 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "publish:composition": "node scripts/publish-composition.js",
-    "site:serve": "npx http-server site -p 3000",
+    "site:serve": "npx http-server docs -p 3003",
     "site:open": "xdg-open site/index.html"
   },
   "keywords": [
@@ -45,6 +45,7 @@
     "conf": "^12.0.0",
     "dotenv": "^16.4.7",
     "execa": "^8.0.1",
+    "glob": "^13.0.0",
     "neo-blessed": "^0.2.0",
     "node-mpv": "^1.5.0",
     "soundfont2": "^0.5.0",

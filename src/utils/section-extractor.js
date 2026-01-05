@@ -30,6 +30,22 @@ function romanToInt(roman) {
 }
 
 /**
+ * Integer to roman numeral conversion
+ */
+function intToRoman(num) {
+  const vals = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
+  const syms = ['M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I'];
+  let result = '';
+  for (let i = 0; i < vals.length; i++) {
+    while (num >= vals[i]) {
+      result += syms[i];
+      num -= vals[i];
+    }
+  }
+  return result;
+}
+
+/**
  * Parse tempo from ABC Q: field
  * Formats: Q:1/4=120, Q:120, Q:"Allegro" 1/4=120
  * Returns beats per minute (quarter note basis)
@@ -170,7 +186,7 @@ export function extractSections(abcContent) {
   for (const line of lines) {
     const trimmed = line.trim();
 
-    // Section marker: % SECTION [ROMAN]: [Title]
+    // Section marker format 1: % SECTION [ROMAN]: [Title]
     const sectionMatch = trimmed.match(/^%\s*SECTION\s+([IVXLCDM]+)\s*:\s*(.+)$/i);
     if (sectionMatch) {
       const numeral = sectionMatch[1].toUpperCase();
@@ -183,6 +199,31 @@ export function extractSections(abcContent) {
         startTime: 0 // Will calculate after
       });
       continue;
+    }
+
+    // Section marker format 2: % [Section Name] - [Description]
+    // Match lines like "% Introduction - Serial row establishment"
+    // Skip MIDI directives, voice declarations, and other technical comments
+    if (trimmed.startsWith('%') && !trimmed.startsWith('%%') &&
+        !trimmed.match(/^%\s*MIDI/i) && !trimmed.match(/^%\s*[a-z]+\s*=/i)) {
+      const simpleMatch = trimmed.match(/^%\s*([A-Z][A-Za-z0-9\s']+?)(?:\s*[-–—:]\s*(.+))?$/);
+      if (simpleMatch && simpleMatch[1].length > 2) {
+        const sectionName = simpleMatch[1].trim();
+        const description = simpleMatch[2] ? simpleMatch[2].trim() : '';
+        const title = description ? `${sectionName} - ${description}` : sectionName;
+
+        // Generate roman numeral based on section count
+        const numeralIndex = sections.length + 1;
+        const numeral = intToRoman(numeralIndex);
+
+        sections.push({
+          numeral,
+          title,
+          measureStart: currentMeasure,
+          startTime: 0
+        });
+        continue;
+      }
     }
 
     // Inline tempo change

@@ -17,8 +17,10 @@ import { modifyComposition } from './commands/modify-composition.js';
 import { combineCompositions } from './commands/combine-compositions.js';
 import { generateLyrics } from './commands/generate-lyrics.js';
 import { mixAndMatch } from './commands/mix-and-match.js';
+import { sanitizeDrums } from './commands/sanitize-drums.js';
 import { createDatasetBrowser } from './ui/index.js';
 import { validateAbcNotation, cleanAbcNotation, evaluateCompositionCompleteness, validateWithAbc2Midi } from './utils/claude.js';
+import { extractMidiStems } from './utils/stem-extractor.js';
 
 const INVALID_DRUM_PROGRAMS = new Set([
   67, 68, 69, 70, 71, 72, 73, 74, 75,
@@ -365,6 +367,11 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
             const midiFiles = await convertToMidi({ input: abcFile, output: options.output });
             if (midiFiles.length > 0) {
               console.log(`  ✅ ${path.basename(abcFile)} → MIDI`);
+              // Extract stems for each successfully created MIDI
+              const stemResult = await extractMidiStems(abcFile);
+              if (!stemResult.success) {
+                console.warn(`  ⚠️ Stem extraction failed: ${stemResult.error}`);
+              }
             }
           } catch (midiError) {
             console.warn(`  ⚠️ abc2midi failed for ${path.basename(abcFile)}: ${midiError.message}`);
@@ -576,6 +583,11 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
         try {
           execSync(`abc2midi "${modifiedFile}" -o "${midiFile}"`, { stdio: 'pipe' });
           console.log(`🎵 MIDI generated: ${midiFile}`);
+          // Extract stems for the modified composition
+          const stemResult = await extractMidiStems(modifiedFile);
+          if (!stemResult.success) {
+            console.warn(`  ⚠️ Stem extraction failed: ${stemResult.error}`);
+          }
         } catch (midiError) {
           console.warn(`⚠️ abc2midi conversion failed: ${midiError.message}`);
         }
@@ -611,10 +623,38 @@ program
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
+  .option('--sequential', 'Enable sequential mode: validates with abc2midi and auto-fixes issues')
+  .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
+  .option('--midi', 'Run abc2midi on generated ABC files (enabled by default)', true)
+  .option('--no-midi', 'Skip abc2midi conversion')
   .action(async (options) => {
     try {
-      const files = await combineCompositions(options);
-      console.log(`Generated ${files.length} combined composition(s)`);
+      const files = await combineCompositions({
+        ...options,
+        useStreaming: options.streamText || false
+      });
+
+      // ABC validation happens inside combineCompositions - all returned files are valid
+      // Run abc2midi to generate MIDI files
+      if (options.midi !== false && files.length > 0) {
+        console.log('\n🎹 Running abc2midi on generated files...');
+        for (const abcFile of files) {
+          try {
+            const midiFile = abcFile.replace(/\.abc$/, '.mid');
+            execSync(`abc2midi "${abcFile}" -o "${midiFile}"`, { stdio: 'pipe' });
+            console.log(`  ✅ ${path.basename(abcFile)} → MIDI`);
+            // Extract stems for each successfully created MIDI
+            const stemResult = await extractMidiStems(abcFile);
+            if (!stemResult.success) {
+              console.warn(`  ⚠️ Stem extraction failed: ${stemResult.error}`);
+            }
+          } catch (midiError) {
+            console.warn(`  ⚠️ abc2midi failed for ${path.basename(abcFile)}: ${midiError.message}`);
+          }
+        }
+      }
+
+      console.log(`\nGenerated ${files.length} combined composition(s)`);
     } catch (error) {
       console.error('Error combining compositions:', error);
     }
@@ -659,6 +699,23 @@ program
       console.log(`mediocre convert --input ${mixedFile} --to midi`);
     } catch (error) {
       console.error('Error mixing compositions:', error);
+    }
+  });
+
+program
+  .command('sanitize')
+  .description('Find and replace banned drum sounds in ABC files')
+  .argument('<pattern>', 'Glob pattern to match ABC files (e.g., "output/*.abc")')
+  .option('--llm', 'Use LLM for intelligent replacement (REQUIRED for non-standard drum programs)')
+  .option('--dry-run', 'Report what would be changed without modifying files')
+  .action(async (pattern, options) => {
+    try {
+      await sanitizeDrums(pattern, {
+        useLLM: options.llm || false,
+        dryRun: options.dryRun || false,
+      });
+    } catch (error) {
+      console.error('Error sanitizing ABC files:', error);
     }
   });
 
@@ -776,6 +833,7 @@ if (process.argv.length === 2) {
     mix-and-match  Create a new composition by mixing and matching segments from multiple ABC files
     lyrics         Add lyrics to an existing composition using Claude
     browse         Launch interactive TUI browser for the music dataset
+    sanitize       Find and replace banned drum sounds in ABC files
     validate-abc   Validate and fix formatting issues in ABC notation files
     
   Examples:
@@ -794,6 +852,9 @@ if (process.argv.length === 2) {
     mediocre combine --duration-limit 45 --genres "baroque,romantic" --record-label "Raster Noton" --instruments "Synthesizer,Piano,Violin"
     mediocre mix-and-match -f "/home/user/music/fugue.abc" "/home/user/music/serialism.abc" --instruments "Piano,Violin,Synthesizer"
     mediocre lyrics -m "/path/to/baroque_x_jazz-score1.mid" -a "/path/to/baroque_x_jazz-score1.abc" -p "A song about the beauty of nature" --solo --instruments "Piano,Vocals"
+    mediocre sanitize "/home/user/music/*.abc"            # Quick regex replacement of banned drum sounds
+    mediocre sanitize "/home/user/music/**/*.abc" --llm   # Use LLM for intelligent drum sound replacement
+    mediocre sanitize "output/*.abc" --dry-run            # Preview what would be changed without modifying
     mediocre validate-abc                                 # Process and fix all ABC files in output dir
     mediocre validate-abc -i "/path/to/baroque_x_jazz-score1.abc" -o "/path/to/fixed.abc"  # Process a single file
     mediocre browse

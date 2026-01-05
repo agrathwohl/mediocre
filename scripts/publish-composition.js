@@ -10,8 +10,8 @@
  *   node scripts/publish-composition.js --list
  *
  * Options:
- *   --timidity-cfg <path>   Path to timidity config (default: timidity-test-config.cfg)
- *   --output-dir <path>     Site directory (default: site/)
+ *   --timidity-cfg <path>   Path to timidity config (default: timidity-sanitized.cfg)
+ *   --output-dir <path>     Site directory (default: docs/)
  *   --skip-wav              Skip WAV generation (use existing)
  *   --skip-webm             Skip WebM encoding (use existing)
  *   --dry-run               Show what would be done without doing it
@@ -24,6 +24,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { extractSectionsForJson } from '../src/utils/section-extractor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,10 +32,10 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 
 // Default configuration
 const CONFIG = {
-  timidityCfg: path.join(PROJECT_ROOT, 'timidity-test-config.cfg'),
-  siteDir: path.join(PROJECT_ROOT, 'site'),
-  mediaDir: path.join(PROJECT_ROOT, 'site', 'media'),
-  dataFile: path.join(PROJECT_ROOT, 'site', 'data', 'compositions.json'),
+  timidityCfg: path.join(PROJECT_ROOT, 'timidity-sanitized.cfg'),
+  siteDir: path.join(PROJECT_ROOT, 'docs'),
+  mediaDir: path.join(PROJECT_ROOT, 'docs', 'media'),
+  dataFile: path.join(PROJECT_ROOT, 'docs', 'data', 'compositions.json'),
   skipWav: false,
   skipWebm: false,
   dryRun: false,
@@ -92,8 +93,8 @@ Usage:
   node scripts/publish-composition.js --list
 
 Options:
-  --timidity-cfg <path>   Path to timidity config (default: timidity-test-config.cfg)
-  --output-dir <path>     Site directory (default: site/)
+  --timidity-cfg <path>   Path to timidity config (default: timidity-sanitized.cfg)
+  --output-dir <path>     Site directory (default: docs/)
   --skip-wav              Skip WAV generation (use existing)
   --skip-webm             Skip WebM encoding (use existing)
   --dry-run               Show what would be done without doing it
@@ -678,6 +679,19 @@ async function publish(abcPath) {
     if (instrumentMatch) {
       compositionData.instruments = instrumentMatch[1].trim();
     }
+  }
+
+  // Extract section markers from ABC content
+  try {
+    const sections = extractSectionsForJson(abcContent);
+    if (sections.length > 0) {
+      compositionData.sections = sections;
+      console.log(`   Sections: ${sections.length} found`);
+      sections.forEach(s => console.log(`     ${s.numeral}: ${s.title} @ ${s.startTime}s`));
+    }
+  } catch (error) {
+    console.warn(`   ⚠ Section extraction failed: ${error.message}`);
+    console.warn('   (Composition will be published without section timeline)');
   }
 
   console.log(`   ID: ${compositionData.id}`);
