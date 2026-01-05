@@ -2121,5 +2121,278 @@
         "startTime": 1358
       }
     ]
+  },
+  {
+    "id": "combined-messiaen-x-math-rock-merzbow-composition--1767508552165",
+    "title": "Combined messiaen_x_math rock-merzbow Composition 27",
+    "composer": "AI Composer",
+    "key": "C",
+    "meter": "7/8",
+    "tempo": "130",
+    "genre": "messiaen_x_math rock-merzbow",
+    "classicalGenre": "messiaen",
+    "modernGenre": "math rock-merzbow",
+    "style": "standard",
+    "instruments": null,
+    "analysis": "# Analysis of messiaen_x_math rock-merzbow Fusion Composition\n\n## 1. Overview of the Hybrid Genre Approach\n\nThis composition presents a fascinating fusion between Olivier Messiaen's spiritual, colorful harmonic language and the aggressive complexity of math rock combined with Merzbow's noise aesthetics. The work successfully creates a unique soundworld that explores both the meditative, transcendent qualities of Messiaen and the chaotic, rhythmically intricate aspects of math rock-merzbow. The composition moves between moments of harmonic clarity and extreme textural density, creating a dynamic tension that defines this hybrid genre.\n\n## 2. Messiaen Elements Present in the Composition\n\n- **Modes of Limited Transposition**: The harmonic language utilizes Messiaen's characteristic modal approach with non-traditional scale formations, particularly evident in Section II (\"Messiaen's Modes with Math Rock Rhythms\").\n- **Birdsong Imitation**: Sections I and VIII explicitly incorporate birdsong-like figurations with wide intervallic leaps and irregular rhythmic patterns, a signature element of Messiaen's compositional vocabulary.\n- **Non-Retrogradable Rhythms**: Section VII uses rhythmic palindromes that sound the same forwards and backwards, a technique Messiaen developed extensively.\n- **Mode de valeurs**: Section III employs Messiaen's systematic organization of musical parameters (pitch, duration, dynamics) associated with his \"Mode de valeurs et d'intensités.\"\n- **Color Chords**: The composition employs complex, non-functional harmonies built on unusual intervallic combinations that create Messiaen's characteristic \"color chords.\"\n- **Extreme Dynamic Contrasts**: The dramatic shifts between dynamics (from ppp to ffff) reflect Messiaen's approach to musical expression.\n\n## 3. Math Rock-Merzbow Elements Present in the Composition\n\n- **Irregular Time Signatures**: The primary 7/8 time signature and section in 11/16 create the asymmetrical rhythmic foundation typical of math rock.\n- **Noise Textures**: Dense cluster chords and extreme registral contrasts (especially in Sections V, X, and XI) evoke Merzbow's wall-of-noise aesthetic.\n- **Complex Polyrhythms**: The interaction between voices creates intricate rhythmic layers characteristic of math rock.\n- **Distortion Effects**: Section V explicitly combines \"Messiaen's Harmonies with Merzbow's Distortion,\" creating timbral harshness.\n- **Hyperprocessed Sounds**: Sections IV and IX reference \"SOPHIE-style Hyperprocessed\" techniques, bringing in contemporary electronic processing approaches.\n- **Extreme Dynamics**: The persistent use of ffff dynamics, especially in noise-focused sections, reflects Merzbow's approach to sonic extremity.\n- **Rapid Timbral Shifts**: The abrupt changes between sections mirror the unpredictable formal structure common in noise music.\n\n## 4. Technical Elements (Instrumentation, Structure)\n\n- **Multi-layered Instrumentation**: The composition employs 7 voices with diverse MIDI programs including piano sounds, synthesizers, and percussion.\n- **Sectional Form**: The 12 distinct sections create a modular structure that allows for clear contrast between Messiaen-dominant and math rock/Merzbow-dominant passages.\n- **Metric Complexity**: The predominant 7/8 meter creates an asymmetrical foundation for rhythmic development, with additional complexity in the 11/16 section.\n- **Registral Extremes**: The composition exploits the full range of instruments, from extremely high to extremely low registers.\n- **Percussion Integration**: Two dedicated percussion voices create rhythmic foundation and textural enhancement, functioning both in support roles and as featured elements.\n- **Progressive Intensification**: The composition builds from Section I through XI, culminating in the \"Noise Saturation\" passage before the final fusion section.\n\n## 5. Artistic Assessment of the Fusion\n\nThis composition successfully creates a hybrid genre by finding conceptual connections between seemingly disparate musical worlds. Both Messiaen and math rock-merzbow share interests in:\n\n1. **Rhythmic innovation**: Messiaen's complex rhythmic structures find natural partners in math rock's metric explorations.\n2. **Non-traditional harmony**: Messiaen's modes align with the experimental harmonic approach of progressive math rock.\n3. **Textural extremes**: Messiaen's interest in musical color complements Merzbow's textural explorations, though through drastically different means.\n\nThe composition is particularly effective when it directly juxtaposes elements, such as in Section V (\"Messiaen's Harmonies with Merzbow's Distortion\") and Section XI's gradual transformation \"from Messiaen to Merzbow.\" The final \"Tzadik-Style Fusion\" section effectively references John Zorn's experimental label that has supported similar genre-crossing work.\n\n## 6. Audio Processing Suggestions\n\nThe extreme density in sections X and XI, particularly when all voices are playing at ffff dynamics with full chromatic clusters, may require careful mixing attention. Specifically:\n\n- The dense chromatic clusters in measures 46-50 (Section XI \"Building to Noise Saturation\") might benefit from selective frequency band attenuation to prevent harshness while maintaining density.\n- The extremely low register material in Voice 4 during Section XII might be difficult to perceive clearly and could potentially create unwanted sub-frequency buildup, requiring high-pass filtering.\n\nThese concerns are relatively minor, however, as the extreme textures are clearly intentional aspects of the noise aesthetic being explored, particularly in the Merzbow-influenced sections.",
+    "timestamp": "2026-01-04T06:35:52.165Z",
+    "mediaSrc": "media/combined-messiaen-x-math-rock-merzbow-composition--1767508552165.webm",
+    "pdfSrc": "media/combined-messiaen-x-math-rock-merzbow-composition--1767508552165-score.pdf",
+    "abcFile": "messiaen_x_math rock-merzbow-combined-1767508508966.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Section I - Messiaenic Birdsong Introduction",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Section II - Messiaen's Modes with Math Rock Rhythms",
+        "startTime": 45.23
+      },
+      {
+        "numeral": "III",
+        "title": "Section III - Noise Textures with Mode de valeurs",
+        "startTime": 90.46
+      },
+      {
+        "numeral": "IV",
+        "title": "Section IV - SOPHIE-style Hyperprocessed Rhythms",
+        "startTime": 135.69
+      },
+      {
+        "numeral": "V",
+        "title": "Section V - Messiaen's Harmonies with Merzbow's Distortion",
+        "startTime": 180.92
+      },
+      {
+        "numeral": "VI",
+        "title": "Section VI - Development with Rhythmic Modulation",
+        "startTime": 226.15
+      },
+      {
+        "numeral": "VII",
+        "title": "Section VII - Complex Non-Retrogradable Rhythms",
+        "startTime": 271.38
+      },
+      {
+        "numeral": "VIII",
+        "title": "Section VIII - Extended Bird Call Sequences",
+        "startTime": 316.62
+      },
+      {
+        "numeral": "IX",
+        "title": "Section IX - SOPHIE-Style Hyperprocessed Textures",
+        "startTime": 361.85
+      },
+      {
+        "numeral": "X",
+        "title": "Section X - Dense Noise Textures with Extreme Dynamic Contrasts",
+        "startTime": 407.08
+      },
+      {
+        "numeral": "XI",
+        "title": "Section XI - Gradual Build from Messiaen to Merzbow",
+        "startTime": 452.31
+      },
+      {
+        "numeral": "XII",
+        "title": "Section XI Continued - Building to Noise Saturation",
+        "startTime": 497.54
+      },
+      {
+        "numeral": "XIII",
+        "title": "Section XII - Final Tzadik-Style Fusion",
+        "startTime": 542.77
+      }
+    ]
+  },
+  {
+    "id": "combined-babbit-x-eugene-chadbourne-composition-2-1767581667487",
+    "title": "Combined babbit_x_eugene chadbourne Composition 2",
+    "composer": "AI Composer",
+    "key": "C",
+    "meter": "7/8",
+    "tempo": "126",
+    "genre": "babbit_x_eugene chadbourne",
+    "classicalGenre": "babbit",
+    "modernGenre": "eugene chadbourne",
+    "style": "standard",
+    "instruments": null,
+    "analysis": "# Analysis of Babbit × Eugene Chadbourne Fusion Composition\n\n## 1. Overview of the Hybrid Genre Approach\n\nThis composition represents a sophisticated fusion between Milton Babbitt's serialist techniques and Eugene Chadbourne's experimental approach. The piece navigates between mathematical precision and chaotic deconstruction, creating a fascinating dialectic between structure and disruption. Set in an unconventional 7/8 time signature at a brisk 126 BPM, the composition establishes a framework where serial organization meets timbral experimentation.\n\n## 2. Babbitt Elements Present in the Composition\n\nThe Babbitt influence is immediately apparent in several structural elements:\n\n- **Serial organization**: The pitch sequences in Section A (\"Serialist Introduction\") demonstrate systematic tone row-like progressions, particularly in the Glitch Lead voice.\n- **Mathematical transformations**: Sections H and I explicitly employ retrograde, inversion, and matrix transformations, core techniques in Babbitt's compositional arsenal.\n- **Systematic voice leading**: The careful progression of intervals and precisely notated dynamics reflect Babbitt's meticulous approach to composition.\n- **Complex rhythmic structures**: The use of unusual groupings, such as the septuplets in Section G, mirrors Babbitt's rhythmic complexity.\n- **Formal sectional architecture**: The piece is carefully divided into distinct sections with clear transformational relationships, reflecting Babbitt's structured approach.\n\n## 3. Eugene Chadbourne Elements Present in the Composition\n\nChadbourne's experimental influence pervades the timbral and textural aspects:\n\n- **Prepared instruments**: Section C explicitly introduces \"Microtonal & Prepared Instrument Techniques,\" a Chadbourne hallmark. The Prepared Piano voice (V5) further emphasizes this approach.\n- **Timbral exploration**: The extensive use of unconventional instrumentation (Glitch Lead, Hyperdub Bass, Glitchy Texture) reflects Chadbourne's sound-world.\n- **Microtonal elements**: The + symbols indicating microtonal adjustments are characteristic of Chadbourne's interest in sounds beyond traditional Western tuning.\n- **Deconstructed beats**: Voice 7 specifically employs \"Deconstructed Beats,\" reminiscent of Chadbourne's approach to breaking down conventional rhythmic structures.\n- **Extreme dynamic contrasts**: The rapid shifts between pianissimo (!pp!) and fortissimo (!ffff!) mirror Chadbourne's jarring juxtapositions.\n\n## 4. Technical Elements (Instrumentation, Structure)\n\nThe technical implementation of this fusion is remarkably sophisticated:\n\n- **Instrumentation**: The piece employs 9 distinct voices, including traditional instruments (piano) in non-traditional states (detuned, prepared) alongside electronic elements (Hyperdub Synth, Glitch Lead).\n- **Form**: The 11-section structure (A-K) creates a narrative arc that moves from serialist introduction through experimental breakdown to a final climactic synthesis.\n- **Rhythmic complexity**: The 7/8 time signature provides an asymmetrical foundation, further complicated by polyrhythms like (3:2:3) patterns and varying rhythmic groupings.\n- **Extended notation**: The use of MIDI controllers for trim, chordattack, and beatstring parameters extends the notation system to capture nuanced performance details.\n- **Dynamic architecture**: The overall dynamic contour builds through multiple waves of intensity, culminating in the \"Coda (Climactic Synthesis)\" where all elements are integrated.\n\n## 5. Artistic Assessment of the Fusion\n\nThis composition achieves a remarkable synthesis that honors both source genres while creating something genuinely new:\n\n- The piece maintains Babbitt's intellectual rigor but infuses it with Chadbourne's sonic experimentation.\n- The serialist patterns become vehicles for timbral exploration rather than just mathematical exercises.\n- Traditional compositional techniques (retrograde, inversion) are applied to unconventional sound sources, creating fresh contexts.\n- The fusion successfully navigates between extreme precision and controlled chaos.\n- Contemporary electronic elements (Hyperdub, glitch aesthetics) are seamlessly integrated, extending the hybrid approach beyond just the two namesake artists.\n\nThe composition doesn't merely juxtapose Babbitt and Chadbourne techniques but integrates them organically, with serialist patterns informing timbral explorations and experimental textures being structured through mathematical frameworks.\n\n## 6. Audio Processing Suggestions\n\nWhile the composition is generally well-constructed from a sonic perspective, there are a few areas that might benefit from careful audio processing:\n\n- **Section C (Microtonal section)**: The extreme microtonal elements combined with the high dynamics (!fff!, !ffff!) could create harshness. Gentle high-frequency attenuation might be needed, particularly in the upper registers of voices 1 and 6.\n\n- **Section F (Lead Instrument Solo)**: The rapid movement to extreme registers with !ffff! dynamics, particularly in measures where multiple high-register instruments play simultaneously, might create piercing frequencies that could benefit from selective multi-band compression.\n\n- **Transitions between sections E and F**: The abrupt dynamic and textural shifts here might benefit from subtle crossfading to preserve the intentional contrast while avoiding technical issues in playback.\n\nOverall, this composition represents a sophisticated and thoughtful fusion of two distinctive musical approaches, creating a compelling hybrid that transcends its influences while honoring them.",
+    "timestamp": "2026-01-05T02:54:27.487Z",
+    "mediaSrc": "media/combined-babbit-x-eugene-chadbourne-composition-2-1767581667487.webm",
+    "pdfSrc": "media/combined-babbit-x-eugene-chadbourne-composition-2-1767581667487-score.pdf",
+    "abcFile": "babbit_x_eugene chadbourne-combined-1767581620582.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Section A - Serialist Introduction",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Section B - Experimental Breakdown",
+        "startTime": 26.67
+      },
+      {
+        "numeral": "III",
+        "title": "Section C - Microtonal & Prepared Instrument Techniques (Chadbourne-style)",
+        "startTime": 53.33
+      },
+      {
+        "numeral": "IV",
+        "title": "Section D - Solo Section with Complex Transformations",
+        "startTime": 80
+      },
+      {
+        "numeral": "V",
+        "title": "Section E - Retrograde-Inversion & Extreme Processing",
+        "startTime": 113.33
+      },
+      {
+        "numeral": "VI",
+        "title": "Section F - Lead Instrument Solo (Hyperdub/A.G. Cook Style)",
+        "startTime": 153.33
+      },
+      {
+        "numeral": "VII",
+        "title": "Section G - Complex Rhythmic Structures & Polyrhythms",
+        "startTime": 200
+      },
+      {
+        "numeral": "VIII",
+        "title": "Section H - Retrograde Transformations (Babbitt-style)",
+        "startTime": 240
+      },
+      {
+        "numeral": "IX",
+        "title": "Section I - Derived Sets & Matrix Transformations",
+        "startTime": 266.67
+      },
+      {
+        "numeral": "X",
+        "title": "Section J - Extreme Timbral Explorations (Chadbourne Meets Babbitt)",
+        "startTime": 300
+      },
+      {
+        "numeral": "XI",
+        "title": "Section K - Coda (Climactic Synthesis)",
+        "startTime": 353.33
+      }
+    ]
+  },
+  {
+    "id": "ride-of-the-hypercore-valkyries-1767583620798",
+    "title": "Ride of the Hypercore Valkyries",
+    "composer": "AI Composer",
+    "key": "Cm",
+    "meter": "4/4",
+    "tempo": "180",
+    "genre": "wagner_x_speedcore",
+    "classicalGenre": "wagner",
+    "modernGenre": "speedcore",
+    "style": "standard",
+    "instruments": "Percussion, Piccolo, Lead 1 (square), Timpani, Overdriven Guitar, Slap Bass 2, Pad 7 (halo), Violin, Orchestra Hit, Synth Strings 2, Acoustic Grand Piano, Lead 5 (charang), Pad 1 (new age), Alto Sax, Pad 3 (polysynth), String Ensemble 2, Synth Bass 2",
+    "analysis": "# Analysis: Wagner X Speedcore Fusion in \"Ride of the Hypercore Valkyries\"\n\n## 1. Overview of the hybrid genre approach\n\n\"Ride of the Hypercore Valkyries\" represents an ambitious fusion of two seemingly disparate musical worlds: Wagner's 19th-century orchestral drama and speedcore's hyperactive electronic intensity. The composition cleverly references Wagner's iconic \"Ride of the Valkyries\" while reimagining it through the lens of extreme electronic music. At 180 BPM, the piece establishes a tempo that bridges Wagner's dramatic pacing with speedcore's frenetic energy, creating a new sonic territory where 19th-century leitmotifs meet 21st-century digital processing.\n\n## 2. Wagner elements present in the composition\n\nSeveral Wagnerian characteristics are prominently featured:\n\n- **Orchestral grandeur**: The extensive use of brass, strings, and timpani (MIDI programs 8, 7, 11) creates the epic orchestral texture Wagner is known for.\n- **Harmonic language**: The composition employs chromatic progressions and tension-building harmonic sequences characteristic of Wagner's style, particularly in the development sections.\n- **Thematic references**: Beyond the title's obvious nod to \"Die Walküre,\" the melodic contours in sections like measures 48-64 directly evoke Wagner's famous valkyrie motif but transformed.\n- **Dramatic structure**: The piece follows Wagner's approach to musical storytelling with its gradual intensity builds, climactic moments, and atmospheric contrasts.\n- **Leitmotif technique**: Recurring melodic figures throughout the piece serve as identifiable motifs that undergo transformation and development, a hallmark of Wagner's compositional approach.\n\n## 3. Speedcore elements present in the composition\n\nThe electronic music elements are equally well-represented:\n\n- **Extreme rhythmic intensity**: The drum programming features relentlessly fast patterns, especially in sections marked \"d1d1d1d1\" indicating rapid-fire percussion typical of speedcore.\n- **Digital processing**: The composition employs glitch effects, granular textures (voice 13), and digital choppers (voice 14) that are staples of extreme electronic music.\n- **Aggressive sound design**: The \"trim 1/64\" and \"trim 1/128\" markings create the ultra-fast articulations characteristic of speedcore's aggressive aesthetic.\n- **Drop structure**: Classic electronic music \"drops\" appear throughout, particularly in the sections labeled \"First Speedcore Drop\" and \"Final Speedcore Drop.\"\n- **Repetitive intensity**: The relentless 16th-note patterns and rapid rhythmic repetitions, especially in voices 5 and 16, create the uncompromising wall of sound that defines speedcore.\n\n## 4. Technical elements (instrumentation, structure)\n\nThe composition's technical structure reveals sophisticated fusion techniques:\n\n- **Instrumentation blend**: The 16 different voices create a hybrid palette ranging from traditional orchestral sounds (timpani, brass) to purely digital elements (glitch FX, granular textures).\n- **Progressive intensity**: The piece begins with an \"Atmospheric Introduction\" that gradually incorporates more extreme elements, culminating in the \"Final Speedcore Drop.\"\n- **Layered complexity**: Multiple simultaneous voices create dense textures where Wagner-inspired melodies coexist with digital processing effects.\n- **Rhythmic counterpoint**: Traditional musical development techniques are applied to electronic elements, with rhythmic variations and augmentations throughout.\n- **Modulation framework**: The piece modulates through related keys while maintaining its thematic integrity, showing classical formal awareness within an electronic context.\n\n## 5. Artistic assessment of the fusion\n\nThis fusion succeeds through thoughtful integration rather than simple juxtaposition:\n\nThe composition doesn't merely place Wagner's themes over electronic beats but reimagines what Wagner might compose if working with today's digital tools. The gradual progression from the atmospheric opening to the intense climax honors Wagner's sense of dramatic pacing while embracing speedcore's relentless energy.\n\nParticularly effective is the \"Wagnerian Climax\" section, where the full orchestration meets maximum electronic processing, creating a moment where both musical worlds achieve equal prominence. The modulation to E-flat minor during the \"Modulation Development Section\" shows harmonic sophistication that respects both classical tradition and electronic music's tonal explorations.\n\nThe \"Glitchy breakdown section\" and \"Extended Ambient Section\" demonstrate the composer's understanding that both Wagner and quality electronic music require dynamic contrast to achieve their emotional impact.\n\n## 6. Audio processing suggestions\n\nThere are a few areas that might benefit from careful audio processing:\n\n- **Measures 129-136**: The \"Final Speedcore Drop\" features extremely dense texturing with simultaneously articulated notes at the 1/128 division. This extreme density could create masking issues and potentially uncomfortable listening if not carefully balanced. Consider subtle reduction in mid-range elements to prevent muddiness.\n\n- **Modulation sections (measures 81-96)**: The rapid transitions between keys combined with dense orchestration might benefit from subtle reverb automation to smooth the harmonic shifts.\n\n- **Voice 14 (Digital Chopper)**: In sections using the \"trim 1/128\" setting, the ultra-rapid articulations might produce harsh artifacts if rendered too prominently. Consider subtle compression or transient shaping here to maintain the speedcore intensity without creating listening fatigue.\n\nOverall, this composition represents a sophisticated and well-constructed fusion that respects both the dramatic power of Wagner and the technological intensity of speedcore, creating something genuinely innovative in the process.",
+    "timestamp": "2026-01-05T03:27:00.798Z",
+    "mediaSrc": "media/ride-of-the-hypercore-valkyries-1767583620798.webm",
+    "pdfSrc": "media/ride-of-the-hypercore-valkyries-1767583620798-score.pdf",
+    "abcFile": "wagner_x_speedcore-modified-1767583570042.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Atmospheric Introduction - Hyperdub Style",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Digital Noise Builds",
+        "startTime": 42.67
+      },
+      {
+        "numeral": "III",
+        "title": "Percussion Enters",
+        "startTime": 85.33
+      },
+      {
+        "numeral": "IV",
+        "title": "Tension Building",
+        "startTime": 128
+      },
+      {
+        "numeral": "V",
+        "title": "Almost There - Introducing Rhythmic Elements",
+        "startTime": 170.67
+      },
+      {
+        "numeral": "VI",
+        "title": "Introduction - Wagner motif with speedcore treatment",
+        "startTime": 229.33
+      },
+      {
+        "numeral": "VII",
+        "title": "Drum programming",
+        "startTime": 357.33
+      },
+      {
+        "numeral": "VIII",
+        "title": "Melodic drop section",
+        "startTime": 357.33
+      },
+      {
+        "numeral": "IX",
+        "title": "Modulation Development Section - New Key Area",
+        "startTime": 421.33
+      },
+      {
+        "numeral": "X",
+        "title": "Glitchy breakdown section",
+        "startTime": 485.33
+      },
+      {
+        "numeral": "XI",
+        "title": "Return to Original Key - Transition",
+        "startTime": 490.67
+      },
+      {
+        "numeral": "XII",
+        "title": "Development Section - Hyperdub/A.G. Cook Style",
+        "startTime": 554.67
+      },
+      {
+        "numeral": "XIII",
+        "title": "First Speedcore Drop - Increasing Intensity",
+        "startTime": 768
+      },
+      {
+        "numeral": "XIV",
+        "title": "Contrast Section - Atmospheric Breakdown",
+        "startTime": 938.67
+      },
+      {
+        "numeral": "XV",
+        "title": "Extended Ambient Section - A.G. Cook Style",
+        "startTime": 1109.33
+      },
+      {
+        "numeral": "XVI",
+        "title": "Gradual Build Back - Hyperdub Style",
+        "startTime": 1178.67
+      },
+      {
+        "numeral": "XVII",
+        "title": "Wagnerian Climax - Full Orchestration",
+        "startTime": 1349.33
+      },
+      {
+        "numeral": "XVIII",
+        "title": "Final Speedcore Drop - Maximum Intensity",
+        "startTime": 1520
+      }
+    ]
   }
 ]
