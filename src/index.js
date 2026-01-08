@@ -351,6 +351,14 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
               console.log(`  ⚠️ Reached maximum ${MAX_PASSES} passes - stopping expansion`);
             }
 
+            // Rename the final file to indicate it's the completed sequential output
+            const finalFilename = currentFile.replace(/-modified-(\d+)\.abc$/, '-modified-final-$1.abc');
+            if (finalFilename !== currentFile && fs.existsSync(currentFile)) {
+              fs.renameSync(currentFile, finalFilename);
+              console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
+              currentFile = finalFilename;
+            }
+
             // Replace the original file reference with the final expanded version
             files[fileIndex] = currentFile;
             console.log(`\n  🎵 Final composition after ${passNumber} passes: ${currentFile}`);
@@ -573,6 +581,13 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
         }
 
         if (validation.valid) {
+          // Rename the final file to indicate it's the completed sequential output
+          const finalFilename = currentFile.replace(/-modified-(\d+)\.abc$/, '-modified-final-$1.abc');
+          if (finalFilename !== currentFile && fs.existsSync(currentFile)) {
+            fs.renameSync(currentFile, finalFilename);
+            console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
+            currentFile = finalFilename;
+          }
           console.log(`\n✅ Final validation passed: ${currentFile}`);
         } else {
           console.error(`\n❌ Could not fix ABC notation after ${MAX_FIX_ATTEMPTS} attempts.`);

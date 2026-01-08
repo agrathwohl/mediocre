@@ -246,15 +246,26 @@ Technical guidelines:
 ${includeSolo ? '- Include a dedicated solo section for the lead instrument, clearly marked in the notation' : ''}
 ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ''}
 ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ''}
-${instruments ? `- Your composition MUST include these specific instruments: ${instruments}. Use the appropriate MIDI program numbers for each instrument.` : ''}
+${instruments ? `- Your composition MUST include at minimum these instruments: ${instruments}. Use the appropriate MIDI program numbers for each instrument. You are encouraged to add additional instruments that complement these and that are authentic to the ${combinedGenre} genre fusion.` : ''}
 
-ONLY USE THESE SUPPORTED EXTENSIONS:
-1. Channel and Program selection:
-   - %%MIDI program [channel] n
-2. Dynamics:
-   - Use standard ABC dynamics notation: !p!, !f!, !mf!, !ff!
-3. Simple chord accompaniment:
-   - %%MIDI gchord string
+ABC2MIDI EXTENSIONS - Use these freely for rich compositions:
+
+1. INSTRUMENTS: %%MIDI program [channel] n (0-127 General MIDI)
+2. DRUMS: %%MIDI drum string [programs] [velocities] + %%MIDI drumon/drumoff
+   Example: %%MIDI drum dddd 36 38 42 46 110 90 70 70
+   Programs: 35=Bass Drum, 36=Kick, 38=Snare, 42=Closed HH, 46=Open HH, 49=Crash
+   Use %%MIDI drumbars n to spread patterns over multiple bars
+   CRITICAL - DRUM KIT SELECTION: When using %%MIDI program 10 N for drum kits,
+   ONLY use programs: 0-66, 76-77, 80, 85, 95-96, 99-110, 118, 125-127
+    DO NOT use: 67-75, 78-79, 81-84, 86-94, 97-98, 111-117, 119-124 (missing from soundfonts)
+    BANNED MELODIC INSTRUMENTS - NEVER USE: 78 (Whistle), 120-127 (Sound Effects)
+    BANNED DRUM NOTES - NEVER USE IN %%MIDI drum OR %%MIDI drummap: 71 (Short Whistle), 72 (Long Whistle), 73 (Short Guiro), 74 (Long Guiro), 78 (Mute Cuica), 79 (Open Cuica)
+3. DYNAMICS: !ppp! to !fff!, %%MIDI beat a b c n, %%MIDI beatmod n
+4. ARTICULATION: %%MIDI trim x/y (staccato), %%MIDI expand x/y (legato)
+5. CHORDS: %%MIDI gchord with f,c,b,z and g,h,i,j for arpeggios
+   %%MIDI chordprog n, %%MIDI bassprog n, %%MIDI chordvol n, %%MIDI bassvol n
+6. DRONES: %%MIDI drone / %%MIDI droneon / %%MIDI droneoff
+7. EXPRESSION: %%MIDI chordattack n, %%MIDI beatstring, %%MIDI gracedivider n
 
 IMPORTANT COMPATIBILITY RULES:
 - MIDI program declarations must come AFTER header fields (X,T,M,L,K) but BEFORE any music notation
@@ -280,7 +291,7 @@ Create a new composition in ABC notation that thoughtfully mixes segments from t
 3. Select the most interesting motifs, themes, harmonies, and rhythmic patterns from each source
 4. Include smooth transitions between different segments
 5. CRITICALLY IMPORTANT: When musically appropriate, LAYER segments from different sources ON TOP OF ONE ANOTHER to create rich, unified sections where multiple musical ideas coexist harmoniously
-6. Feel like a complete, original composition with proper musical structure${includeSolo ? '\n7. Include a dedicated solo section for the lead instrument' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${instruments ? `\n\nYour composition MUST include these specific instruments: ${instruments}. Find the most appropriate MIDI program number for each instrument.` : ''}
+6. Feel like a complete, original composition with proper musical structure${includeSolo ? '\n7. Include a dedicated solo section for the lead instrument' : ''}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ''}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ''}${instruments ? `\n\nYour composition MUST include at minimum these instruments: ${instruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${combinedGenre} genre fusion.` : ''}
 
 The piece MUST be complex in its layering of ideas and use vertical combination of musical concepts from different source pieces to create a unified, coherent whole.
 
@@ -289,10 +300,18 @@ IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure a
   try {
     const { text } = await generateText({
       model,
-      system: systemPrompt,
-      prompt: userPrompt,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+          experimental_providerMetadata: {
+            anthropic: { cacheControl: { type: 'ephemeral' } }
+          }
+        },
+        { role: 'user', content: userPrompt }
+      ],
       temperature: 0.7,
-      maxTokens: 20000,
+      maxTokens: 40000,
     });
 
     let notation = text;

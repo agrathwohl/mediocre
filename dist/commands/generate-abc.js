@@ -1,7 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { generateMusicWithClaude, generateDescription, cleanAbcNotation, validateAbcNotation } from '../utils/claude.js';
+import {
+  generateMusicWithClaude,
+  generateMusicWithSoundfonts,
+  generateDescription,
+  cleanAbcNotation,
+  validateAbcNotation,
+  saveCustomTimidityConfig
+} from '../utils/claude.js';
 import { generateCreativeGenreName } from '../utils/genre-generator.js';
 import { config } from '../utils/config.js';
 
@@ -118,6 +125,8 @@ function parseHybridGenre(genreName) {
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
+ * @param {boolean} [options.sequentialMode] - If true, focus on quality over completeness (another agent will expand)
+ * @param {boolean} [options.soundfonts] - If true, use LLM to select custom soundfonts and generate per-composition TiMidity config
  * @returns {Promise<string[]>} Array of generated file paths
  */
 export async function generateAbc(options) {
@@ -132,6 +141,8 @@ export async function generateAbc(options) {
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
   const requestedInstruments = options.instruments || '';
+  const sequentialMode = options.sequentialMode || false;
+  const useCustomSoundfonts = options.soundfonts || false;
   
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
@@ -184,21 +195,63 @@ export async function generateAbc(options) {
       if (customSystemPrompt) {
         console.log('Using custom system prompt...');
       }
-      
-      const abcNotation = await generateMusicWithClaude({
-        genre: creativeGenreName || genre, // Use creative name if available
-        classicalGenre: genreComponents.classical,
-        modernGenre: genreComponents.modern,
-        style,
-        temperature: 0.7,
-        customSystemPrompt,
-        customUserPrompt,
-        solo: includeSolo,
-        recordLabel: recordLabel,
-        producer: producer,
-        instruments: requestedInstruments
-      });
-      
+
+      let abcNotation;
+      let selectedSoundfonts = null;
+      let soundfontReasoning = null;
+
+      if (useCustomSoundfonts) {
+        // Generate music with LLM soundfont selection (--soundfonts flag)
+        console.log('Using custom soundfont selection...');
+        const generationResult = await generateMusicWithSoundfonts({
+          genre: creativeGenreName || genre,
+          classicalGenre: genreComponents.classical,
+          modernGenre: genreComponents.modern,
+          style,
+          temperature: 0.7,
+          customSystemPrompt,
+          customUserPrompt,
+          solo: includeSolo,
+          recordLabel: recordLabel,
+          producer: producer,
+          instruments: requestedInstruments,
+          sequentialMode: sequentialMode,
+          useStreaming: options.useStreaming || false
+        });
+
+        abcNotation = generationResult.abcNotation;
+        selectedSoundfonts = generationResult.soundfonts;
+        soundfontReasoning = generationResult.soundfontReasoning;
+
+        // Save the custom TiMidity config for this composition
+        console.log(`Saving custom TiMidity config with ${selectedSoundfonts.length} soundfonts...`);
+        const timidityConfigPath = saveCustomTimidityConfig({
+          soundfonts: selectedSoundfonts,
+          outputDir,
+          baseFilename: filename,
+          title: creativeGenreName || genre,
+          genre: creativeGenreName || genre
+        });
+        console.log(`Saved TiMidity config: ${timidityConfigPath}`);
+      } else {
+        // Default: Generate music without custom soundfont selection (use sanitized config)
+        abcNotation = await generateMusicWithClaude({
+          genre: creativeGenreName || genre,
+          classicalGenre: genreComponents.classical,
+          modernGenre: genreComponents.modern,
+          style,
+          temperature: 0.7,
+          customSystemPrompt,
+          customUserPrompt,
+          solo: includeSolo,
+          recordLabel: recordLabel,
+          producer: producer,
+          instruments: requestedInstruments,
+          sequentialMode: sequentialMode,
+          useStreaming: options.useStreaming || false
+        });
+      }
+
       // Extract the instruments used in the composition
       const instruments = extractInstruments(abcNotation);
       const instrumentString = instruments.length > 0 
@@ -228,35 +281,53 @@ export async function generateAbc(options) {
       fs.writeFileSync(abcFilePath, cleanedAbcNotation);
       generatedFiles.push(abcFilePath);
       
-      // Generate and save the description
-      console.log('Generating description document...');
-      const description = await generateDescription({
-        abcNotation,
-        genre: creativeGenreName || genre, // Use creative name if available
-        classicalGenre: genreComponents.classical,
-        modernGenre: genreComponents.modern,
-        style
-      });
-      
-      // Add creative genre name to the description if one was generated
-      if (creativeGenreName) {
-        description.creativeGenreName = creativeGenreName;
-      }
-      
-      // Save the description as JSON
-      const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
-      fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
-      
-      // Create a markdown file with both the ABC notation and description
-      const mdContent = `# ${creativeGenreName || genre} Composition in ${style} Style
-      
+      // Only generate description documents if ABC validation passed
+      if (validation.isValid) {
+        // Generate and save the description
+        console.log('Generating description document...');
+        const description = await generateDescription({
+          abcNotation,
+          genre: creativeGenreName || genre, // Use creative name if available
+          classicalGenre: genreComponents.classical,
+          modernGenre: genreComponents.modern,
+          style
+        });
+        
+        // Add creative genre name to the description if one was generated
+        if (creativeGenreName) {
+          description.creativeGenreName = creativeGenreName;
+        }
+
+        // Add soundfont selection info to description (only if --soundfonts was used)
+        if (selectedSoundfonts) {
+          description.soundfonts = selectedSoundfonts;
+          description.soundfontReasoning = soundfontReasoning;
+          description.timidityConfig = `${filename}.timidity.cfg`;
+        }
+
+        // Save the description as JSON
+        const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
+        fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
+
+        // Create a markdown file with both the ABC notation and description
+        const soundfontSection = selectedSoundfonts ? `
+## Soundfont Selection
+**TiMidity Config:** \`${filename}.timidity.cfg\`
+**Reasoning:** ${soundfontReasoning}
+
+**Selected Soundfonts:**
+${selectedSoundfonts.map((sf, i) => `${i + 1}. ${sf}`).join('\n')}
+` : '';
+
+        const mdContent = `# ${creativeGenreName || genre} Composition in ${style} Style
+
 ## Genre Fusion${creativeGenreName ? `\n- Creative Genre Name: "${creativeGenreName}"` : ''}
 - Classical Element: ${genreComponents.classical}
 - Modern Element: ${genreComponents.modern}
 
 ## Instruments
 ${instrumentString}
-
+${soundfontSection}
 ## ABC Notation
 
 \`\`\`
@@ -265,10 +336,12 @@ ${abcNotation}
 
 ## Analysis
 
-${description.analysis}
-`;
-      const mdFilePath = path.join(outputDir, `${filename}.md`);
-      fs.writeFileSync(mdFilePath, mdContent);
+${description.analysis}`;
+        const mdFilePath = path.join(outputDir, `${filename}.md`);
+        fs.writeFileSync(mdFilePath, mdContent);
+      } else {
+        console.log('⚠️ Skipping description document generation - ABC validation failed');
+      }
       
       console.log(`Generated ${abcFilePath}`);
     } catch (error) {
