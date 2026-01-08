@@ -89,6 +89,7 @@ program
   .option('--record-label <name>', 'Make it sound like it was released on the given record label')
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
+  .option('--soundfonts', '[EXPERIMENTAL] Use LLM to select custom soundfonts and generate per-composition TiMidity config')
   .option('--sequential', 'Use sequential LLM expansion to create longer, more developed compositions through chained modifications')
   .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
   .option('--midi', 'Run abc2midi on generated ABC files (enabled by default)', true)
@@ -165,6 +166,7 @@ program
           recordLabel: options.recordLabel || '',
           producer: options.producer || '',
           instruments: options.instruments || '',
+          soundfonts: options.soundfonts || false,
           sequentialMode: options.sequential || false, // Tell initial generation to focus on quality, not completeness
           useStreaming: options.streamText || false // Use streaming mode to avoid timeout errors
         };

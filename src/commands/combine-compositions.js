@@ -3,13 +3,93 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { anthropic, createAnthropic } from '@ai-sdk/anthropic';
 import { generateText, streamText } from 'ai';
-import { spawn } from 'child_process';
 import { config } from '../utils/config.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
-import { modifyCompositionWithClaude, generateDescription, getAnthropic, cleanAbcNotation, validateAbcNotation, validateWithAbc2Midi, getTimidityConfigInfo } from '../utils/claude.js';
+import { modifyCompositionWithClaude, generateDescription, getAnthropic, cleanAbcNotation, validateAbcNotation, validateWithAbc2Midi } from '../utils/claude.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Calculate duration of an ABC notation file from its tempo and content
+ * @param {string} abcContent - The ABC notation content
+ * @returns {number|null} Duration in seconds, or null if cannot be determined
+ */
+function calculateAbcDuration(abcContent) {
+  // Parse Q: field (tempo) - formats like "Q:1/4=120" or "Q:120" or "Q:1/8=90"
+  const tempoMatch = abcContent.match(/^Q:\s*(?:(\d+)\/(\d+)\s*=\s*)?(\d+)/m);
+  if (!tempoMatch) {
+    return null; // No tempo = can't calculate duration
+  }
+
+  const tempoNoteNum = tempoMatch[1] ? parseInt(tempoMatch[1]) : 1;
+  const tempoNoteDenom = tempoMatch[2] ? parseInt(tempoMatch[2]) : 4;
+  const bpm = parseInt(tempoMatch[3]);
+
+  if (!bpm || bpm <= 0) return null;
+
+  // Parse M: field (meter) - e.g., "M:4/4", "M:3/4", "M:6/8"
+  const meterMatch = abcContent.match(/^M:\s*(\d+)\/(\d+)/m);
+  const beatsPerMeasure = meterMatch ? parseInt(meterMatch[1]) : 4;
+  const beatUnit = meterMatch ? parseInt(meterMatch[2]) : 4;
+
+  // Parse L: field (default note length) - e.g., "L:1/8"
+  const lengthMatch = abcContent.match(/^L:\s*(\d+)\/(\d+)/m);
+  const defaultNoteNum = lengthMatch ? parseInt(lengthMatch[1]) : 1;
+  const defaultNoteDenom = lengthMatch ? parseInt(lengthMatch[2]) : 8;
+
+  // Count measures by counting bar lines (|)
+  // Remove header section first (everything before first voice or first measure)
+  const musicSection = abcContent.replace(/^[A-Za-z]:.*/gm, '').replace(/^%%.*$/gm, '');
+
+  // Count bar lines - each | represents end of a measure
+  // Exclude double bars ||, repeat signs |:, :|, and other special bars
+  const barMatches = musicSection.match(/\|(?![:\|])/g);
+  let measureCount = barMatches ? barMatches.length : 0;
+
+  // Adjust for multi-voice pieces - bar lines from all voices are counted together
+  // Count voice declarations to estimate voice count
+  const voiceDeclarations = abcContent.match(/^V:\s*\d+/gm);
+  const voiceCount = voiceDeclarations ? voiceDeclarations.length : 1;
+  if (voiceCount > 1) {
+    measureCount = Math.ceil(measureCount / voiceCount);
+  }
+
+  if (measureCount === 0) {
+    // Try alternative: count notes and estimate measures
+    const noteMatches = musicSection.match(/[a-gA-G][',]*\d*\/?(?:\d+)?/g);
+    if (noteMatches && noteMatches.length > 0) {
+      // Rough estimate: assume notes fill measures proportionally
+      const notesPerMeasure = beatsPerMeasure * (beatUnit / defaultNoteDenom);
+      const estimatedMeasures = Math.ceil(noteMatches.length / notesPerMeasure);
+      if (estimatedMeasures > 0) {
+        // Calculate duration based on estimated measures
+        const beatsTotal = estimatedMeasures * beatsPerMeasure;
+        const tempoNoteValue = tempoNoteNum / tempoNoteDenom; // e.g., 1/4 = 0.25
+        const beatNoteValue = 1 / beatUnit; // e.g., for 4/4, beat unit is quarter = 0.25
+        const beatsPerTempoNote = tempoNoteValue / beatNoteValue;
+        const durationSeconds = (beatsTotal / beatsPerTempoNote) * (60 / bpm);
+        return Math.max(1, durationSeconds);
+      }
+    }
+    return null;
+  }
+
+  // Calculate duration: measures * beats per measure, adjusted for tempo note value
+  // If Q:1/4=120, then quarter note = 120 BPM
+  // If meter is 4/4, each measure has 4 quarter notes worth of time
+  const tempoNoteValue = tempoNoteNum / tempoNoteDenom; // e.g., 1/4 = 0.25
+  const beatNoteValue = 1 / beatUnit; // e.g., for 4/4, beat unit is quarter = 0.25
+  const beatsPerTempoNote = tempoNoteValue / beatNoteValue; // how many beat units per tempo note
+
+  // Total beats = measures * beats per measure
+  const totalBeats = measureCount * beatsPerMeasure;
+
+  // Duration = (total beats / beats per tempo note) * (60 seconds / BPM)
+  const durationSeconds = (totalBeats / beatsPerTempoNote) * (60 / bpm);
+
+  return Math.max(1, durationSeconds); // Minimum 1 second
+}
 
 /**
  * Finds short compositions and combines them into new pieces
@@ -46,91 +126,35 @@ export async function combineCompositions(options) {
 
   console.log(`Looking for .abc files in ${directory}...`);
 
-  function getDur(file) {
-    return new Promise((resolve) => {
-      let duration
-      spawn('ffprobe', [
-        '-v', 'error',
-        '-show_entries', 'format=duration',
-        '-of', 'default=noprint_wrappers=1:nokey=1',
-        path.resolve(file)
-      ])
-        .on('close', () => {
-          resolve(duration)
-        })
-        .stdout.on('data', d => {
-          duration = Number(`${d}`)
-        })
-    })
+  // Get all ABC files and calculate duration from ABC notation (tempo + measure count)
+  let filesWithDuration = fs.readdirSync(directory)
+    .filter(file => file.endsWith('.abc'))
+    .map(file => path.join(directory, file))
+    .map((abcFile) => {
+      const abcContent = fs.readFileSync(abcFile, 'utf8');
+      const duration = calculateAbcDuration(abcContent);
+      const stats = fs.statSync(abcFile);
+      return {
+        path: path.resolve(abcFile),
+        duration,
+        created: stats.birthtime,
+        modified: stats.mtime
+      };
+    });
+
+  // Filter out files without calculable duration
+  const filesWithValidDuration = filesWithDuration.filter(file => file.duration !== null);
+  const filesWithoutDuration = filesWithDuration.filter(file => file.duration === null);
+
+  console.log(`Found ${filesWithDuration.length} ABC files total`);
+  console.log(`  - ${filesWithValidDuration.length} with calculable duration (have Q: tempo field)`);
+  if (filesWithoutDuration.length > 0) {
+    console.log(`  - ${filesWithoutDuration.length} without tempo info (excluded from duration filtering)`);
   }
 
-  // Get all ABC files and try to find corresponding WAV for duration
-  let filesWithDuration = await Promise.all(
-    fs.readdirSync(directory)
-      .filter(file => file.endsWith('.abc'))
-      .map(file => path.join(directory, file))
-      .map(async (abcFile) => {
-        const baseName = path.basename(abcFile, '.abc');
-        // Try to find corresponding WAV file for duration
-        const possibleWavFiles = [
-          path.join(directory, `${baseName}.wav`),
-          path.join(directory, `${baseName}.mid.wav`)
-        ];
-        let duration = null;
-        for (const wavFile of possibleWavFiles) {
-          if (fs.existsSync(wavFile)) {
-            duration = await getDur(wavFile);
-            if (duration) break;
-          }
-        }
-        const stats = fs.statSync(abcFile);
-        return {
-          path: path.resolve(abcFile),
-          duration,
-          created: stats.birthtime,
-          modified: stats.mtime
-        };
-      }))
+  // Only use files with valid duration for filtering
+  filesWithDuration = filesWithValidDuration;
 
-
-  // Keep files with duration >= 1 OR files without duration info (ABC-only)
-  filesWithDuration = filesWithDuration.filter(file => file.duration === null || file.duration >= 1)
-  console.log(`Found ${filesWithDuration.length} ABC files`)
-
-  /*
-  // Get duration using ffprobe for each file
-  const filesWithDuration = await Promise.all(
-    files.map(async (filePath) => {
-      try {
-        // Use ffprobe to get duration
-        const result = await execaCommand(
-          `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`
-        );
-        const duration = parseFloat(result.stdout.trim());
-        const stats = fs.statSync(filePath);
-        return {
-          path: filePath,
-          basename: path.basename(filePath),
-          size: stats.size,
-          created: stats.birthtime,
-          modified: stats.mtime,
-          duration
-        };
-      } catch (error) {
-        console.error(`Error getting duration for ${filePath}:`, error.stderr || error.message);
-        const stats = fs.statSync(filePath);
-        return {
-          path: filePath,
-          basename: path.basename(filePath),
-          size: stats.size,
-          created: stats.birthtime,
-          modified: stats.mtime,
-          duration: null
-        };
-      }
-    })
-  );
-  */
   // Sort by duration (shortest first)
   filesWithDuration.sort((a, b) => {
     if (a.duration && b.duration) return a.duration - b.duration;
@@ -139,10 +163,8 @@ export async function combineCompositions(options) {
     return 0;
   });
 
-  // Filter by duration (include files without duration info)
-  let shortPieces = filesWithDuration.filter(file => {
-    return file.duration === null || file.duration <= durationLimit;
-  });
+  // Filter by duration - only include files under the duration limit
+  let shortPieces = filesWithDuration.filter(file => file.duration <= durationLimit);
 
   console.log(`Found ${shortPieces.length} compositions under ${durationLimit} seconds`);
 
@@ -550,8 +572,7 @@ Create a new composition in ABC notation that combines these pieces into a cohes
 
 The piece MUST be longer in duration than the combined lengths of each piece you will be combining. It may never be shorter than either piece or all pieces combined.
 
-IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure all headers come first (X:1, T:, M:, L:, Q:, K:), then any MIDI program declarations, then voice declarations, then music.
-${getTimidityConfigInfo()}`;
+IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure all headers come first (X:1, T:, M:, L:, Q:, K:), then any MIDI program declarations, then voice declarations, then music.`;
 
   try {
     const messages = [

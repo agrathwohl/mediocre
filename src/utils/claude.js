@@ -5,16 +5,15 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
-  loadSoundFontIndex,
-  generateLLMContext,
-} from "./soundfont-analyzer.js";
+  exploreSoundFontsForComposition,
+  generateTimidityConfig,
+  getCompactSoundFontGuidance,
+  getSoundFontsForGenre,
+  BANNED_SOUNDFONTS,
+} from "./soundfont-tools.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Cached soundfont index for efficient reuse
-let cachedSoundFontIndex = null;
-let cachedSoundFontContext = null;
 
 /**
  * Load existing composition titles from docs/data/compositions.json
@@ -117,248 +116,151 @@ async function ensureUniqueTitle(abcNotation, genre) {
 
   return result;
 }
-
 /**
- * Load and cache the soundfont index for LLM context generation
- * @returns {Object|null} The soundfont index or null if not available
+ * Have the LLM select appropriate soundfonts for a genre hybrid
+ * This is the first step before generating ABC notation
+ * @param {Object} options - Selection options
+ * @param {string} options.genre - Hybrid genre (e.g., "baroque_x_synthwave")
+ * @param {string} options.classicalGenre - Classical component
+ * @param {string} options.modernGenre - Modern component
+ * @param {string} [options.instruments] - Requested instruments (comma-separated)
+ * @returns {Promise<{soundfonts: Array<string>, reasoning: string}>} Selected soundfonts and reasoning
  */
-function getSoundFontIndex() {
-  if (cachedSoundFontIndex) return cachedSoundFontIndex;
+export async function selectSoundfontsWithClaude(options) {
+  const myAnthropic = getAnthropic();
+  const model = myAnthropic("claude-3-5-haiku-20241022"); // Use Haiku for this quick selection task
 
-  // Try standard locations for the soundfont index
-  const possiblePaths = [
-    path.join(__dirname, "../../soundfont_index.json"),
-    "/home/gwohl/code/mediocre/soundfonts/soundfont_index.json",
-    path.join(process.cwd(), "soundfont_index.json"),
-  ];
+  const genre = options.genre || "Classical_x_Contemporary";
+  const classicalGenre = options.classicalGenre || "Classical";
+  const modernGenre = options.modernGenre || "Contemporary";
+  const requestedInstruments = options.instruments || "";
 
-  for (const indexPath of possiblePaths) {
-    try {
-      if (fs.existsSync(indexPath)) {
-        cachedSoundFontIndex = loadSoundFontIndex(indexPath);
-        console.log(`Loaded soundfont index from ${indexPath}`);
-        return cachedSoundFontIndex;
-      }
-    } catch (error) {
-      // Continue to next path
-    }
-  }
+  // Get soundfont recommendations based on genre
+  const exploration = exploreSoundFontsForComposition({
+    genreHybrid: genre,
+    requiredInstruments: requestedInstruments ? requestedInstruments.split(',').map(i => i.trim()) : [],
+    style: ''
+  });
 
-  return null;
-}
+  // Format the available soundfonts for the LLM
+  const availableSoundfonts = `
+## Primary Recommendations (Best matches for ${genre}):
+${exploration.genreRecommendations.primary.map(sf => `- ${sf.filename} (score: ${sf.score}, presets: ${sf.presetCount}) - Keywords: ${sf.matchedKeywords.join(', ')}`).join('\n')}
 
-/**
- * Generate comprehensive instrument availability context for LLM
- * Uses the pre-computed soundfont index for rich instrument information
- * @returns {string} Formatted instrument context for system prompts
- */
-export function getSoundFontInstrumentContext() {
-  if (cachedSoundFontContext) return cachedSoundFontContext;
+## Secondary Options:
+${exploration.genreRecommendations.secondary.map(sf => `- ${sf.filename}`).join('\n')}
 
-  const index = getSoundFontIndex();
-  if (!index) {
-    // Fall back to basic timidity config info
-    return getTimidityConfigInfo();
-  }
+## Auto-Suggested Selection:
+${exploration.suggestedSelection.join(', ')}
 
-  // Generate comprehensive instrument summary
-  // Group presets by GM program number for common instruments
-  const gmInstruments = {
-    // Pianos (0-7)
-    0: { name: "Acoustic Grand Piano", presets: [] },
-    1: { name: "Bright Acoustic Piano", presets: [] },
-    2: { name: "Electric Grand Piano", presets: [] },
-    4: { name: "Electric Piano 1 (Rhodes)", presets: [] },
-    5: { name: "Electric Piano 2 (DX)", presets: [] },
-    6: { name: "Harpsichord", presets: [] },
-    7: { name: "Clavinet", presets: [] },
-    // Chromatic Percussion (8-15)
-    11: { name: "Vibraphone", presets: [] },
-    12: { name: "Marimba", presets: [] },
-    // Organs (16-23)
-    16: { name: "Drawbar Organ", presets: [] },
-    18: { name: "Rock Organ", presets: [] },
-    19: { name: "Church Organ", presets: [] },
-    // Guitars (24-31)
-    24: { name: "Acoustic Guitar (nylon)", presets: [] },
-    25: { name: "Acoustic Guitar (steel)", presets: [] },
-    26: { name: "Electric Guitar (jazz)", presets: [] },
-    27: { name: "Electric Guitar (clean)", presets: [] },
-    28: { name: "Electric Guitar (muted)", presets: [] },
-    29: { name: "Overdriven Guitar", presets: [] },
-    30: { name: "Distortion Guitar", presets: [] },
-    // Basses (32-39)
-    32: { name: "Acoustic Bass", presets: [] },
-    33: { name: "Electric Bass (finger)", presets: [] },
-    34: { name: "Electric Bass (pick)", presets: [] },
-    35: { name: "Fretless Bass", presets: [] },
-    36: { name: "Slap Bass 1", presets: [] },
-    38: { name: "Synth Bass 1", presets: [] },
-    // Strings (40-47)
-    40: { name: "Violin", presets: [] },
-    41: { name: "Viola", presets: [] },
-    42: { name: "Cello", presets: [] },
-    43: { name: "Contrabass", presets: [] },
-    44: { name: "Tremolo Strings", presets: [] },
-    45: { name: "Pizzicato Strings", presets: [] },
-    46: { name: "Orchestral Harp", presets: [] },
-    47: { name: "Timpani", presets: [] },
-    // Ensemble (48-55)
-    48: { name: "String Ensemble 1", presets: [] },
-    49: { name: "String Ensemble 2", presets: [] },
-    50: { name: "Synth Strings 1", presets: [] },
-    52: { name: "Choir Aahs", presets: [] },
-    53: { name: "Voice Oohs", presets: [] },
-    // Brass (56-63)
-    56: { name: "Trumpet", presets: [] },
-    57: { name: "Trombone", presets: [] },
-    58: { name: "Tuba", presets: [] },
-    59: { name: "Muted Trumpet", presets: [] },
-    60: { name: "French Horn", presets: [] },
-    61: { name: "Brass Section", presets: [] },
-    62: { name: "Synth Brass 1", presets: [] },
-    // Reed (64-71)
-    64: { name: "Soprano Sax", presets: [] },
-    65: { name: "Alto Sax", presets: [] },
-    66: { name: "Tenor Sax", presets: [] },
-    67: { name: "Baritone Sax", presets: [] },
-    68: { name: "Oboe", presets: [] },
-    69: { name: "English Horn", presets: [] },
-    70: { name: "Bassoon", presets: [] },
-    71: { name: "Clarinet", presets: [] },
-    // Pipe (72-79)
-    72: { name: "Piccolo", presets: [] },
-    73: { name: "Flute", presets: [] },
-    74: { name: "Recorder", presets: [] },
-    75: { name: "Pan Flute", presets: [] },
-    79: { name: "Ocarina", presets: [] },
-    // Synth Lead (80-87)
-    80: { name: "Lead 1 (square)", presets: [] },
-    81: { name: "Lead 2 (sawtooth)", presets: [] },
-    // Synth Pad (88-95)
-    88: { name: "Pad 1 (new age)", presets: [] },
-    89: { name: "Pad 2 (warm)", presets: [] },
-    90: { name: "Pad 3 (polysynth)", presets: [] },
-    91: { name: "Pad 4 (choir)", presets: [] },
-    // Synth Effects (96-103)
-    99: { name: "FX 4 (atmosphere)", presets: [] },
-    // Ethnic (104-111)
-    104: { name: "Sitar", presets: [] },
-    105: { name: "Banjo", presets: [] },
-    // Percussive (112-119)
-    114: { name: "Steel Drums", presets: [] },
-    115: { name: "Woodblock", presets: [] },
-    116: { name: "Taiko Drum", presets: [] },
-    // Sound Effects (120-127)
-    127: { name: "Gunshot", presets: [] },
-  };
-
-  // Collect available presets for each GM program from all soundfonts
-  for (const sf of index.soundfonts) {
-    for (const preset of sf.presets) {
-      if (preset.bank === 0 && gmInstruments[preset.program]) {
-        gmInstruments[preset.program].presets.push({
-          soundfont: sf.filename,
-          presetName: preset.name,
-        });
-      }
-    }
-  }
-
-  // Build the context string
-  let context = `
-AVAILABLE INSTRUMENTS FROM SOUNDFONT COLLECTION (${index.totalSoundfonts} soundfonts, ${index.totalPresets} presets):
-
-The user has a comprehensive soundfont collection. Use standard GM program numbers.
-Here are instruments with high-quality samples available:
-
+## Categories Available:
+- Drums: ${exploration.categoryResults.drums.slice(0, 3).map(sf => sf.filename).join(', ')}
+- Bass: ${exploration.categoryResults.bass.slice(0, 3).map(sf => sf.filename).join(', ')}
+- Strings: ${exploration.categoryResults.strings.slice(0, 3).map(sf => sf.filename).join(', ')}
 `;
 
-  // Group by category
-  const categories = {
-    KEYBOARDS: [0, 1, 2, 4, 5, 6, 7, 16, 18, 19],
-    "GUITARS & BASS": [24, 25, 26, 27, 28, 29, 30, 32, 33, 34, 35, 36, 38],
-    STRINGS: [40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
-    BRASS: [56, 57, 58, 59, 60, 61, 62],
-    "WOODWINDS & REEDS": [64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 79],
-    SYNTHS: [80, 81, 88, 89, 90, 91, 99],
-    "VOCALS & CHOIR": [52, 53],
-    "PERCUSSION & MALLETS": [11, 12, 114, 115, 116],
-    ETHNIC: [104, 105],
-  };
+  const systemPrompt = `You are a music producer selecting soundfonts for a composition.
+Given a genre hybrid and available soundfonts, select the BEST soundfonts for this specific fusion.
 
-  for (const [category, programs] of Object.entries(categories)) {
-    const availableInCategory = programs
-      .filter((p) => gmInstruments[p] && gmInstruments[p].presets.length > 0)
-      .map((p) => {
-        const inst = gmInstruments[p];
-        const sampleCount = inst.presets.length;
-        const topSoundfonts = inst.presets
-          .slice(0, 3)
-          .map((pr) => pr.soundfont.replace(".sf2", ""))
-          .join(", ");
-        return `  ${p}: ${inst.name} (${sampleCount} versions: ${topSoundfonts}...)`;
-      });
+IMPORTANT RULES:
+1. Always include at least ONE general GM soundfont as a base (e.g., "GeneralUser GS v1.471.sf2", "FluidR3 GM + GS.sf2")
+2. Select 15-30 soundfonts for proper layering - BUILD A RICH PALETTE
+3. Later soundfonts in the list OVERRIDE earlier ones for the same instruments
+4. Put general soundfonts FIRST, then add many specialty soundfonts to override specific instruments
+5. Consider the specific instruments needed for both ${classicalGenre} and ${modernGenre}
+6. Include soundfonts for: drums/percussion, bass, strings, pads, leads, and genre-specific instruments
+7. MORE IS BETTER - each soundfont adds depth and character to the final mix
 
-    if (availableInCategory.length > 0) {
-      context += `${category}:\n${availableInCategory.join("\n")}\n\n`;
-    }
-  }
+You MUST respond in this EXACT JSON format:
+{
+  "soundfonts": ["soundfont1.sf2", "soundfont2.sf2", ...],
+  "reasoning": "Brief explanation of why these soundfonts work for this genre"
+}`;
 
-  context += `DRUMS: Available on bank 128 or channel 10. High-quality kits available from multiple soundfonts.
+  const userPrompt = `Select soundfonts for a ${genre} composition (fusion of ${classicalGenre} and ${modernGenre}).
 
-Use these GM program numbers in %%MIDI program directives. The soundfont collection has premium samples for most instruments.
-`;
+${requestedInstruments ? `Required instruments: ${requestedInstruments}` : ''}
 
-  cachedSoundFontContext = context;
-  return context;
-}
+Available soundfonts and recommendations:
+${availableSoundfonts}
 
-/**
- * Read and format the timidity.cfg for inclusion in system prompts
- * Helps LLM make informed instrument/arrangement choices
- * @returns {string} Formatted timidity config info for system prompt
- */
-export function getTimidityConfigInfo() {
+Select the optimal soundfont combination. Return ONLY the JSON response.`;
+
   try {
-    const timidityPath = path.join(__dirname, "../../timidity.cfg");
-    if (!fs.existsSync(timidityPath)) {
-      return "";
-    }
-    const content = fs.readFileSync(timidityPath, "utf8");
+    const { text } = await generateText({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.3,
+      maxTokens: 1000,
+    });
 
-    // Extract soundfont names for the LLM
-    const soundfonts = [];
-    const lines = content.split("\n");
-    for (const line of lines) {
-      if (line.startsWith("soundfont ")) {
-        const match = line.match(/soundfont "([^"]+)"/);
-        if (match) {
-          soundfonts.push(match[1].replace(".sf2", ""));
-        }
+    // Parse the JSON response
+    let jsonStr = text.trim();
+    if (jsonStr.startsWith("```")) {
+      jsonStr = jsonStr.replace(/```json?\n?/g, "").replace(/```\n?/g, "");
+    }
+
+    const result = JSON.parse(jsonStr);
+
+    // Validate soundfonts exist and add .sf2 extension if missing
+    let validatedSoundfonts = result.soundfonts.map(sf => {
+      if (!sf.endsWith('.sf2')) {
+        return sf + '.sf2';
       }
+      return sf;
+    });
+
+    // Filter out banned soundfonts that crash TiMidity
+    const bannedFound = validatedSoundfonts.filter(sf => BANNED_SOUNDFONTS.includes(sf));
+    if (bannedFound.length > 0) {
+      console.warn(`⚠️ Filtering out banned soundfonts that crash TiMidity: ${bannedFound.join(', ')}`);
+      validatedSoundfonts = validatedSoundfonts.filter(sf => !BANNED_SOUNDFONTS.includes(sf));
     }
 
-    if (soundfonts.length === 0) return "";
-
-    return `
-AVAILABLE SOUNDFONTS (for instrument selection guidance):
-The user's system has these soundfonts loaded, which affects instrument quality:
-- General MIDI: GeneralUser GS, FluidR3 GM, Arachno, SGM Yamaha Grand
-- Drums: Real Acoustic Drums, Tama RockSTAR, Roland GM, Giant Soundfont, Hard Rock Drums
-- Guitars: Electric JN, Electric Guitars GM, Metal Guitar, Ibanez Bass
-- Synths: FatBoy, Edirol SD-20, RetroHybrid
-- Orchestra: Timbres of Heaven, Concert GM
-- Piano: Z-Doc Soundfont IV
-- Hardware Emulation: SC-55, MT-32, Yamaha Tyros 4
-- Premium: Orpheus, Daindune Montage, Crisis General MIDI, Musica
-
-Choose instruments that will sound great with these soundfonts. Standard GM instruments work well.
-Drums, guitars, brass, strings, and piano have especially high-quality samples available.
-`;
+    return {
+      soundfonts: validatedSoundfonts,
+      reasoning: result.reasoning || "Soundfonts selected based on genre compatibility"
+    };
   } catch (error) {
-    return "";
+    console.warn("Failed to get LLM soundfont selection, using auto-suggested selection:", error.message);
+    // Fall back to auto-suggested selection, also filtering banned soundfonts
+    const fallbackSoundfonts = exploration.suggestedSelection.filter(sf => !BANNED_SOUNDFONTS.includes(sf));
+    return {
+      soundfonts: fallbackSoundfonts,
+      reasoning: "Auto-selected based on genre keyword matching"
+    };
   }
+}
+
+/**
+ * Generate a custom TiMidity config for a composition and save it
+ * @param {Object} options - Config generation options
+ * @param {Array<string>} options.soundfonts - Selected soundfont filenames
+ * @param {string} options.outputDir - Directory to save the config
+ * @param {string} options.baseFilename - Base filename (without extension)
+ * @param {string} [options.title] - Composition title
+ * @param {string} [options.genre] - Genre name
+ * @returns {string} Path to the saved config file
+ */
+export function saveCustomTimidityConfig(options) {
+  const { soundfonts, outputDir, baseFilename, title = 'Composition', genre = '' } = options;
+
+  // Generate the config content
+  const configContent = generateTimidityConfig(soundfonts, { title, genre });
+
+  // Ensure output directory exists
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Save the config file
+  const configPath = path.join(outputDir, `${baseFilename}.timidity.cfg`);
+  fs.writeFileSync(configPath, configContent);
+
+  return configPath;
 }
 
 /**
@@ -566,8 +468,14 @@ export async function validateWithAbc2Midi(abcFilePath) {
       return { valid: false, error: "abc2midi did not produce output file" };
     }
   } catch (error) {
-    // Check for segfault FIRST - this is a real failure
-    if (error.signal === "SIGSEGV") {
+    // Check for segfault - multiple ways to detect it
+    const isSegfault = error.signal === "SIGSEGV" ||
+                       error.signal === "SIGABRT" ||
+                       (error.status && error.status > 128) ||  // Signals add 128 to exit code
+                       (error.message && error.message.includes("segmentation fault")) ||
+                       (error.stderr && error.stderr.includes("segmentation fault"));
+
+    if (isSegfault) {
       if (fs.existsSync(tempMidiPath)) {
         fs.unlinkSync(tempMidiPath);
       }
@@ -842,6 +750,90 @@ The composition should be a genuine artistic fusion that respects and represents
 
   // Ensure unique title before returning
   return await ensureUniqueTitle(text, genre);
+}
+
+/**
+ * Generate music with custom soundfont selection - full workflow
+ * This is the main entry point for music generation that includes:
+ * 1. LLM-based soundfont selection for the genre
+ * 2. ABC notation generation with soundfont awareness
+ * 3. Returns both ABC and selected soundfonts for config generation
+ *
+ * @param {Object} options - All options from generateMusicWithClaude plus:
+ * @param {boolean} [options.skipSoundFontSelection=false] - Skip soundfont selection and use defaults
+ * @returns {Promise<{abcNotation: string, soundfonts: Array<string>, soundfontReasoning: string}>}
+ */
+export async function generateMusicWithSoundfonts(options) {
+  const genre = options.genre || "Classical_x_Contemporary";
+  const classicalGenre = options.classicalGenre || "Classical";
+  const modernGenre = options.modernGenre || "Contemporary";
+
+  // Step 1: Select soundfonts for this genre (unless skipped)
+  let soundfontSelection;
+  if (options.skipSoundFontSelection) {
+    // Use a basic set of general GM soundfonts
+    soundfontSelection = {
+      soundfonts: [
+        "GeneralUser GS v1.471.sf2",
+        "FluidR3 GM + GS.sf2",
+        "SGM-128 v1.17.sf2"
+      ],
+      reasoning: "Using default GM soundfonts (soundfont selection skipped)"
+    };
+  } else {
+    console.log(`Selecting soundfonts for ${genre}...`);
+    soundfontSelection = await selectSoundfontsWithClaude({
+      genre,
+      classicalGenre,
+      modernGenre,
+      instruments: options.instruments
+    });
+    console.log(`Selected ${soundfontSelection.soundfonts.length} soundfonts: ${soundfontSelection.soundfonts.slice(0, 3).join(', ')}...`);
+    console.log(`Reasoning: ${soundfontSelection.reasoning}`);
+  }
+
+  // Step 2: Create a soundfont context section for the prompt
+  const soundfontContext = `
+## SELECTED SOUNDFONTS FOR THIS COMPOSITION
+The following soundfonts have been selected specifically for this ${genre} composition.
+Your instrument choices will be rendered using these soundfonts, in this priority order (later ones override earlier):
+
+${soundfontSelection.soundfonts.map((sf, i) => `${i + 1}. ${sf}`).join('\n')}
+
+Selection reasoning: ${soundfontSelection.reasoning}
+
+IMPORTANT: Standard GM instruments (programs 0-127) will sound great with these soundfonts.
+Focus on creating excellent music - the soundfont selection ensures your instruments will render well.
+`;
+
+  // Step 3: Add soundfont context to the system prompt
+  const enhancedSystemPrompt = options.customSystemPrompt
+    ? options.customSystemPrompt + "\n\n" + soundfontContext
+    : undefined; // Let generateMusicWithClaude use its default, we'll inject context differently
+
+  // If no custom prompt, we need to modify the generation call to include context
+  // For now, pass it through the options and let the function handle it
+  const abcNotation = await generateMusicWithClaude({
+    ...options,
+    // Add soundfont context to the user prompt since we can't easily inject into system prompt
+    customUserPrompt: options.customUserPrompt
+      ? options.customUserPrompt + "\n\n" + soundfontContext
+      : `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.
+
+${soundfontContext}
+
+${options.solo ? "Include a dedicated solo section for the lead instrument." : ""}
+${options.recordLabel ? `Style the composition to sound like it was released on the record label "${options.recordLabel}".` : ""}
+${options.producer ? `Style the composition to sound as if it was produced by ${options.producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}
+${options.instruments ? `Your composition MUST include at minimum these instruments: ${options.instruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""}
+${options.sequentialMode ? "IMPORTANT: Focus on QUALITY over length. Create exceptional thematic material in 16-32 measures. Another agent will expand your work - your job is to create brilliant foundational ideas worth developing." : "Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest."}`
+  });
+
+  return {
+    abcNotation,
+    soundfonts: soundfontSelection.soundfonts,
+    soundfontReasoning: soundfontSelection.reasoning
+  };
 }
 
 /**
@@ -1290,8 +1282,7 @@ CRITICAL FORMATTING RULES:
 - If the input has blank lines between sections, REMOVE them in your output
 - Output the corrected ABC notation with proper formatting
 
-Your result should be a singable composition with lyrics that fit both the music and the thematic prompt.
-${getSoundFontInstrumentContext()}`;
+Your result should be a singable composition with lyrics that fit both the music and the thematic prompt.`;
 
   // Generate the ABC notation with lyrics
   const userPrompt = `Here is the original composition in ABC notation:\n\n${abcNotation}\n\nAdd lyrics to this composition based on the following theme/prompt:\n${lyricsPrompt}${includeSolo ? "\n\nInclude a dedicated solo section for the lead instrument." : ""}${recordLabel ? `\n\nStyle the lyrics to sound like they were written for a release on the record label "${recordLabel}".` : ""}${producer ? `\n\nStyle the lyrics and musical elements to sound as if they were produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? `\n\nYour composition MUST include at minimum these instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the composition's genre fusion.` : ""}\n\nThe lyrics should fit naturally with the melody and rhythm of the piece. Return the complete ABC notation with lyrics added using the w: syntax.`;

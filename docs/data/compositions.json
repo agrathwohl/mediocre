@@ -3683,5 +3683,1813 @@
         "startTime": 9324
       }
     ]
+  },
+  {
+    "id": "symphony-of-distortion-expanded-1767859945286",
+    "title": "Symphony of Distortion - Expanded",
+    "composer": "AI Composer",
+    "key": "Cmin",
+    "meter": "4/4",
+    "tempo": "160",
+    "genre": "bruckner_x_Hyperpop",
+    "classicalGenre": "bruckner",
+    "modernGenre": "Hyperpop",
+    "style": "standard",
+    "instruments": "Percussion, String Ensemble 2, Lead 2 (sawtooth), Slap Bass 2, Lead 1 (square), Ocarina, Lead 4 (chiff), Pad 2 (warm), Synth Bass 1, Lead 7 (fifths), Pad 1 (new age), Pad 7 (halo), Viola, Cello",
+    "analysis": "# Analysis of \"Symphony of Distortion - Expanded\": A bruckner_x_Hyperpop Fusion\n\n## 1. Overview of the Hybrid Genre Approach\n\n\"Symphony of Distortion\" successfully merges Bruckner's symphonic grandeur with Hyperpop's electronic maximalism, creating a compelling hybrid genre. This composition maintains Bruckner's multi-movement symphonic structure and harmonic language while integrating Hyperpop's glitchy production techniques, electronic timbres, and rhythmic intensity. The piece navigates between contemplative, spiritual passages reminiscent of Bruckner and hyper-energetic, digitally processed sections characteristic of Hyperpop, creating dynamic tension between 19th-century romanticism and 21st-century electronic experimentation.\n\n## 2. Bruckner Elements Present in the Composition\n\n- **Multi-movement Symphonic Structure**: The composition follows Bruckner's expansive four-movement symphonic architecture (sonata form, slow movement, scherzo with trio, finale).\n- **Rich Harmonic Language**: Employs extensive C minor tonality with gradual modulations and chromatic progressions typical of Bruckner's work.\n- **Brass-like Instrumentation**: Uses synth strings and pad sounds to emulate Bruckner's rich orchestral textures.\n- **Thematic Development**: Features lengthy thematic development and transformation throughout movements.\n- **Dramatic Dynamic Range**: Incorporates extensive dynamic contrasts from pp to ffff.\n- **Formal Architecture**: Maintains classical forms including sonata structure and scherzo/trio pairings.\n- **Contrasting Tempi**: Employs slow, contemplative sections (Movement II at quarter note = 60) juxtaposed with more energetic passages.\n- **Grand Climaxes**: Builds to powerful climactic moments through careful layering and intensification.\n\n## 3. Hyperpop Elements Present in the Composition\n\n- **Electronic Instrumentation**: Uses square leads, synth pads, and slap bass sounds characteristic of electronic music.\n- **Glitch Aesthetics**: Implements MIDI trim effects (1/8, 1/16, 1/32) to create stuttering, glitchy articulations.\n- **Extreme Processing**: The notation suggests rapid rhythmic subdivisions and digital manipulation techniques.\n- **Beat-driven Sections**: Incorporates electronic drum patterns that intensify during climactic moments.\n- **Abrupt Transitions**: Features sudden shifts in texture, dynamics, and instrumentation.\n- **Maximalist Approach**: Layers multiple electronic timbres to create dense, saturated textures.\n- **Rhythmic Intensity**: Employs rapid, syncopated rhythmic patterns, especially in the scherzo.\n- **Extreme Tempi**: Pushes to very fast tempos (quarter note = 160-180) in climactic sections.\n\n## 4. Technical Elements (Instrumentation, Structure)\n\n**Instrumentation:**\n- Synth Strings (MIDI program 50): Provides Brucknerian orchestral foundation\n- Square/Synth Leads (MIDI programs 80-84): Delivers Hyperpop's electronic edge\n- Slap Bass (MIDI program 38): Creates rhythmic drive and modern texture\n- Pad sounds (MIDI programs 89, 95): Offers ambient textures for slower sections\n- Percussion: Electronic drum patterns that intensify during climactic sections\n\n**Structure:**\n- Movement I: Sonata form with exposition, development, and recapitulation\n- Movement II: Slow movement with ambient, contemplative character\n- Movement III: Scherzo and trio with rapid 3/4 rhythms\n- Movement IV: Finale that synthesizes material from previous movements\n\nThe composition carefully balances classical structural integrity with electronic production techniques, creating coherent formal architecture while allowing for experimental sound design.\n\n## 5. Artistic Assessment of the Fusion\n\nThis fusion succeeds by finding genuine points of compatibility between seemingly disparate genres. Both Bruckner and Hyperpop embrace extremes—Bruckner through vast dynamic ranges and expansive structures, Hyperpop through digital processing and sonic maximalism. The composition honors Bruckner's architectural approach while infusing it with contemporary electronic energy.\n\nParticularly effective is how the composition maintains thematic development throughout all movements, a Brucknerian hallmark, while processing these themes through increasingly electronic treatments. The scherzo movement best exemplifies the fusion, maintaining the classical 3/4 dance form while incorporating glitchy electronic articulations and processing.\n\nThe piece avoids simply layering electronic beats over classical material, instead finding thoughtful integration points where each genre contributes essential musical elements. The gradual intensification across movements creates a satisfying dramatic arc that respects both Bruckner's patient development and Hyperpop's climactic energy.\n\n## 6. Audio Processing Suggestions\n\nThe composition appears well-constructed with thoughtful consideration for balance between acoustic and electronic elements. However, there are two areas that might benefit from careful attention during audio processing:\n\n1. **Movement I - Hyperpop Climax section (Q:1/4=160)**: The extreme dynamic marking (ffff) combined with rapid trim effects (1/4) and simultaneous high-register activity across all parts could potentially create harshness in measures 5-8 of this section. Consider gentle limiting or balancing the upper frequencies to prevent listening fatigue.\n\n2. **Movement IV - Hyperpop Drop Section**: Similar concerns apply to measures 21-24 of the finale, where extreme dynamics combined with very fast articulations (trim 1/4) and wide register leaps could create potential digital clipping or harshness. A subtle multiband compression approach might help maintain intensity without creating listener discomfort.\n\nThese suggestions are conservative, as the overall composition demonstrates thoughtful balance between electronic intensity and symphonic clarity.",
+    "timestamp": "2026-01-08T08:12:25.286Z",
+    "mediaSrc": "media/symphony-of-distortion-expanded-1767859945286.webm",
+    "pdfSrc": "media/symphony-of-distortion-expanded-1767859945286-score.pdf",
+    "abcFile": "bruckner_x_Hyperpop-modified-1767859903498.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Movement I - Sonata Form",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Exposition - Introduction",
+        "startTime": 0
+      },
+      {
+        "numeral": "III",
+        "title": "First Theme - Primary Theme Group",
+        "startTime": 32
+      },
+      {
+        "numeral": "IV",
+        "title": "Primary Theme Continued - Hyperpop Variation",
+        "startTime": 64
+      },
+      {
+        "numeral": "V",
+        "title": "Transition to Second Theme",
+        "startTime": 96
+      },
+      {
+        "numeral": "VI",
+        "title": "Second Theme Group - Lyrical Contrast",
+        "startTime": 128
+      },
+      {
+        "numeral": "VII",
+        "title": "Second Theme Development - Brucknerian Harmony with Hyperpop Flourishes",
+        "startTime": 160
+      },
+      {
+        "numeral": "VIII",
+        "title": "Exposition Closing Section - Hyperpop Climax",
+        "startTime": 192
+      },
+      {
+        "numeral": "IX",
+        "title": "Development Section - Modulating and Fragmenting Themes",
+        "startTime": 224
+      },
+      {
+        "numeral": "X",
+        "title": "Development Intensifies - Modulating to Distant Keys",
+        "startTime": 256
+      },
+      {
+        "numeral": "XI",
+        "title": "Development Climax - Extreme Hyperpop Glitching",
+        "startTime": 288
+      },
+      {
+        "numeral": "XII",
+        "title": "Retransition to Recapitulation - Dramatic Slowdown",
+        "startTime": 320
+      },
+      {
+        "numeral": "XIII",
+        "title": "Recapitulation - First Theme Returns",
+        "startTime": 352
+      },
+      {
+        "numeral": "XIV",
+        "title": "Recapitulation - Second Theme in Home Key",
+        "startTime": 384
+      },
+      {
+        "numeral": "XV",
+        "title": "Coda - Bruckner + Hyperpop Fusion Climax",
+        "startTime": 416
+      },
+      {
+        "numeral": "XVI",
+        "title": "Movement II - Slow Movement",
+        "startTime": 448
+      },
+      {
+        "numeral": "XVII",
+        "title": "Introduction - Contemplative Brucknerian Atmosphere",
+        "startTime": 448
+      },
+      {
+        "numeral": "XVIII",
+        "title": "Main Theme - Rich Harmonic Progression",
+        "startTime": 480
+      },
+      {
+        "numeral": "XIX",
+        "title": "Theme Development - Hyperpop Electronic Elements Introduced",
+        "startTime": 512
+      },
+      {
+        "numeral": "XX",
+        "title": "Middle Section - Ambient Hyperpop Texture",
+        "startTime": 544
+      },
+      {
+        "numeral": "XXI",
+        "title": "Return of Main Theme - Enhanced with Electronic Elements",
+        "startTime": 584
+      },
+      {
+        "numeral": "XXII",
+        "title": "Coda - Ambient Fade with Glitchy Elements",
+        "startTime": 616
+      },
+      {
+        "numeral": "XXIII",
+        "title": "Movement III - Scherzo with Trio",
+        "startTime": 648
+      },
+      {
+        "numeral": "XXIV",
+        "title": "Scherzo - Fast Hyperpop Beat with Brucknerian Harmony",
+        "startTime": 648
+      },
+      {
+        "numeral": "XXV",
+        "title": "Scherzo Development",
+        "startTime": 680
+      },
+      {
+        "numeral": "XXVI",
+        "title": "Scherzo B Section - Modulating",
+        "startTime": 712
+      },
+      {
+        "numeral": "XXVII",
+        "title": "Scherzo Return - Back to C minor",
+        "startTime": 744
+      },
+      {
+        "numeral": "XXVIII",
+        "title": "Trio - Contrasting Section",
+        "startTime": 776
+      },
+      {
+        "numeral": "XXIX",
+        "title": "Trio Development",
+        "startTime": 808
+      },
+      {
+        "numeral": "XXX",
+        "title": "Transition Back to Scherzo",
+        "startTime": 840
+      },
+      {
+        "numeral": "XXXI",
+        "title": "Scherzo Finale - Hyperpop Intensity",
+        "startTime": 872
+      },
+      {
+        "numeral": "XXXII",
+        "title": "Movement IV - Finale",
+        "startTime": 904
+      },
+      {
+        "numeral": "XXXIII",
+        "title": "Introduction - Bringing Back First Movement Material",
+        "startTime": 904
+      },
+      {
+        "numeral": "XXXIV",
+        "title": "Main Theme - Transforming First Movement Material",
+        "startTime": 936
+      },
+      {
+        "numeral": "XXXV",
+        "title": "Development of Themes from Previous Movements",
+        "startTime": 968
+      },
+      {
+        "numeral": "XXXVI",
+        "title": "Hyperpop Drop Section - Extreme Intensity",
+        "startTime": 1000
+      },
+      {
+        "numeral": "XXXVII",
+        "title": "Recapitulation of First Movement Material - Enhanced",
+        "startTime": 1032
+      },
+      {
+        "numeral": "XXXVIII",
+        "title": "Finale - Combining All Thematic Material",
+        "startTime": 1064
+      }
+    ]
+  },
+  {
+    "id": "partchcore-genesis-1767859136656",
+    "title": "Partchcore Genesis",
+    "composer": "AI Composer",
+    "key": "C",
+    "meter": "4/4",
+    "tempo": "160",
+    "genre": "harry partch_x_Happy Hardcore",
+    "classicalGenre": "harry partch",
+    "modernGenre": "Happy Hardcore",
+    "style": "standard",
+    "instruments": "Percussion, Harpsichord, Vibraphone, Church Organ, Xylophone, Slap Bass 2, Synth Bass 1, Lead 1 (square), Voice Oohs",
+    "analysis": "# Analysis of \"Partchcore Genesis\": A Harry Partch x Happy Hardcore Fusion\n\n## 1. Overview of the Hybrid Genre Approach\n\n\"Partchcore Genesis\" represents an innovative fusion of Harry Partch's experimental microtonal composition techniques with the high-energy electronic dance aesthetics of Happy Hardcore. This composition successfully bridges the vast gulf between Partch's meticulous acoustic experimentation with custom-built instruments and microtonal scales, and Happy Hardcore's digital soundscapes characterized by rapid tempos and euphoric synthesizer textures.\n\nThe piece navigates between these worlds through carefully structured transitions, beginning firmly in Partch territory before introducing electronic dance elements, eventually achieving a full fusion where both influences coexist. The composition demonstrates remarkable compositional sophistication in maintaining the integrity of both genres while creating something genuinely novel.\n\n## 2. Harry Partch Elements Present in the Composition\n\nThe composition incorporates numerous authentic Harry Partch elements:\n\n- **Instrumentation**: Direct use of Partch's custom instruments including the Diamond Marimba, Chromelodeon, and Cloud Chamber Bowls, each maintaining their characteristic timbral qualities\n- **Microtonal exploration**: Extensive use of microtonal intervals indicated through notations like [^c_d] and [^f_g], particularly prominent in the opening sections\n- **43-tone scale**: A dedicated section exploring Partch's signature 43-tone scale system\n- **Otonality and utonality**: Explicit exploration of Partch's harmonic concepts of otonality (overtone-based harmony) and utonality (undertone-based harmony)\n- **Gradual pace of development**: The opening sections maintain Partch's typically methodical, exploratory pace with careful attention to timbral and tonal relationships\n\nThe extended microtonal sections demonstrate deep understanding of Partch's compositional approach, with careful layering of intervals and gradually evolving textures that reveal the harmonic richness of microtonal relationships.\n\n## 3. Happy Hardcore Elements Present in the Composition\n\nThe Happy Hardcore influence becomes increasingly prominent as the piece progresses:\n\n- **Tempo**: The 180 BPM tempo (increasing to 200 BPM in climactic sections) sits squarely in the Happy Hardcore range\n- **Rhythmic elements**: The characteristic four-on-the-floor kick drum pattern paired with syncopated hi-hats and offbeat snare/claps\n- **Structural components**: Clear build-ups, drops, breakdowns and climactic sections following EDM structural conventions\n- **Instrumentation**: Supersaw synths, acid bass lines, and vocal samples that are staples of the Happy Hardcore sound\n- **Rhythmic density**: Progressive intensification through subdivisions, particularly in percussion parts (from eighth notes to sixteenth and thirty-second notes)\n- **Dynamic contrast**: Extreme dynamic range from !ppp! to !ffff! creating the emotional peaks and valleys essential to Happy Hardcore\n\nThe main drop sections skillfully incorporate these elements while maintaining connections to the microtonal material established earlier, creating coherent transitions between the two worlds.\n\n## 4. Technical Elements (Instrumentation, Structure)\n\nThe composition demonstrates sophisticated technical design:\n\n**Instrumentation:**\n- Adapted Diamond Marimba, Chromelodeon, and Cloud Chamber Bowls provide the Partch timbral foundation\n- Bass Synth and Acid Bass supply the essential dance music low-end energy\n- Electronic percussion (Kick, Snare/Clap, Hi-Hats) drives the rhythmic framework\n- Supersaw Synth delivers the characteristic uplifting Happy Hardcore chord textures\n- Vocal Samples add the human element common in Happy Hardcore\n\n**Structure:**\n1. Extended Microtonal Exploration (Partch-dominant)\n2. Additional Microtonal Exploration\n3. Otonality and Utonality Exploration\n4. 43-Tone Scale Exploration\n5. Transition to Equal Temperament (pivotal fusion section)\n6. Build-up Section (increasing Happy Hardcore influence)\n7. Main Drop (full Happy Hardcore expression with Partch elements)\n8. Breakdown Section (return to Partch influence)\n9. Second Contrasting Main Section\n10. Extended Microtonal Breakdown\n11. Second and Third Climactic Sections (fusion pinnacle)\n12. Extended Outro\n13. Gradual Deconstruction (return to Partch aesthetic)\n\nThis structure thoughtfully guides the listener through the fusion process, with careful attention to transitions between contrasting elements.\n\n## 5. Artistic Assessment of the Fusion\n\n\"Partchcore Genesis\" achieves a remarkably successful fusion by finding unexpected common ground between seemingly disparate musical worlds. The composition recognizes that both Partch's music and Happy Hardcore share:\n\n- An interest in pushing beyond conventional boundaries\n- Concern with timbre as a primary compositional element\n- Emotional intensity (though expressed very differently)\n- Meticulous attention to sonic detail\n\nThe composer demonstrates deep understanding of both traditions rather than superficially borrowing elements. Particularly effective is how the microtonal elements gradually transform into and complement the electronic textures, creating rich harmonic complexity within the dance music framework.\n\nThe fusion works because it doesn't compromise either tradition – it allows Partch's experimental approach to breathe in the opening sections while fully embracing Happy Hardcore's energetic drive in the climactic moments. The recurring reintroduction of microtonal elements maintains coherence throughout.\n\nThis composition opens fascinating possibilities for expanding both electronic dance music's harmonic vocabulary and bringing experimental microtonal approaches to more rhythmically dynamic contexts.\n\n## 6. Audio Processing Suggestions\n\nThe transition points between microtonal and equal-tempered sections may require careful attention during mixing. Specifically:\n\n- The \"Transition to Equal Temperament\" section (measures 29-36) could benefit from subtle crossfading between the microtonal and equal-tempered elements to smooth what might otherwise be a jarring harmonic shift.\n\n- In the climactic sections (particularly measures 93-100), the extreme high register material in the Supersaw Synth and Vocal Samples parts might become harsh or piercing, especially when combined with the dense textures across all instruments. Some gentle high-frequency attenuation might maintain the energy without creating listener fatigue.\n\n- During the \"Extended Microtonal Breakdown\" (measures 77-84), the juxtaposition of microtonal intervals in the Adapted Diamond Marimba against the equal-tempered bass lines could create unintended dissonance. Careful balancing of these elements would preserve both the microtonal character and rhythmic drive.",
+    "timestamp": "2026-01-08T07:58:56.656Z",
+    "mediaSrc": "media/partchcore-genesis-1767859136656.webm",
+    "pdfSrc": "media/partchcore-genesis-1767859136656-score.pdf",
+    "abcFile": "harry partch_x_Happy Hardcore-modified-1767859077827.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Intro - Extended Microtonal Exploration",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Additional Microtonal Exploration",
+        "startTime": 10.67
+      },
+      {
+        "numeral": "III",
+        "title": "Otonality and Utonality Exploration",
+        "startTime": 21.33
+      },
+      {
+        "numeral": "IV",
+        "title": "Transition to Equal Temperament",
+        "startTime": 37.33
+      },
+      {
+        "numeral": "V",
+        "title": "Build - up Section",
+        "startTime": 64
+      },
+      {
+        "numeral": "VI",
+        "title": "Main Drop",
+        "startTime": 80
+      },
+      {
+        "numeral": "VII",
+        "title": "Breakdown Section",
+        "startTime": 101.33
+      },
+      {
+        "numeral": "VIII",
+        "title": "Second Contrasting Main Section",
+        "startTime": 112
+      },
+      {
+        "numeral": "IX",
+        "title": "Extended Microtonal Breakdown",
+        "startTime": 133.33
+      },
+      {
+        "numeral": "X",
+        "title": "Second Climactic Section",
+        "startTime": 154.67
+      },
+      {
+        "numeral": "XI",
+        "title": "New Melodic Material for Third Climactic Section",
+        "startTime": 170.67
+      },
+      {
+        "numeral": "XII",
+        "title": "Extended Outro",
+        "startTime": 181.33
+      },
+      {
+        "numeral": "XIII",
+        "title": "Gradual Deconstruction",
+        "startTime": 197.33
+      },
+      {
+        "numeral": "XIV",
+        "title": "Intro - Extended Microtonal Exploration",
+        "startTime": 213.33
+      },
+      {
+        "numeral": "XV",
+        "title": "Additional Microtonal Exploration",
+        "startTime": 224
+      },
+      {
+        "numeral": "XVI",
+        "title": "Otonality and Utonality Exploration",
+        "startTime": 234.67
+      },
+      {
+        "numeral": "XVII",
+        "title": "Transition to Equal Temperament",
+        "startTime": 250.67
+      },
+      {
+        "numeral": "XVIII",
+        "title": "Build - up Section",
+        "startTime": 277.33
+      },
+      {
+        "numeral": "XIX",
+        "title": "Main Drop",
+        "startTime": 290.67
+      },
+      {
+        "numeral": "XX",
+        "title": "Breakdown Section",
+        "startTime": 312
+      },
+      {
+        "numeral": "XXI",
+        "title": "Second Contrasting Main Section",
+        "startTime": 322.67
+      },
+      {
+        "numeral": "XXII",
+        "title": "Extended Microtonal Breakdown",
+        "startTime": 344
+      },
+      {
+        "numeral": "XXIII",
+        "title": "Second Climactic Section",
+        "startTime": 365.33
+      },
+      {
+        "numeral": "XXIV",
+        "title": "New Melodic Material for Third Climactic Section",
+        "startTime": 376
+      },
+      {
+        "numeral": "XXV",
+        "title": "Extended Outro",
+        "startTime": 382.67
+      },
+      {
+        "numeral": "XXVI",
+        "title": "Gradual Deconstruction",
+        "startTime": 398.67
+      },
+      {
+        "numeral": "XXVII",
+        "title": "Intro - Extended Microtonal Exploration",
+        "startTime": 414.67
+      },
+      {
+        "numeral": "XXVIII",
+        "title": "Additional Microtonal Exploration",
+        "startTime": 425.33
+      },
+      {
+        "numeral": "XXIX",
+        "title": "Otonality and Utonality Exploration",
+        "startTime": 436
+      },
+      {
+        "numeral": "XXX",
+        "title": "Transition to Equal Temperament",
+        "startTime": 452
+      },
+      {
+        "numeral": "XXXI",
+        "title": "Build - up Section",
+        "startTime": 478.67
+      },
+      {
+        "numeral": "XXXII",
+        "title": "Main Drop",
+        "startTime": 492
+      },
+      {
+        "numeral": "XXXIII",
+        "title": "Breakdown Section",
+        "startTime": 513.33
+      },
+      {
+        "numeral": "XXXIV",
+        "title": "Second Contrasting Main Section",
+        "startTime": 524
+      },
+      {
+        "numeral": "XXXV",
+        "title": "Extended Microtonal Breakdown",
+        "startTime": 545.33
+      },
+      {
+        "numeral": "XXXVI",
+        "title": "Second Climactic Section",
+        "startTime": 566.67
+      },
+      {
+        "numeral": "XXXVII",
+        "title": "New Melodic Material for Third Climactic Section",
+        "startTime": 582.67
+      },
+      {
+        "numeral": "XXXVIII",
+        "title": "Extended Outro",
+        "startTime": 593.33
+      },
+      {
+        "numeral": "XXXIX",
+        "title": "Gradual Deconstruction",
+        "startTime": 609.33
+      },
+      {
+        "numeral": "XL",
+        "title": "Intro - Extended Microtonal Exploration",
+        "startTime": 625.33
+      },
+      {
+        "numeral": "XLI",
+        "title": "Additional Microtonal Exploration",
+        "startTime": 636
+      },
+      {
+        "numeral": "XLII",
+        "title": "Otonality and Utonality Exploration",
+        "startTime": 646.67
+      },
+      {
+        "numeral": "XLIII",
+        "title": "Transition to Equal Temperament",
+        "startTime": 662.67
+      },
+      {
+        "numeral": "XLIV",
+        "title": "Build - up Section",
+        "startTime": 689.33
+      },
+      {
+        "numeral": "XLV",
+        "title": "Main Drop",
+        "startTime": 702.67
+      },
+      {
+        "numeral": "XLVI",
+        "title": "Breakdown Section",
+        "startTime": 724
+      },
+      {
+        "numeral": "XLVII",
+        "title": "Second Contrasting Main Section",
+        "startTime": 734.67
+      },
+      {
+        "numeral": "XLVIII",
+        "title": "Extended Microtonal Breakdown",
+        "startTime": 756
+      },
+      {
+        "numeral": "XLIX",
+        "title": "Second Climactic Section",
+        "startTime": 777.33
+      },
+      {
+        "numeral": "L",
+        "title": "New Melodic Material for Third Climactic Section",
+        "startTime": 789.33
+      },
+      {
+        "numeral": "LI",
+        "title": "Extended Outro",
+        "startTime": 796
+      },
+      {
+        "numeral": "LII",
+        "title": "Gradual Deconstruction",
+        "startTime": 812
+      },
+      {
+        "numeral": "LIII",
+        "title": "Intro - Extended Microtonal Exploration",
+        "startTime": 828
+      },
+      {
+        "numeral": "LIV",
+        "title": "Additional Microtonal Exploration",
+        "startTime": 838.67
+      },
+      {
+        "numeral": "LV",
+        "title": "Otonality and Utonality Exploration",
+        "startTime": 849.33
+      },
+      {
+        "numeral": "LVI",
+        "title": "Transition to Equal Temperament",
+        "startTime": 865.33
+      },
+      {
+        "numeral": "LVII",
+        "title": "Build - up Section",
+        "startTime": 892
+      },
+      {
+        "numeral": "LVIII",
+        "title": "Main Drop",
+        "startTime": 905.33
+      },
+      {
+        "numeral": "LIX",
+        "title": "Breakdown Section",
+        "startTime": 926.67
+      },
+      {
+        "numeral": "LX",
+        "title": "Second Contrasting Main Section",
+        "startTime": 937.33
+      },
+      {
+        "numeral": "LXI",
+        "title": "Extended Microtonal Breakdown",
+        "startTime": 958.67
+      },
+      {
+        "numeral": "LXII",
+        "title": "Second Climactic Section",
+        "startTime": 980
+      },
+      {
+        "numeral": "LXIII",
+        "title": "New Melodic Material for Third Climactic Section",
+        "startTime": 992
+      },
+      {
+        "numeral": "LXIV",
+        "title": "Extended Outro",
+        "startTime": 998.67
+      },
+      {
+        "numeral": "LXV",
+        "title": "Gradual Deconstruction",
+        "startTime": 1014.67
+      },
+      {
+        "numeral": "LXVI",
+        "title": "Intro - Extended Microtonal Exploration",
+        "startTime": 1030.67
+      },
+      {
+        "numeral": "LXVII",
+        "title": "Additional Microtonal Exploration",
+        "startTime": 1041.33
+      },
+      {
+        "numeral": "LXVIII",
+        "title": "Otonality and Utonality Exploration",
+        "startTime": 1052
+      },
+      {
+        "numeral": "LXIX",
+        "title": "Transition to Equal Temperament",
+        "startTime": 1068
+      },
+      {
+        "numeral": "LXX",
+        "title": "Build - up Section",
+        "startTime": 1094.67
+      },
+      {
+        "numeral": "LXXI",
+        "title": "Main Drop",
+        "startTime": 1108
+      },
+      {
+        "numeral": "LXXII",
+        "title": "Breakdown Section",
+        "startTime": 1129.33
+      },
+      {
+        "numeral": "LXXIII",
+        "title": "Second Contrasting Main Section",
+        "startTime": 1140
+      },
+      {
+        "numeral": "LXXIV",
+        "title": "Extended Microtonal Breakdown",
+        "startTime": 1161.33
+      },
+      {
+        "numeral": "LXXV",
+        "title": "Second Climactic Section",
+        "startTime": 1182.67
+      },
+      {
+        "numeral": "LXXVI",
+        "title": "New Melodic Material for Third Climactic Section",
+        "startTime": 1194.67
+      },
+      {
+        "numeral": "LXXVII",
+        "title": "Extended Outro",
+        "startTime": 1201.33
+      },
+      {
+        "numeral": "LXXVIII",
+        "title": "Gradual Deconstruction",
+        "startTime": 1217.33
+      },
+      {
+        "numeral": "LXXIX",
+        "title": "Intro - Extended Microtonal Exploration",
+        "startTime": 1233.33
+      },
+      {
+        "numeral": "LXXX",
+        "title": "Additional Microtonal Exploration",
+        "startTime": 1244
+      },
+      {
+        "numeral": "LXXXI",
+        "title": "Otonality and Utonality Exploration",
+        "startTime": 1254.67
+      },
+      {
+        "numeral": "LXXXII",
+        "title": "Transition to Equal Temperament",
+        "startTime": 1270.67
+      },
+      {
+        "numeral": "LXXXIII",
+        "title": "Build - up Section",
+        "startTime": 1297.33
+      },
+      {
+        "numeral": "LXXXIV",
+        "title": "Main Drop",
+        "startTime": 1310.67
+      },
+      {
+        "numeral": "LXXXV",
+        "title": "Breakdown Section",
+        "startTime": 1332
+      },
+      {
+        "numeral": "LXXXVI",
+        "title": "Second Contrasting Main Section",
+        "startTime": 1342.67
+      },
+      {
+        "numeral": "LXXXVII",
+        "title": "Extended Microtonal Breakdown",
+        "startTime": 1364
+      },
+      {
+        "numeral": "LXXXVIII",
+        "title": "Second Climactic Section",
+        "startTime": 1385.33
+      },
+      {
+        "numeral": "LXXXIX",
+        "title": "New Melodic Material for Third Climactic Section",
+        "startTime": 1397.33
+      },
+      {
+        "numeral": "XC",
+        "title": "Extended Outro",
+        "startTime": 1404
+      },
+      {
+        "numeral": "XCI",
+        "title": "Gradual Deconstruction",
+        "startTime": 1420
+      },
+      {
+        "numeral": "XCII",
+        "title": "Intro - Extended Microtonal Exploration",
+        "startTime": 1436
+      },
+      {
+        "numeral": "XCIII",
+        "title": "Additional Microtonal Exploration",
+        "startTime": 1446.67
+      },
+      {
+        "numeral": "XCIV",
+        "title": "Otonality and Utonality Exploration",
+        "startTime": 1457.33
+      },
+      {
+        "numeral": "XCV",
+        "title": "Transition to Equal Temperament",
+        "startTime": 1473.33
+      },
+      {
+        "numeral": "XCVI",
+        "title": "Build - up Section",
+        "startTime": 1500
+      },
+      {
+        "numeral": "XCVII",
+        "title": "Main Drop",
+        "startTime": 1513.33
+      },
+      {
+        "numeral": "XCVIII",
+        "title": "Breakdown Section",
+        "startTime": 1534.67
+      },
+      {
+        "numeral": "XCIX",
+        "title": "Second Contrasting Main Section",
+        "startTime": 1545.33
+      },
+      {
+        "numeral": "C",
+        "title": "Extended Microtonal Breakdown",
+        "startTime": 1566.67
+      },
+      {
+        "numeral": "CI",
+        "title": "Second Climactic Section",
+        "startTime": 1588
+      },
+      {
+        "numeral": "CII",
+        "title": "New Melodic Material for Third Climactic Section",
+        "startTime": 1600
+      },
+      {
+        "numeral": "CIII",
+        "title": "Extended Outro",
+        "startTime": 1606.67
+      },
+      {
+        "numeral": "CIV",
+        "title": "Gradual Deconstruction",
+        "startTime": 1622.67
+      },
+      {
+        "numeral": "CV",
+        "title": "Intro - Extended Microtonal Exploration",
+        "startTime": 1638.67
+      },
+      {
+        "numeral": "CVI",
+        "title": "Additional Microtonal Exploration",
+        "startTime": 1649.33
+      },
+      {
+        "numeral": "CVII",
+        "title": "Otonality and Utonality Exploration",
+        "startTime": 1660
+      },
+      {
+        "numeral": "CVIII",
+        "title": "Transition to Equal Temperament",
+        "startTime": 1676
+      },
+      {
+        "numeral": "CIX",
+        "title": "Build - up Section",
+        "startTime": 1702.67
+      },
+      {
+        "numeral": "CX",
+        "title": "Main Drop",
+        "startTime": 1716
+      },
+      {
+        "numeral": "CXI",
+        "title": "Breakdown Section",
+        "startTime": 1737.33
+      },
+      {
+        "numeral": "CXII",
+        "title": "Second Contrasting Main Section",
+        "startTime": 1748
+      },
+      {
+        "numeral": "CXIII",
+        "title": "Extended Microtonal Breakdown",
+        "startTime": 1769.33
+      },
+      {
+        "numeral": "CXIV",
+        "title": "Second Climactic Section",
+        "startTime": 1790.67
+      },
+      {
+        "numeral": "CXV",
+        "title": "New Melodic Material for Third Climactic Section",
+        "startTime": 1802.67
+      },
+      {
+        "numeral": "CXVI",
+        "title": "Extended Outro",
+        "startTime": 1809.33
+      },
+      {
+        "numeral": "CXVII",
+        "title": "Gradual Deconstruction",
+        "startTime": 1825.33
+      },
+      {
+        "numeral": "CXVIII",
+        "title": "Intro - Extended Microtonal Exploration",
+        "startTime": 1841.33
+      },
+      {
+        "numeral": "CXIX",
+        "title": "Additional Microtonal Exploration",
+        "startTime": 1852
+      },
+      {
+        "numeral": "CXX",
+        "title": "Otonality and Utonality Exploration",
+        "startTime": 1862.67
+      },
+      {
+        "numeral": "CXXI",
+        "title": "Transition to Equal Temperament",
+        "startTime": 1878.67
+      },
+      {
+        "numeral": "CXXII",
+        "title": "Build - up Section",
+        "startTime": 1905.33
+      },
+      {
+        "numeral": "CXXIII",
+        "title": "Main Drop",
+        "startTime": 1918.67
+      },
+      {
+        "numeral": "CXXIV",
+        "title": "Breakdown Section",
+        "startTime": 1940
+      },
+      {
+        "numeral": "CXXV",
+        "title": "Second Contrasting Main Section",
+        "startTime": 1950.67
+      },
+      {
+        "numeral": "CXXVI",
+        "title": "Extended Microtonal Breakdown",
+        "startTime": 1972
+      },
+      {
+        "numeral": "CXXVII",
+        "title": "Second Climactic Section",
+        "startTime": 1993.33
+      },
+      {
+        "numeral": "CXXVIII",
+        "title": "New Melodic Material for Third Climactic Section",
+        "startTime": 2005.33
+      },
+      {
+        "numeral": "CXXIX",
+        "title": "Extended Outro",
+        "startTime": 2012
+      },
+      {
+        "numeral": "CXXX",
+        "title": "Gradual Deconstruction",
+        "startTime": 2028
+      }
+    ]
+  },
+  {
+    "id": "prepared-fragments-1767867770847",
+    "title": "Prepared Fragments",
+    "composer": "John Cage x Fred Frith Fusion",
+    "key": "C",
+    "meter": "7/8",
+    "tempo": "72",
+    "genre": "john cage_x_fred frith",
+    "classicalGenre": "john cage",
+    "modernGenre": "fred frith",
+    "style": "standard",
+    "instruments": "Percussion, Harpsichord, Vibraphone, Acoustic Grand Piano, Music Box, Pad 7 (halo), Church Organ, Clavi, Marimba, Acoustic Guitar (steel), Pad 8 (sweep), Electric Guitar (clean), Celesta, Xylophone, Electric Guitar (muted), Distortion Guitar, Glockenspiel, Tubular Bells, Overdriven Guitar, FX 1 (rain)",
+    "analysis": "# Analysis of \"Prepared Fragments\" - John Cage × Fred Frith Fusion\n\n## 1. Overview of the hybrid genre approach\n\n\"Prepared Fragments\" represents a sophisticated fusion of John Cage's experimental compositional approaches with Fred Frith's extended guitar techniques and textural innovations. This hybrid work succeeds by combining Cage's chance operations and prepared piano concepts with Frith's table-top guitar techniques and improvisational approaches. The composition doesn't merely juxtapose these influences but integrates them into a cohesive artistic statement that honors both composers' revolutionary contributions to experimental music.\n\nThe piece operates in multiple dimensions: structured yet open to chance, acoustic yet embracing electronic elements, and precisely notated yet allowing for performer agency. This multifaceted approach creates a complex sonic landscape that transcends the individual elements of either composer alone.\n\n## 2. John Cage elements present in the composition\n\nThe Cage influence is immediately evident through several key elements:\n\n- **Prepared piano techniques**: The piano parts specify precise preparations including rubber damping and bolts between strings, directly referencing Cage's innovations in transforming the piano's timbral possibilities.\n\n- **Chance operations**: The Free meter section includes detailed I Ching-based instructions for determining parameters like \"Number of cells to use\" and \"Order of cells,\" demonstrating Cage's systematic approach to chance.\n\n- **Aleatoric elements**: The composition incorporates sections where performers make guided choices within defined parameters, a hallmark of Cage's later work.\n\n- **Silence as compositional material**: Deliberate silences are notated throughout, and specific \"Cage-Style Silence\" sections appear, acknowledging his revolutionary use of silence as musical material.\n\n- **Inside piano techniques**: Instructions for \"silently depress\" keys and other inside-the-piano explorations directly reference Cage's expanded piano vocabulary.\n\n- **Temporal flexibility**: The piece contains detailed instructions for variable durations based on chance procedures, echoing Cage's approach to time as a malleable parameter.\n\n## 3. Fred Frith elements present in the composition\n\nFrith's distinctive approaches are thoroughly integrated throughout:\n\n- **Extended guitar techniques**: The detailed \"Fred Frith Guitar Exploration Section\" includes signature Frith approaches: alligator clips on strings, table-top technique, e-bow, bowing, alternative tunings, and percussive techniques.\n\n- **Sound manipulation**: Instructions for \"feedback manipulation\" and \"looping/layering\" reflect Frith's pioneering work with sound processing and real-time manipulation.\n\n- **Textural emphasis**: The focus on creating rich, evolving textures rather than melodic development mirrors Frith's compositional priorities.\n\n- **Improvisational frameworks**: Structured improvisational sections with specific technical constraints reflect Frith's balance of freedom and control.\n\n- **Electronics and tape manipulation**: The explicit section for \"tape/digital recordings using variable speed playback, looping and layering techniques\" directly references Frith's work with recorded media.\n\n- **Noise-based material**: Directions for \"scratch strings,\" \"tap soundboard,\" and other noise-generating techniques align with Frith's expansion of instrumental vocabulary beyond conventional sounds.\n\n## 4. Technical elements (instrumentation, structure)\n\nThe composition demonstrates remarkable technical sophistication through:\n\n- **Metric complexity**: The work shifts between time signatures (7/8, 5/8, Free meter, 11/8) creating a fluid, unpredictable rhythmic foundation.\n\n- **Instrumental preparations**: Each instrument receives detailed preparation instructions, transforming conventional instruments into expanded sound sources.\n\n- **Structured form with flexibility**: The piece maintains a clear large-scale architecture while allowing for indeterminacy within sections:\n  * Opening section in 7/8 establishes thematic material\n  * Metric modulation to 5/8 creates textural contrast\n  * Free meter sections for chance operations\n  * Extended techniques explorations\n  * Return to 7/8 for formal coherence\n  * Dissolving coda that gradually reduces in density\n\n- **Dynamic architecture**: The composition carefully maps dynamic contours from ppp to fff, creating a coherent emotional trajectory despite the experimental techniques.\n\n- **Multi-layered performance instructions**: Beyond standard notation, the score includes detailed performance notes, graphic elements, and text-based directives that guide but don't constrain performers.\n\n## 5. Artistic assessment of the fusion\n\n\"Prepared Fragments\" succeeds as a hybrid genre because it finds genuine common ground between Cage and Frith's aesthetic worlds rather than superficially combining elements. The fusion works particularly well because:\n\n1. Both composers share an interest in expanding instrumental possibilities through preparation and extended techniques, making their approaches naturally compatible.\n\n2. The composition balances Cage's more systematic approach to chance with Frith's more intuitive approach to improvisation, creating a productive tension.\n\n3. The work embraces both acoustic and electronic elements, reflecting how both composers explored the full spectrum of sound production.\n\n4. The piece maintains coherence despite its experimental nature through recurring elements and careful structural organization.\n\n5. The fusion creates something genuinely new by applying Cage's chance operations to Frith-inspired guitar techniques, and conversely, bringing Frith's textural sensibilities to Cage's prepared piano concept.\n\nThe most successful fusion elements occur in the Free meter section, where Cage's chance operations methodology is applied to Frith-inspired extended techniques, creating unpredictable yet cohesive sound combinations that neither composer would have created independently.\n\n## 6. Audio processing suggestions\n\nThe composition appears carefully constructed to balance experimental techniques with musical coherence. I don't identify any sections that would likely produce jarring or uncomfortable sound quality beyond the intentional experimental aesthetic that defines both Cage and Frith's work.\n\nThe specified preparations, techniques, and performance instructions are consistent with established experimental music practices, and any resulting unusual timbres or textures would be integral to the artistic intent rather than technical problems requiring correction.",
+    "timestamp": "2026-01-08T10:22:50.847Z",
+    "mediaSrc": "media/prepared-fragments-1767867770847.webm",
+    "pdfSrc": "media/prepared-fragments-1767867770847-score.pdf",
+    "abcFile": "john cage_x_fred frith-modified-1767867715345.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Section A - Main Theme",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Development",
+        "startTime": 116.67
+      },
+      {
+        "numeral": "III",
+        "title": "Transition to B Section - Sparse Contemplation",
+        "startTime": 233.33
+      },
+      {
+        "numeral": "IV",
+        "title": "Section B - Metric Modulation to 5/8 - E-bow Guitar & Prepared Piano Duet",
+        "startTime": 350
+      },
+      {
+        "numeral": "V",
+        "title": "Chance Operations Section - Free Meter - EXPANDED",
+        "startTime": 612.5
+      },
+      {
+        "numeral": "VI",
+        "title": "PERFORMANCE INSTRUCTIONS - I Ching-Based Chance Operations",
+        "startTime": 612.5
+      },
+      {
+        "numeral": "VII",
+        "title": "Duration - 5-7 minutes (00:00-07:00)",
+        "startTime": 612.5
+      },
+      {
+        "numeral": "VIII",
+        "title": "CELL 2 - Contrasting Material (00:36-00:54)",
+        "startTime": 618.33
+      },
+      {
+        "numeral": "IX",
+        "title": "CELL 3 - Sparse Material (00:54-01:12)",
+        "startTime": 621.25
+      },
+      {
+        "numeral": "X",
+        "title": "CELL 4 - Dense Material (01:12-01:30)",
+        "startTime": 624.17
+      },
+      {
+        "numeral": "XI",
+        "title": "CELL 5 - Complex Rhythmic Material (01:30-01:48)",
+        "startTime": 627.08
+      },
+      {
+        "numeral": "XII",
+        "title": "CELL 6 - Pointillistic Material (01:48-02:06)",
+        "startTime": 630
+      },
+      {
+        "numeral": "XIII",
+        "title": "CELL 7 - Resonant Material (02:06-02:24)",
+        "startTime": 632.92
+      },
+      {
+        "numeral": "XIV",
+        "title": "CELL 8 - Cluster Material (02:24-02:42)",
+        "startTime": 635.83
+      },
+      {
+        "numeral": "XV",
+        "title": "CELL 9 - Pentatonic Material (02:42-03:00)",
+        "startTime": 638.75
+      },
+      {
+        "numeral": "XVI",
+        "title": "CELL 10 - Whole Tone Material (03:00-03:18)",
+        "startTime": 641.67
+      },
+      {
+        "numeral": "XVII",
+        "title": "CELL 11 - Chromatic Material (03:18-03:36)",
+        "startTime": 644.58
+      },
+      {
+        "numeral": "XVIII",
+        "title": "CELL 12 - Microtonal Suggestions (03:36-03:54)",
+        "startTime": 647.5
+      },
+      {
+        "numeral": "XIX",
+        "title": "CELL 13 - Temporal Flexibility (03:54-04:12)",
+        "startTime": 650.42
+      },
+      {
+        "numeral": "XX",
+        "title": "CELL 14 - Extreme Contrasts (04:12-04:30)",
+        "startTime": 653.33
+      },
+      {
+        "numeral": "XXI",
+        "title": "CELL 15 - Prepared Piano Effects (04:30-04:48)",
+        "startTime": 656.25
+      },
+      {
+        "numeral": "XXII",
+        "title": "CELL 16 - Resonant Decay (04:48-05:06)",
+        "startTime": 659.17
+      },
+      {
+        "numeral": "XXIII",
+        "title": "CELL 17 - Metric Modulation Suggestion (05:06-05:24)",
+        "startTime": 662.08
+      },
+      {
+        "numeral": "XXIV",
+        "title": "CELL 18 - Harmonic Series Exploration (05:24-05:42)",
+        "startTime": 665
+      },
+      {
+        "numeral": "XXV",
+        "title": "CELL 19 - Inside Piano Techniques (05:42-06:00)",
+        "startTime": 667.92
+      },
+      {
+        "numeral": "XXVI",
+        "title": "CELL 20 - Sympathetic Resonance (06:00-06:18)",
+        "startTime": 670.83
+      },
+      {
+        "numeral": "XXVII",
+        "title": "CELL 21 - Cage-Style Silence (06:18-06:36)",
+        "startTime": 673.75
+      },
+      {
+        "numeral": "XXVIII",
+        "title": "CELL 22 - Noise-Based Material (06:36-06:54)",
+        "startTime": 676.67
+      },
+      {
+        "numeral": "XXIX",
+        "title": "CELL 23 - Final Cell - Free Improvisation (06:54-07:00)",
+        "startTime": 679.58
+      },
+      {
+        "numeral": "XXX",
+        "title": "PERFORMANCE INSTRUCTIONS - I Ching-Based Chance Operations",
+        "startTime": 682.5
+      },
+      {
+        "numeral": "XXXI",
+        "title": "Duration - 5-7 minutes (00:00-07:00)",
+        "startTime": 682.5
+      },
+      {
+        "numeral": "XXXII",
+        "title": "CELL 2 - Contrasting Material (00:36-00:54)",
+        "startTime": 688.33
+      },
+      {
+        "numeral": "XXXIII",
+        "title": "CELL 3 - Sparse Material (00:54-01:12)",
+        "startTime": 691.25
+      },
+      {
+        "numeral": "XXXIV",
+        "title": "CELL 4 - Dense Material (01:12-01:30)",
+        "startTime": 694.17
+      },
+      {
+        "numeral": "XXXV",
+        "title": "CELL 5 - Complex Rhythmic Material (01:30-01:48)",
+        "startTime": 697.08
+      },
+      {
+        "numeral": "XXXVI",
+        "title": "CELL 6 - Pointillistic Material (01:48-02:06)",
+        "startTime": 700
+      },
+      {
+        "numeral": "XXXVII",
+        "title": "CELL 7 - Resonant Material (02:06-02:24)",
+        "startTime": 702.92
+      },
+      {
+        "numeral": "XXXVIII",
+        "title": "CELL 8 - Cluster Material (02:24-02:42)",
+        "startTime": 705.83
+      },
+      {
+        "numeral": "XXXIX",
+        "title": "CELL 9 - Pentatonic Material (02:42-03:00)",
+        "startTime": 708.75
+      },
+      {
+        "numeral": "XL",
+        "title": "CELL 10 - Whole Tone Material (03:00-03:18)",
+        "startTime": 711.67
+      },
+      {
+        "numeral": "XLI",
+        "title": "CELL 11 - Chromatic Material (03:18-03:36)",
+        "startTime": 714.58
+      },
+      {
+        "numeral": "XLII",
+        "title": "CELL 12 - Microtonal Suggestions (03:36-03:54)",
+        "startTime": 717.5
+      },
+      {
+        "numeral": "XLIII",
+        "title": "CELL 13 - Temporal Flexibility (03:54-04:12)",
+        "startTime": 720.42
+      },
+      {
+        "numeral": "XLIV",
+        "title": "CELL 14 - Extreme Contrasts (04:12-04:30)",
+        "startTime": 723.33
+      },
+      {
+        "numeral": "XLV",
+        "title": "CELL 15 - Prepared Piano Effects (04:30-04:48)",
+        "startTime": 726.25
+      },
+      {
+        "numeral": "XLVI",
+        "title": "CELL 16 - Resonant Decay (04:48-05:06)",
+        "startTime": 729.17
+      },
+      {
+        "numeral": "XLVII",
+        "title": "CELL 17 - Metric Modulation Suggestion (05:06-05:24)",
+        "startTime": 732.08
+      },
+      {
+        "numeral": "XLVIII",
+        "title": "CELL 18 - Harmonic Series Exploration (05:24-05:42)",
+        "startTime": 735
+      },
+      {
+        "numeral": "XLIX",
+        "title": "CELL 19 - Inside Piano Techniques (05:42-06:00)",
+        "startTime": 737.92
+      },
+      {
+        "numeral": "L",
+        "title": "CELL 20 - Sympathetic Resonance (06:00-06:18)",
+        "startTime": 740.83
+      },
+      {
+        "numeral": "LI",
+        "title": "CELL 21 - Cage-Style Silence (06:18-06:36)",
+        "startTime": 743.75
+      },
+      {
+        "numeral": "LII",
+        "title": "CELL 22 - Noise-Based Material (06:36-06:54)",
+        "startTime": 746.67
+      },
+      {
+        "numeral": "LIII",
+        "title": "CELL 23 - Final Cell - Free Improvisation (06:54-07:00)",
+        "startTime": 749.58
+      },
+      {
+        "numeral": "LIV",
+        "title": "PERFORMANCE INSTRUCTIONS - I Ching-Based Chance Operations",
+        "startTime": 752.5
+      },
+      {
+        "numeral": "LV",
+        "title": "Duration - 5-7 minutes (00:00-07:00)",
+        "startTime": 752.5
+      },
+      {
+        "numeral": "LVI",
+        "title": "CELL 2 - Contrasting Material (00:36-00:54)",
+        "startTime": 758.33
+      },
+      {
+        "numeral": "LVII",
+        "title": "CELL 3 - Sparse Material (00:54-01:12)",
+        "startTime": 761.25
+      },
+      {
+        "numeral": "LVIII",
+        "title": "CELL 4 - Dense Material (01:12-01:30)",
+        "startTime": 764.17
+      },
+      {
+        "numeral": "LIX",
+        "title": "CELL 5 - Complex Rhythmic Material (01:30-01:48)",
+        "startTime": 767.08
+      },
+      {
+        "numeral": "LX",
+        "title": "CELL 6 - Pointillistic Material (01:48-02:06)",
+        "startTime": 770
+      },
+      {
+        "numeral": "LXI",
+        "title": "CELL 7 - Resonant Material (02:06-02:24)",
+        "startTime": 772.92
+      },
+      {
+        "numeral": "LXII",
+        "title": "CELL 8 - Cluster Material (02:24-02:42)",
+        "startTime": 775.83
+      },
+      {
+        "numeral": "LXIII",
+        "title": "CELL 9 - Pentatonic Material (02:42-03:00)",
+        "startTime": 778.75
+      },
+      {
+        "numeral": "LXIV",
+        "title": "CELL 10 - Whole Tone Material (03:00-03:18)",
+        "startTime": 781.67
+      },
+      {
+        "numeral": "LXV",
+        "title": "CELL 11 - Chromatic Material (03:18-03:36)",
+        "startTime": 784.58
+      },
+      {
+        "numeral": "LXVI",
+        "title": "CELL 12 - Microtonal Suggestions (03:36-03:54)",
+        "startTime": 787.5
+      },
+      {
+        "numeral": "LXVII",
+        "title": "CELL 13 - Temporal Flexibility (03:54-04:12)",
+        "startTime": 790.42
+      },
+      {
+        "numeral": "LXVIII",
+        "title": "CELL 14 - Extreme Contrasts (04:12-04:30)",
+        "startTime": 793.33
+      },
+      {
+        "numeral": "LXIX",
+        "title": "CELL 15 - Percussion Techniques (04:30-04:48)",
+        "startTime": 796.25
+      },
+      {
+        "numeral": "LXX",
+        "title": "CELL 16 - Resonant Decay (04:48-05:06)",
+        "startTime": 799.17
+      },
+      {
+        "numeral": "LXXI",
+        "title": "CELL 17 - Metric Modulation Suggestion (05:06-05:24)",
+        "startTime": 802.08
+      },
+      {
+        "numeral": "LXXII",
+        "title": "CELL 18 - Timbre Exploration (05:24-05:42)",
+        "startTime": 805
+      },
+      {
+        "numeral": "LXXIII",
+        "title": "CELL 19 - Extended Techniques (05:42-06:00)",
+        "startTime": 807.92
+      },
+      {
+        "numeral": "LXXIV",
+        "title": "CELL 20 - Sympathetic Resonance (06:00-06:18)",
+        "startTime": 810.83
+      },
+      {
+        "numeral": "LXXV",
+        "title": "CELL 21 - Cage-Style Silence (06:18-06:36)",
+        "startTime": 813.75
+      },
+      {
+        "numeral": "LXXVI",
+        "title": "CELL 22 - Noise-Based Material (06:36-06:54)",
+        "startTime": 816.67
+      },
+      {
+        "numeral": "LXXVII",
+        "title": "CELL 23 - Final Cell - Free Improvisation (06:54-07:00)",
+        "startTime": 819.58
+      },
+      {
+        "numeral": "LXXVIII",
+        "title": "PERFORMANCE INSTRUCTIONS - I Ching-Based Chance Operations",
+        "startTime": 822.5
+      },
+      {
+        "numeral": "LXXIX",
+        "title": "Duration - 5-7 minutes (00:00-07:00)",
+        "startTime": 822.5
+      },
+      {
+        "numeral": "LXXX",
+        "title": "CELL 2 - Contrasting Material (00:36-00:54)",
+        "startTime": 828.33
+      },
+      {
+        "numeral": "LXXXI",
+        "title": "CELL 3 - Sparse Material (00:54-01:12)",
+        "startTime": 831.25
+      },
+      {
+        "numeral": "LXXXII",
+        "title": "CELL 4 - Dense Material (01:12-01:30)",
+        "startTime": 834.17
+      },
+      {
+        "numeral": "LXXXIII",
+        "title": "CELL 5 - Complex Rhythmic Material (01:30-01:48)",
+        "startTime": 837.08
+      },
+      {
+        "numeral": "LXXXIV",
+        "title": "CELL 6 - Pointillistic Material (01:48-02:06)",
+        "startTime": 840
+      },
+      {
+        "numeral": "LXXXV",
+        "title": "CELL 7 - Resonant Material (02:06-02:24)",
+        "startTime": 842.92
+      },
+      {
+        "numeral": "LXXXVI",
+        "title": "CELL 8 - Cluster Material (02:24-02:42)",
+        "startTime": 845.83
+      },
+      {
+        "numeral": "LXXXVII",
+        "title": "CELL 9 - Pentatonic Material (02:42-03:00)",
+        "startTime": 848.75
+      },
+      {
+        "numeral": "LXXXVIII",
+        "title": "CELL 10 - Whole Tone Material (03:00-03:18)",
+        "startTime": 851.67
+      },
+      {
+        "numeral": "LXXXIX",
+        "title": "CELL 11 - Chromatic Material (03:18-03:36)",
+        "startTime": 854.58
+      },
+      {
+        "numeral": "XC",
+        "title": "CELL 12 - Microtonal Suggestions (03:36-03:54)",
+        "startTime": 857.5
+      },
+      {
+        "numeral": "XCI",
+        "title": "CELL 13 - Temporal Flexibility (03:54-04:12)",
+        "startTime": 860.42
+      },
+      {
+        "numeral": "XCII",
+        "title": "CELL 14 - Extreme Contrasts (04:12-04:30)",
+        "startTime": 863.33
+      },
+      {
+        "numeral": "XCIII",
+        "title": "CELL 15 - Guitar Preparations (04:30-04:48)",
+        "startTime": 866.25
+      },
+      {
+        "numeral": "XCIV",
+        "title": "CELL 16 - Resonant Decay (04:48-05:06)",
+        "startTime": 869.17
+      },
+      {
+        "numeral": "XCV",
+        "title": "CELL 17 - Metric Modulation Suggestion (05:06-05:24)",
+        "startTime": 872.08
+      },
+      {
+        "numeral": "XCVI",
+        "title": "CELL 18 - Harmonic Series Exploration (05:24-05:42)",
+        "startTime": 875
+      },
+      {
+        "numeral": "XCVII",
+        "title": "CELL 19 - Extended Techniques (05:42-06:00)",
+        "startTime": 877.92
+      },
+      {
+        "numeral": "XCVIII",
+        "title": "CELL 20 - Sympathetic Resonance (06:00-06:18)",
+        "startTime": 880.83
+      },
+      {
+        "numeral": "XCIX",
+        "title": "CELL 21 - Cage-Style Silence (06:18-06:36)",
+        "startTime": 883.75
+      },
+      {
+        "numeral": "C",
+        "title": "CELL 22 - Noise-Based Material (06:36-06:54)",
+        "startTime": 886.67
+      },
+      {
+        "numeral": "CI",
+        "title": "CELL 23 - Final Cell - Free Improvisation (06:54-07:00)",
+        "startTime": 889.58
+      },
+      {
+        "numeral": "CII",
+        "title": "PERFORMANCE INSTRUCTIONS - I Ching-Based Chance Operations",
+        "startTime": 892.5
+      },
+      {
+        "numeral": "CIII",
+        "title": "Duration - 5-7 minutes (00:00-07:00)",
+        "startTime": 892.5
+      },
+      {
+        "numeral": "CIV",
+        "title": "CELL 2 - Contrasting Material (00:36-00:54)",
+        "startTime": 898.33
+      },
+      {
+        "numeral": "CV",
+        "title": "CELL 3 - Sparse Material (00:54-01:12)",
+        "startTime": 901.25
+      },
+      {
+        "numeral": "CVI",
+        "title": "CELL 4 - Dense Material (01:12-01:30)",
+        "startTime": 904.17
+      },
+      {
+        "numeral": "CVII",
+        "title": "CELL 5 - Complex Rhythmic Material (01:30-01:48)",
+        "startTime": 907.08
+      },
+      {
+        "numeral": "CVIII",
+        "title": "CELL 6 - Pointillistic Material (01:48-02:06)",
+        "startTime": 910
+      },
+      {
+        "numeral": "CIX",
+        "title": "CELL 7 - Resonant Material (02:06-02:24)",
+        "startTime": 912.92
+      },
+      {
+        "numeral": "CX",
+        "title": "CELL 8 - Cluster Material (02:24-02:42)",
+        "startTime": 915.83
+      },
+      {
+        "numeral": "CXI",
+        "title": "CELL 9 - Pentatonic Material (02:42-03:00)",
+        "startTime": 918.75
+      },
+      {
+        "numeral": "CXII",
+        "title": "CELL 10 - Whole Tone Material (03:00-03:18)",
+        "startTime": 921.67
+      },
+      {
+        "numeral": "CXIII",
+        "title": "CELL 11 - Chromatic Material (03:18-03:36)",
+        "startTime": 924.58
+      },
+      {
+        "numeral": "CXIV",
+        "title": "CELL 12 - Microtonal Suggestions (03:36-03:54)",
+        "startTime": 927.5
+      },
+      {
+        "numeral": "CXV",
+        "title": "CELL 13 - Temporal Flexibility (03:54-04:12)",
+        "startTime": 930.42
+      },
+      {
+        "numeral": "CXVI",
+        "title": "CELL 14 - Extreme Contrasts (04:12-04:30)",
+        "startTime": 933.33
+      },
+      {
+        "numeral": "CXVII",
+        "title": "CELL 15 - Bowed Cymbal Techniques (04:30-04:48)",
+        "startTime": 936.25
+      },
+      {
+        "numeral": "CXVIII",
+        "title": "CELL 16 - Resonant Decay (04:48-05:06)",
+        "startTime": 939.17
+      },
+      {
+        "numeral": "CXIX",
+        "title": "CELL 17 - Metric Modulation Suggestion (05:06-05:24)",
+        "startTime": 942.08
+      },
+      {
+        "numeral": "CXX",
+        "title": "CELL 18 - Timbre Exploration (05:24-05:42)",
+        "startTime": 945
+      },
+      {
+        "numeral": "CXXI",
+        "title": "CELL 19 - Extended Techniques (05:42-06:00)",
+        "startTime": 947.92
+      },
+      {
+        "numeral": "CXXII",
+        "title": "CELL 20 - Sympathetic Resonance (06:00-06:18)",
+        "startTime": 950.83
+      },
+      {
+        "numeral": "CXXIII",
+        "title": "CELL 21 - Cage-Style Silence (06:18-06:36)",
+        "startTime": 953.75
+      },
+      {
+        "numeral": "CXXIV",
+        "title": "CELL 22 - Noise-Based Material (06:36-06:54)",
+        "startTime": 956.67
+      },
+      {
+        "numeral": "CXXV",
+        "title": "CELL 23 - Final Cell - Free Improvisation (06:54-07:00)",
+        "startTime": 959.58
+      },
+      {
+        "numeral": "CXXVI",
+        "title": "Extended Techniques Section - Free Meter",
+        "startTime": 962.5
+      },
+      {
+        "numeral": "CXXVII",
+        "title": "Duration - 3-4 minutes (07:00-11:00)",
+        "startTime": 962.5
+      },
+      {
+        "numeral": "CXXVIII",
+        "title": "TAPE LOOP 2 - Time-Stretched Material (08:00-08:30)",
+        "startTime": 968.33
+      },
+      {
+        "numeral": "CXXIX",
+        "title": "TAPE LOOP 2 - Granular Synthesis (08:30-09:00)",
+        "startTime": 971.25
+      },
+      {
+        "numeral": "CXXX",
+        "title": "TAPE LOOP 3 - Spatial Movement (09:00-09:30)",
+        "startTime": 974.17
+      },
+      {
+        "numeral": "CXXXI",
+        "title": "TAPE LOOP 3 - Filtered Material (09:30-10:00)",
+        "startTime": 977.08
+      },
+      {
+        "numeral": "CXXXII",
+        "title": "Duration - 3-4 minutes (07:00-11:00)",
+        "startTime": 985.83
+      },
+      {
+        "numeral": "CXXXIII",
+        "title": "TAPE LOOP 2 - Time-Stretched Material (08:00-08:30)",
+        "startTime": 991.67
+      },
+      {
+        "numeral": "CXXXIV",
+        "title": "TAPE LOOP 2 - Granular Synthesis (08:30-09:00)",
+        "startTime": 994.58
+      },
+      {
+        "numeral": "CXXXV",
+        "title": "TAPE LOOP 3 - Spatial Movement (09:00-09:30)",
+        "startTime": 997.5
+      },
+      {
+        "numeral": "CXXXVI",
+        "title": "TAPE LOOP 3 - Filtered Material (09:30-10:00)",
+        "startTime": 1000.42
+      },
+      {
+        "numeral": "CXXXVII",
+        "title": "Duration - 3-4 minutes (07:00-11:00)",
+        "startTime": 1009.17
+      },
+      {
+        "numeral": "CXXXVIII",
+        "title": "TAPE LOOP 2 - Time-Stretched Material (08:00-08:30)",
+        "startTime": 1015
+      },
+      {
+        "numeral": "CXXXIX",
+        "title": "TAPE LOOP 2 - Granular Synthesis (08:30-09:00)",
+        "startTime": 1017.92
+      },
+      {
+        "numeral": "CXL",
+        "title": "TAPE LOOP 3 - Spatial Movement (09:00-09:30)",
+        "startTime": 1020.83
+      },
+      {
+        "numeral": "CXLI",
+        "title": "TAPE LOOP 3 - Filtered Material (09:30-10:00)",
+        "startTime": 1023.75
+      },
+      {
+        "numeral": "CXLII",
+        "title": "Duration - 3-4 minutes (07:00-11:00)",
+        "startTime": 1032.5
+      },
+      {
+        "numeral": "CXLIII",
+        "title": "TAPE LOOP 2 - Time-Stretched Material (08:00-08:30)",
+        "startTime": 1038.33
+      },
+      {
+        "numeral": "CXLIV",
+        "title": "TAPE LOOP 2 - Granular Synthesis (08:30-09:00)",
+        "startTime": 1041.25
+      },
+      {
+        "numeral": "CXLV",
+        "title": "TAPE LOOP 3 - Spatial Movement (09:00-09:30)",
+        "startTime": 1044.17
+      },
+      {
+        "numeral": "CXLVI",
+        "title": "TAPE LOOP 3 - Filtered Material (09:30-10:00)",
+        "startTime": 1047.08
+      },
+      {
+        "numeral": "CXLVII",
+        "title": "Duration - 3-4 minutes (07:00-11:00)",
+        "startTime": 1055.83
+      },
+      {
+        "numeral": "CXLVIII",
+        "title": "TAPE LOOP 2 - Time-Stretched Material (08:00-08:30)",
+        "startTime": 1061.67
+      },
+      {
+        "numeral": "CXLIX",
+        "title": "TAPE LOOP 2 - Granular Synthesis (08:30-09:00)",
+        "startTime": 1064.58
+      },
+      {
+        "numeral": "CL",
+        "title": "TAPE LOOP 3 - Spatial Movement (09:00-09:30)",
+        "startTime": 1067.5
+      },
+      {
+        "numeral": "CLI",
+        "title": "TAPE LOOP 3 - Filtered Material (09:30-10:00)",
+        "startTime": 1070.42
+      },
+      {
+        "numeral": "CLII",
+        "title": "Fred Frith Guitar Exploration Section - Extended Techniques - EXPANDED",
+        "startTime": 1079.17
+      },
+      {
+        "numeral": "CLIII",
+        "title": "EXPANDED FRED FRITH GUITAR EXPLORATION SECTION",
+        "startTime": 1079.17
+      },
+      {
+        "numeral": "CLIV",
+        "title": "Duration - 4-5 minutes (11:00-16:00)",
+        "startTime": 1079.17
+      },
+      {
+        "numeral": "CLV",
+        "title": "Piano provides sparse accompaniment during guitar explorations",
+        "startTime": 1079.17
+      },
+      {
+        "numeral": "CLVI",
+        "title": "EXPANDED FRED FRITH GUITAR EXPLORATION SECTION",
+        "startTime": 1195.83
+      },
+      {
+        "numeral": "CLVII",
+        "title": "Duration - 4-5 minutes (11:00-16:00)",
+        "startTime": 1195.83
+      },
+      {
+        "numeral": "CLVIII",
+        "title": "Piano provides sparse accompaniment during guitar explorations",
+        "startTime": 1195.83
+      },
+      {
+        "numeral": "CLIX",
+        "title": "EXPANDED FRED FRITH GUITAR EXPLORATION SECTION",
+        "startTime": 1312.5
+      },
+      {
+        "numeral": "CLX",
+        "title": "Duration - 4-5 minutes (11:00-16:00)",
+        "startTime": 1312.5
+      },
+      {
+        "numeral": "CLXI",
+        "title": "Percussion provides sparse texture during guitar explorations",
+        "startTime": 1312.5
+      },
+      {
+        "numeral": "CLXII",
+        "title": "EXPANDED FRED FRITH GUITAR EXPLORATION SECTION",
+        "startTime": 1429.17
+      },
+      {
+        "numeral": "CLXIII",
+        "title": "Duration - 4-5 minutes (11:00-16:00)",
+        "startTime": 1429.17
+      },
+      {
+        "numeral": "CLXIV",
+        "title": "EXPANDED FRED FRITH GUITAR EXPLORATION SECTION",
+        "startTime": 1545.83
+      },
+      {
+        "numeral": "CLXV",
+        "title": "Duration - 4-5 minutes (11:00-16:00)",
+        "startTime": 1545.83
+      },
+      {
+        "numeral": "CLXVI",
+        "title": "Bowed cymbals provide ethereal backdrop to guitar explorations",
+        "startTime": 1545.83
+      },
+      {
+        "numeral": "CLXVII",
+        "title": "Aleatoric Section - Guided Choices - EXPANDED WITH TIMING",
+        "startTime": 1662.5
+      },
+      {
+        "numeral": "CLXVIII",
+        "title": "EXPANDED ALEATORIC SECTION WITH PRECISE TIMING",
+        "startTime": 1662.5
+      },
+      {
+        "numeral": "CLXIX",
+        "title": "Duration - 5-6 minutes (16:00-22:00)",
+        "startTime": 1662.5
+      },
+      {
+        "numeral": "CLXX",
+        "title": "EXPANDED ALEATORIC SECTION WITH PRECISE TIMING",
+        "startTime": 1837.5
+      },
+      {
+        "numeral": "CLXXI",
+        "title": "Duration - 5-6 minutes (16:00-22:00)",
+        "startTime": 1837.5
+      },
+      {
+        "numeral": "CLXXII",
+        "title": "EXPANDED ALEATORIC SECTION WITH PRECISE TIMING",
+        "startTime": 2012.5
+      },
+      {
+        "numeral": "CLXXIII",
+        "title": "Duration - 5-6 minutes (16:00-22:00)",
+        "startTime": 2012.5
+      },
+      {
+        "numeral": "CLXXIV",
+        "title": "EXPANDED ALEATORIC SECTION WITH PRECISE TIMING",
+        "startTime": 2187.5
+      },
+      {
+        "numeral": "CLXXV",
+        "title": "Duration - 5-6 minutes (16:00-22:00)",
+        "startTime": 2187.5
+      },
+      {
+        "numeral": "CLXXVI",
+        "title": "EXPANDED ALEATORIC SECTION WITH PRECISE TIMING",
+        "startTime": 2362.5
+      },
+      {
+        "numeral": "CLXXVII",
+        "title": "Duration - 5-6 minutes (16:00-22:00)",
+        "startTime": 2362.5
+      },
+      {
+        "numeral": "CLXXVIII",
+        "title": "Graphic Notation Section - Improvisation Instructions",
+        "startTime": 2537.5
+      },
+      {
+        "numeral": "CLXXIX",
+        "title": "Extended Techniques Section - Complex Meter",
+        "startTime": 3237.5
+      },
+      {
+        "numeral": "CLXXX",
+        "title": "Final Section - Return to Original Meter with New Material",
+        "startTime": 3295.83
+      },
+      {
+        "numeral": "CLXXXI",
+        "title": "Extended Coda - Gradually Dissolving (16+ measures)",
+        "startTime": 3412.5
+      }
+    ]
   }
 ]

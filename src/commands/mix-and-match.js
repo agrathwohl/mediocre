@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { config } from '../utils/config.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
 import { generateText } from 'ai';
-import { generateDescription, getAnthropic, validateAbcNotation, cleanAbcNotation, getTimidityConfigInfo } from '../utils/claude.js';
+import { generateDescription, getAnthropic, validateAbcNotation, cleanAbcNotation } from '../utils/claude.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -295,8 +295,7 @@ Create a new composition in ABC notation that thoughtfully mixes segments from t
 
 The piece MUST be complex in its layering of ideas and use vertical combination of musical concepts from different source pieces to create a unified, coherent whole.
 
-IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure all headers come first (X:1, T:, M:, L:, Q:, K:), then any MIDI program declarations, then voice declarations, then music.
-${getTimidityConfigInfo()}`;
+IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure all headers come first (X:1, T:, M:, L:, Q:, K:), then any MIDI program declarations, then voice declarations, then music.`;
 
   try {
     const { text } = await generateText({
