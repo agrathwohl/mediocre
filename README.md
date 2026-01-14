@@ -34,6 +34,8 @@ The documentation site features playable audio, PDF scores, section navigation, 
   - [Combine Compositions](#combine-compositions)
   - [Validate ABC Notation](#validate-abc-notation)
   - [Sanitize Drums](#sanitize-drums)
+  - [Generate Choreography](#generate-choreography)
+  - [Play Choreography](#play-choreography)
 - [Advanced Features](#advanced-features)
   - [Sequential Expansion Mode](#sequential-expansion-mode)
   - [Streaming Mode](#streaming-mode)
@@ -55,6 +57,7 @@ The documentation site features playable audio, PDF scores, section navigation, 
 - **Genre Fusion** - Combine classical and modern elements into unique hybrids
 - **AI Composition** - Generate ABC notation using Claude 3.7 Sonnet with streaming support
 - **Sequential Expansion** - LLM-driven multi-pass composition development with validation
+- **ASCII Art Choreography** - Generate and play synchronized visual animations with iterative improvement
 - **Title Uniqueness** - Automatic protection against duplicate composition titles
 - **Format Conversion** - ABC → MIDI → WAV → WebM pipeline with PDF scores
 - **ABC Validation** - Automatic syntax cleaning and segfault prevention
@@ -456,6 +459,94 @@ mediocre lyrics \
   --record-label "Transgressive" \
   --instruments "Voice,Synthesizer,808,Strings"
 ```
+
+### Generate Choreography
+
+Create animated ASCII art choreography synchronized to your music. The system supports iterative improvement - running the command multiple times on the same piece will progressively enhance the choreography.
+
+```bash
+# Generate initial choreography (v1.1 schema)
+mediocre generate-choreography \
+  --abc "output/baroque_x_techno-score1.abc" \
+  --desc "A fusion of baroque counterpoint and techno rhythms" \
+  --output ./output \
+  --verbose
+
+# Run again to improve sparse sections
+mediocre generate-choreography \
+  --abc "output/baroque_x_techno-score1.abc" \
+  --output ./output
+
+# Each run finds the weakest (sparsest) section and adds more events
+# v1.1 → v2 → v3 → v4 (iterative improvement)
+```
+
+**How Iterative Improvement Works:**
+
+1. **First Run**: Generates `composition-choreography.v1.1.json` with initial choreography
+2. **Subsequent Runs**:
+   - Detects latest version (v1.1, v2, v3, etc.)
+   - Analyzes timeline to find sparsest 60-second section
+   - Generates improved events for that section only
+   - Merges improvements back into full timeline
+   - Saves as next version (v2, v3, v4...)
+
+This section-based approach solves token budget issues with long compositions by improving one chunk at a time.
+
+**Choreography Options:**
+
+| Flag          | Description                                         |
+| ------------- | --------------------------------------------------- |
+| `--abc`       | Path to ABC notation file (required)                |
+| `--desc`      | Text description file path for choreography context |
+| `-d, --description` | Inline description text                      |
+| `-o, --output` | Output directory (default: ./output)              |
+| `-v, --verbose` | Show detailed generation progress                 |
+
+### Play Choreography
+
+Play your audio with synchronized ASCII art visualization.
+
+```bash
+# Basic playback
+mediocre play-choreography output/composition.wav
+
+# With choreography JSON (auto-detected if not specified)
+mediocre play-choreography \
+  output/composition.wav \
+  output/composition-choreography.v3.json
+
+# With options
+mediocre play-choreography output/composition.wav \
+  --osd \                 # Show on-screen playback info
+  --no-title \            # Skip title cards
+  --no-descript           # Skip subtitle overlays
+```
+
+**Playback Features:**
+
+- **ASCII Art Animation**: Choreographed shapes synchronized to musical events
+- **Title Screens**: Displays composition info and "starring" credits for ASCII shapes
+- **Subtitle Support**: Overlay text from `.descript` file (if present)
+- **Playlist Mode**: Auto-advance through multiple pieces in a directory
+- **On-Screen Display**: Optional OSD with playback timing info
+
+**Playback Options:**
+
+| Flag            | Description                                 |
+| --------------- | ------------------------------------------- |
+| `--osd`         | Show on-screen display with playback info   |
+| `--no-title`    | Skip title cards and "starring" displays    |
+| `--no-descript` | Skip subtitle/descript text overlay         |
+
+**Choreography File Format:**
+
+The choreography JSON uses the v1.1 schema with support for:
+- Time-based, beat-based, and audio-reactive triggers
+- Movement patterns (linear, circular, spiral, bounce, etc.)
+- Transformations (scale, rotate, fade, color changes)
+- Collision detection and particle effects
+- Scene management and threaded animations
 
 ---
 

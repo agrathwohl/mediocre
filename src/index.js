@@ -2,7 +2,9 @@
 
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { execSync, spawn } from 'child_process';
 import { program } from 'commander';
 import { config } from './utils/config.js';
 import { parseGenreList, generateMultipleHybridGenres } from './utils/genre-generator.js';
@@ -18,9 +20,16 @@ import { combineCompositions } from './commands/combine-compositions.js';
 import { generateLyrics } from './commands/generate-lyrics.js';
 import { mixAndMatch } from './commands/mix-and-match.js';
 import { sanitizeDrums } from './commands/sanitize-drums.js';
+import { generateAsciiArt, listAsciiArt, exportAsciiArt } from './commands/generate-ascii-art.js';
+import { generateChoreographyNew } from './commands/generate-choreography-new.js';
+import { generateOnsets } from './commands/generate-onsets.js';
 import { createDatasetBrowser } from './ui/index.js';
 import { validateAbcNotation, cleanAbcNotation, evaluateCompositionCompleteness, validateWithAbc2Midi } from './utils/claude.js';
 import { extractMidiStems } from './utils/stem-extractor.js';
+
+// ES module path resolution
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const INVALID_DRUM_PROGRAMS = new Set([
   67, 68, 69, 70, 71, 72, 73, 74, 75,
@@ -737,6 +746,141 @@ program
   });
 
 program
+  .command('generate-ascii-art')
+  .description('Generate, list, or export ASCII art for musical compositions')
+  .option('-a, --abc <file>', 'ABC file to generate ASCII art for')
+  .option('-c, --count <number>', 'Number of ASCII art shapes to generate', '8')
+  .option('-s, --style <string>', 'Style hint for ASCII art generation')
+  .option('-l, --list', 'List all ABC notations with saved ASCII art')
+  .option('-e, --export <basename>', 'Export ASCII art for a specific ABC basename')
+  .action(async (options) => {
+    try {
+      if (options.list) {
+        await listAsciiArt();
+      } else if (options.export) {
+        await exportAsciiArt(options.export);
+      } else if (options.abc) {
+        await generateAsciiArt(options);
+      } else {
+        console.error('Please specify --abc, --list, or --export');
+        console.log('Usage:');
+        console.log('  mediocre generate-ascii-art --abc <file.abc> [--count 8] [--style "retro"]');
+        console.log('  mediocre generate-ascii-art --list');
+        console.log('  mediocre generate-ascii-art --export <basename>');
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('Error with ASCII art command:', error);
+    }
+  });
+
+program
+  .command('generate-choreography')
+  .description('Generate choreography JSON for audio visualization with iterative improvement')
+  .option('-d, --description <text>', 'Music description', 'An experimental musical composition')
+  .option('--desc <path>', 'Path to file containing description')
+  .option('-a, --abc <path>', 'Path to ABC notation file')
+  .option('-o, --output <path>', 'Output directory', './output')
+  .option('-v, --verbose', 'Show detailed progress')
+  .action(async (options) => {
+    try {
+      await generateChoreographyNew(options);
+    } catch (error) {
+      console.error('Error generating choreography:', error);
+      process.exit(1);
+    }
+  });
+
+// Hidden alias for generate-choreography-new (undocumented)
+program
+  .command('generate-choreography-new', { hidden: true })
+  .description('Generate choreography JSON for audio visualization (alias)')
+  .option('-d, --description <text>', 'Music description', 'An experimental musical composition')
+  .option('--desc <path>', 'Path to file containing description')
+  .option('-a, --abc <path>', 'Path to ABC notation file')
+  .option('-o, --output <path>', 'Output directory', './output')
+  .option('-v, --verbose', 'Show detailed progress')
+  .action(async (options) => {
+    try {
+      await generateChoreographyNew(options);
+    } catch (error) {
+      console.error('Error generating choreography:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('generate-onsets')
+  .description('Extract and save onset timing data from audio file')
+  .option('-a, --abc <path>', 'Path to ABC notation file')
+  .action(async (options) => {
+    try {
+      await generateOnsets(options);
+    } catch (error) {
+      console.error('Error generating onsets:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('play-choreography')
+  .description('Play audio with choreographed ASCII art visualization')
+  .argument('<audio>', 'Path to audio file (WAV)')
+  .argument('[choreography]', 'Path to choreography JSON file (optional)')
+  .option('--osd', 'Show on-screen display with playback info')
+  .option('--no-title', 'Skip title card and ASCII art starring displays')
+  .option('--no-descript', 'Skip subtitle/descript text overlay')
+  .action(async (audio, choreography, options) => {
+    try {
+      // Resolve script path relative to this module (src/index.js -> ../scripts/play-choreography-v1.1.js)
+      const scriptPath = path.join(__dirname, '..', 'scripts', 'play-choreography-v1.1.js');
+
+      // Verify script exists
+      if (!fs.existsSync(scriptPath)) {
+        console.error(`Script not found: ${scriptPath}`);
+        console.error('This may indicate an incomplete installation.');
+        process.exit(1);
+      }
+
+      const args = [audio];
+
+      if (choreography) {
+        args.push(choreography);
+      }
+
+      if (options.osd) {
+        args.push('--osd');
+      }
+
+      if (options.noTitle) {
+        args.push('--no-title');
+      }
+
+      if (options.noDescript) {
+        args.push('--no-descript');
+      }
+
+      // Delegate to standalone script for terminal control and real-time playback
+      const child = spawn('node', [scriptPath, ...args], {
+        stdio: 'inherit',
+        cwd: process.cwd()
+      });
+
+      child.on('error', (error) => {
+        console.error('Error launching play-choreography:', error);
+        process.exit(1);
+      });
+
+      child.on('exit', (code) => {
+        process.exit(code || 0);
+      });
+    } catch (error) {
+      console.error('Error playing choreography:', error);
+      process.exit(1);
+    }
+  });
+
+program
   .command('validate-abc')
   .description('Validate and fix formatting issues in ABC notation files')
   .option('-i, --input <file>', 'Input ABC file to validate and fix')
@@ -851,8 +995,12 @@ if (process.argv.length === 2) {
     lyrics         Add lyrics to an existing composition using Claude
     browse         Launch interactive TUI browser for the music dataset
     sanitize       Find and replace banned drum sounds in ABC files
+    generate-ascii-art  Generate, list, or export ASCII art for musical compositions
+    generate-choreography  Generate choreography JSON with iterative improvement
+    play-choreography      Play audio with choreographed ASCII art visualization
+    generate-onsets        Extract and save onset timing data from audio file
     validate-abc   Validate and fix formatting issues in ABC notation files
-    
+
   Examples:
     mediocre genres -c "baroque,classical,romantic" -m "techno,ambient,glitch" -n 5
     mediocre generate -C "baroque,classical" -M "techno,ambient" -c 3
@@ -872,6 +1020,9 @@ if (process.argv.length === 2) {
     mediocre sanitize "/home/user/music/*.abc"            # Quick regex replacement of banned drum sounds
     mediocre sanitize "/home/user/music/**/*.abc" --llm   # Use LLM for intelligent drum sound replacement
     mediocre sanitize "output/*.abc" --dry-run            # Preview what would be changed without modifying
+    mediocre generate-ascii-art --abc "/path/to/baroque_x_jazz-score1.abc" --count 8 --style "retro"
+    mediocre generate-ascii-art --list                    # List all saved ASCII art
+    mediocre generate-ascii-art --export baroque_x_jazz-score1  # Export ASCII art for specific composition
     mediocre validate-abc                                 # Process and fix all ABC files in output dir
     mediocre validate-abc -i "/path/to/baroque_x_jazz-score1.abc" -o "/path/to/fixed.abc"  # Process a single file
     mediocre browse
