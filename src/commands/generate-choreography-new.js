@@ -10,6 +10,13 @@ import { getAudioMetadata } from '../utils/audio-metadata.js';
 import asciiArtManager from '../utils/ascii-art-manager.js';
 import { createOnsetQueryTool, getOnsetStatistics } from '../utils/onset-query-tool.js';
 import { repairJSONEscapes, parseTemplatesField } from '../utils/json-repair.js';
+import {
+  evaluateChoreographyDensity,
+  generateImprovementStrategy,
+  identifyLargeGaps,
+  identifySparseEvents,
+  DENSITY_TARGETS
+} from '../utils/choreography-density.js';
 
 /**
  * Build Choreography Schema v1.1 (Extended) using Zod
@@ -919,6 +926,255 @@ function mergeSectionIntoTimeline(fullTimeline, improvedSectionEvents, startTime
 }
 
 /**
+ * Enrich sparse events by adding more actions
+ * @param {Object} choreography - Full choreography object
+ * @param {Array} sparseEvents - List of events needing more actions
+ * @param {Object} metadata - Audio metadata
+ * @param {Object} options - Command options
+ */
+async function enrichSparseEvents(choreography, sparseEvents, metadata, options) {
+  const anthropic = getAnthropic();
+
+  // Process up to 3 sparse events per iteration
+  for (const sparseEvent of sparseEvents.slice(0, 3)) {
+    const event = choreography.timeline[sparseEvent.index];
+    const availableTemplates = Object.keys(choreography.templates?.objects || {}).join(', ');
+
+    try {
+      const { text } = await generateText({
+        model: anthropic('claude-3-7-sonnet-20250219'),
+        messages: [
+          {
+            role: 'system',
+            content: `You are a choreography enrichment assistant. Your task is to add actions to sparse timeline events.
+
+ACTION SCHEMA (use these exact structures):
+- Spawn: { "type": "spawn", "objectId": "unique_id", "template": "template_name", "position": {"x": 960, "y": 540}, "delay": 0 }
+- Move: { "type": "move", "target": "object_id", "x": 100, "y": 100, "duration": 1, "delay": 0 }
+- Transform: { "type": "transform", "target": "object_id", "scale": 1.5, "rotation": 45, "duration": 1, "delay": 0 }
+- Visual: { "type": "visual", "target": "object_id", "style": {"color": "cyan", "bold": true}, "delay": 0 }
+- Destroy: { "type": "destroy", "target": "object_id", "delay": 0 }
+
+GUIDELINES:
+- Use "delay" parameter (0-2 seconds) to stagger actions within the event
+- Create musically-appropriate, visually interesting actions
+- Always return ONLY a JSON array of actions, no explanatory text`,
+            providerOptions: {
+              anthropic: { cacheControl: { type: 'ephemeral' } }
+            }
+          },
+          {
+            role: 'user',
+            content: `Current event at ${event.trigger?.at}s:
+${JSON.stringify(event, null, 2)}
+
+Available templates: ${availableTemplates}
+
+Add ${sparseEvent.needsMoreActions} action(s) to reach target of ${DENSITY_TARGETS.targetActionsPerEvent} actions per event.
+
+Return JSON array of NEW actions only:`
+          }
+        ],
+        temperature: 0.9,
+      });
+
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const repairedJSON = repairJSONEscapes(jsonMatch[0]);
+        const newActions = JSON.parse(repairedJSON);
+
+        // Add new actions to the event
+        if (Array.isArray(newActions) && newActions.length > 0) {
+          event.actions = [...(event.actions || []), ...newActions];
+        }
+      } else {
+        // SAVE INVALID OUTPUT
+        const errorPath = path.join(options.output || './output', `enrich-error-${Date.now()}.txt`);
+        await fs.writeFile(errorPath, `Event: ${event.trigger?.at}s\n\nLLM Response:\n${text}`);
+        console.log(chalk.yellow(`   ⚠️  No JSON found, saved to: ${errorPath}`));
+      }
+    } catch (error) {
+      // SAVE ERROR OUTPUT
+      const errorPath = path.join(options.output || './output', `enrich-error-${Date.now()}.txt`);
+      await fs.writeFile(errorPath, `Event: ${event.trigger?.at}s\n\nError: ${error.message}\n\nStack: ${error.stack}`);
+      console.log(chalk.yellow(`   ⚠️  Failed to enrich event at ${event.trigger?.at}s: ${error.message}`));
+      console.log(chalk.yellow(`   💾 Error saved to: ${errorPath}`));
+    }
+  }
+}
+
+/**
+ * Fill large gaps in timeline by generating new events
+ * @param {Object} choreography - Full choreography object
+ * @param {Array} gaps - List of large gaps to fill
+ * @param {Object} metadata - Audio metadata
+ * @param {Object} options - Command options
+ * @param {string} onsetCachePath - Path to onset cache
+ */
+async function fillTimelineGaps(choreography, gaps, metadata, options, onsetCachePath) {
+  const anthropic = getAnthropic();
+  const availableTemplates = Object.keys(choreography.templates?.objects || {}).join(', ');
+
+  // Process up to 2 large gaps per iteration
+  for (const gap of gaps.slice(0, 2)) {
+    try {
+      const { text } = await generateText({
+        model: anthropic('claude-3-7-sonnet-20250219'),
+        messages: [
+          {
+            role: 'system',
+            content: `You are a choreography gap-filling assistant. Your task is to generate complete timeline events.
+
+EVENT SCHEMA (use this exact structure):
+{
+  "label": "descriptive_label",
+  "trigger": { "type": "time", "at": <timestamp_in_seconds> },
+  "actions": [
+    {
+      "type": "spawn",
+      "objectId": "obj_<unique_id>",
+      "template": "<template_name>",
+      "position": {"x": 960, "y": 540},
+      "delay": 0
+    },
+    {
+      "type": "move",
+      "target": "obj_<same_id>",
+      "x": 100,
+      "y": 100,
+      "duration": 1,
+      "delay": 0.5
+    }
+  ]
+}
+
+ACTION TYPES: spawn, move, transform, visual, destroy
+GUIDELINES:
+- Use "delay" to stagger actions (0-2 seconds)
+- Each event should have ${Math.ceil(DENSITY_TARGETS.targetActionsPerEvent)} actions
+- Create musically-appropriate, visually interesting events
+- Return ONLY a JSON array of events, no explanatory text`,
+            providerOptions: {
+              anthropic: { cacheControl: { type: 'ephemeral' } }
+            }
+          },
+          {
+            role: 'user',
+            content: `Fill gap: ${gap.start}s to ${gap.end}s (${gap.duration.toFixed(2)}s)
+Available templates: ${availableTemplates}
+Duration: ${metadata.duration}s
+
+Generate 1-2 events with timestamps between ${gap.start} and ${gap.end}.
+
+Return JSON array of events:`
+          }
+        ],
+        temperature: 0.9,
+      });
+
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const repairedJSON = repairJSONEscapes(jsonMatch[0]);
+        const newEvents = JSON.parse(repairedJSON);
+
+        // Add new events to timeline
+        if (Array.isArray(newEvents) && newEvents.length > 0) {
+          choreography.timeline.push(...newEvents);
+          choreography.timeline.sort((a, b) => (a.trigger?.at || 0) - (b.trigger?.at || 0));
+        }
+      } else {
+        // SAVE INVALID OUTPUT
+        const errorPath = path.join(options.output || './output', `fill-gap-error-${Date.now()}.txt`);
+        await fs.writeFile(errorPath, `Gap: ${gap.start}s-${gap.end}s\n\nLLM Response:\n${text}`);
+        console.log(chalk.yellow(`   ⚠️  No JSON found, saved to: ${errorPath}`));
+      }
+    } catch (error) {
+      // SAVE ERROR OUTPUT
+      const errorPath = path.join(options.output || './output', `fill-gap-error-${Date.now()}.txt`);
+      await fs.writeFile(errorPath, `Gap: ${gap.start}s-${gap.end}s\n\nError: ${error.message}\n\nStack: ${error.stack}`);
+      console.log(chalk.yellow(`   ⚠️  Failed to fill gap ${gap.start}s-${gap.end}s: ${error.message}`));
+      console.log(chalk.yellow(`   💾 Error saved to: ${errorPath}`));
+    }
+  }
+}
+
+/**
+ * Add new ASCII art templates to increase diversity
+ * @param {Object} choreography - Full choreography object
+ * @param {number} count - Number of templates to add
+ * @param {Object} metadata - Audio metadata
+ * @param {Object} options - Command options
+ */
+async function addNewTemplates(choreography, count, metadata, options) {
+  const anthropic = getAnthropic();
+  const existingTemplates = Object.keys(choreography.templates?.objects || {});
+
+  try {
+    const { text } = await generateText({
+      model: anthropic('claude-3-7-sonnet-20250219'),
+      messages: [
+        {
+          role: 'system',
+          content: `You are an ASCII art template generator for choreography visualizations.
+
+TEMPLATE SCHEMA (use this exact structure):
+{
+  "template_name": {
+    "art": ["line1", "line2", "line3"]
+  }
+}
+
+GUIDELINES:
+- Each template should have a unique descriptive name
+- Templates should be 3-7 lines tall
+- Use varied ASCII characters for visual interest
+- Represent musical or abstract shapes
+- Return ONLY a JSON object with templates, no explanatory text`,
+          providerOptions: {
+            anthropic: { cacheControl: { type: 'ephemeral' } }
+          }
+        },
+        {
+          role: 'user',
+          content: `Existing templates (${existingTemplates.length}): ${existingTemplates.join(', ')}
+
+Generate ${Math.min(count, 3)} NEW unique templates with names different from existing.
+
+Return JSON object:`
+        }
+      ],
+      temperature: 0.9,
+    });
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const repairedJSON = repairJSONEscapes(jsonMatch[0]);
+      const newTemplates = JSON.parse(repairedJSON);
+
+      // Add new templates to choreography
+      if (typeof newTemplates === 'object' && newTemplates !== null) {
+        choreography.templates = choreography.templates || { objects: {} };
+        choreography.templates.objects = {
+          ...choreography.templates.objects,
+          ...newTemplates
+        };
+      }
+    } else {
+      // SAVE INVALID OUTPUT
+      const errorPath = path.join(options.output || './output', `add-templates-error-${Date.now()}.txt`);
+      await fs.writeFile(errorPath, `Template count: ${count}\n\nLLM Response:\n${text}`);
+      console.log(chalk.yellow(`   ⚠️  No JSON found, saved to: ${errorPath}`));
+    }
+  } catch (error) {
+    // SAVE ERROR OUTPUT
+    const errorPath = path.join(options.output || './output', `add-templates-error-${Date.now()}.txt`);
+    await fs.writeFile(errorPath, `Template count: ${count}\n\nError: ${error.message}\n\nStack: ${error.stack}`);
+    console.log(chalk.yellow(`   ⚠️  Failed to add templates: ${error.message}`));
+    console.log(chalk.yellow(`   💾 Error saved to: ${errorPath}`));
+  }
+}
+
+/**
  * Generate choreography JSON for audio visualization (v1.1 schema)
  * @param {Object} options - Command options
  * @param {string} options.description - Music description
@@ -1074,7 +1330,8 @@ export async function generateChoreographyNew(options) {
 
       let improvedSectionEvents;
       try {
-        improvedSectionEvents = JSON.parse(jsonMatch[0]);
+        const repairedJSON = repairJSONEscapes(jsonMatch[0]);
+        improvedSectionEvents = JSON.parse(repairedJSON);
 
         // Validate it's actually an array
         if (!Array.isArray(improvedSectionEvents)) {
@@ -1160,20 +1417,112 @@ export async function generateChoreographyNew(options) {
       console.log(chalk.gray(prompt.substring(0, 500) + '...\n'));
     }
 
-    // Get onset cache path for tool
-    const onsetCachePath = options.abc ?
-      `${path.resolve(options.abc).replace(/\.abc$/i, '')}-onsets.json` :
-      null;
-
     // Generate choreography for initial mode
     choreography = await generateChoreographyWithFallbacks(
       prompt,
       metadata,
       description,
       options,
-      onsetCachePath,
+      null, // onsetCachePath not needed here
       outputPath
     );
+  }
+
+  // Get onset cache path for sequential expansion (outside the else block)
+  const onsetCachePath = options.abc ?
+    `${path.resolve(options.abc).replace(/\.abc$/i, '')}-onsets.json` :
+    null;
+
+  // Sequential expansion mode: iteratively improve choreography density
+  if (options.sequential && mode === 'initial') {
+    console.log(chalk.cyan('\n🔄 Sequential expansion mode enabled'));
+    console.log(chalk.gray(`Target: ${DENSITY_TARGETS.targetEventsPerSecond} events/s, ${DENSITY_TARGETS.targetActionsPerSecond} actions/s\n`));
+
+    let iteration = 0;
+    const maxIterations = 5;
+    let lastDensityScore = 0;
+    let stagnationCount = 0;
+    const stagnationThreshold = 2;
+
+    while (iteration < maxIterations) {
+      // Evaluate current density
+      const evaluation = evaluateChoreographyDensity(choreography);
+
+      // Check for stagnation (no improvement)
+      if (iteration > 0 && Math.abs(evaluation.scores.densityScore - lastDensityScore) < 0.01) {
+        stagnationCount++;
+        console.log(chalk.yellow(`   ⚠️  No improvement detected (stagnation: ${stagnationCount}/${stagnationThreshold})`));
+
+        if (stagnationCount >= stagnationThreshold) {
+          console.log(chalk.yellow(`\n⚠️  No improvement after ${stagnationThreshold} iterations, stopping expansion`));
+          break;
+        }
+      } else {
+        stagnationCount = 0;
+      }
+
+      lastDensityScore = evaluation.scores.densityScore;
+
+      console.log(chalk.cyan(`\n📊 Iteration ${iteration + 1} - Current Density:`));
+      console.log(chalk.gray(`   Events/second: ${evaluation.metrics.eventsPerSecond.toFixed(3)} (target: ${DENSITY_TARGETS.targetEventsPerSecond})`));
+      console.log(chalk.gray(`   Actions/second: ${evaluation.metrics.actionsPerSecond.toFixed(3)} (target: ${DENSITY_TARGETS.targetActionsPerSecond})`));
+      console.log(chalk.gray(`   Actions/event: ${evaluation.metrics.actionsPerEvent.toFixed(2)} (target: ${DENSITY_TARGETS.targetActionsPerEvent})`));
+      console.log(chalk.gray(`   Templates: ${evaluation.metrics.templateCount} (target: ${DENSITY_TARGETS.targetTemplates})`));
+      console.log(chalk.gray(`   Density score: ${(evaluation.scores.densityScore * 100).toFixed(1)}% (target: ${DENSITY_TARGETS.minDensityScore * 100}%)`));
+
+      // Check if target met
+      if (evaluation.meetsTarget) {
+        console.log(chalk.green(`\n✅ Density target achieved after ${iteration} improvement${iteration !== 1 ? 's' : ''}!`));
+        break;
+      }
+
+      // Generate improvement strategy
+      const strategy = generateImprovementStrategy(evaluation, choreography);
+
+      if (strategy.actions.length === 0) {
+        console.log(chalk.yellow('\n⚠️  No improvement actions identified, stopping expansion'));
+        break;
+      }
+
+      console.log(chalk.cyan(`\n🎯 Improvement strategy: ${strategy.priority.join(' → ')}`));
+
+      // Apply improvements based on strategy
+      for (const action of strategy.actions) {
+        if (action.type === 'enrich_events') {
+          console.log(chalk.gray(`\n   Enriching ${action.targetCount} sparse events...`));
+          await enrichSparseEvents(choreography, action.sparseEvents, metadata, options);
+        } else if (action.type === 'fill_gaps') {
+          console.log(chalk.gray(`\n   Filling ${action.targetCount} large gaps...`));
+          await fillTimelineGaps(choreography, action.gaps, metadata, options, onsetCachePath);
+        } else if (action.type === 'add_templates') {
+          console.log(chalk.gray(`\n   Adding ${action.needsMore} new templates...`));
+          await addNewTemplates(choreography, action.needsMore, metadata, options);
+        }
+      }
+
+      // SAVE OUTPUT AFTER EVERY ITERATION
+      const iterationOutputPath = outputPath.replace('.json', `-iter${iteration + 1}.json`);
+      try {
+        await fs.writeFile(iterationOutputPath, JSON.stringify(choreography, null, 2));
+        console.log(chalk.green(`\n💾 Saved iteration ${iteration + 1} to: ${iterationOutputPath}`));
+      } catch (saveError) {
+        console.log(chalk.yellow(`⚠️  Failed to save iteration ${iteration + 1}: ${saveError.message}`));
+      }
+
+      iteration++;
+    }
+
+    if (iteration === maxIterations) {
+      console.log(chalk.yellow(`\n⚠️  Reached maximum iterations (${maxIterations}), stopping expansion`));
+    }
+
+    // Final evaluation
+    const finalEvaluation = evaluateChoreographyDensity(choreography);
+    console.log(chalk.cyan(`\n📊 Final Density:`));
+    console.log(chalk.gray(`   Events/second: ${finalEvaluation.metrics.eventsPerSecond.toFixed(3)}`));
+    console.log(chalk.gray(`   Actions/second: ${finalEvaluation.metrics.actionsPerSecond.toFixed(3)}`));
+    console.log(chalk.gray(`   Actions/event: ${finalEvaluation.metrics.actionsPerEvent.toFixed(2)}`));
+    console.log(chalk.gray(`   Density score: ${(finalEvaluation.scores.densityScore * 100).toFixed(1)}%`));
   }
 
   // ALWAYS save output - try primary path first, fallback to recovery if it fails

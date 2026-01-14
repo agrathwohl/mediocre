@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
-import AudioAnalyzer from "./src/utils/audio-analyzer.js";
-import asciiArtManager from "./src/utils/ascii-art-manager.js";
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import AudioAnalyzer from "../src/utils/audio-analyzer.js";
+import asciiArtManager from "../src/utils/ascii-art-manager.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Use the existing ASCII frames from the project + expanded variations
 const asciiFrames = [
@@ -2079,12 +2084,14 @@ class PlaylistController {
 }
 
 // Main animation controller
-async function startEnhancedAnimation(audioFile, choreographyFile = null, showOSD = false, playlistController = null) {
+async function startEnhancedAnimation(audioFile, choreographyFile = null, showOSD = false, playlistController = null, recordMode = false) {
   if (!fs.existsSync(audioFile)) {
     console.error(`Error: Audio file '${audioFile}' not found`);
     return false;
   }
 
+  let recorderProcess = null;
+  let recordingOutputFile = null;
   let choreographyManager = null;
 
   // Load choreography if provided
@@ -2218,6 +2225,114 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
     process.exit(1);
   });
 
+  // Start recording if enabled - RIGHT when playback begins
+  if (recordMode) {
+    try {
+      // Check if wf-recorder is available
+      try {
+        execSync('which wf-recorder', { stdio: 'ignore' });
+      } catch {
+        console.error("❌ wf-recorder not found. Install with: nix-shell -p wf-recorder");
+        recordMode = false;
+        return;
+      }
+
+      console.log("🎥 Recording started");
+
+      // Get window geometry from hyprctl
+      const hyprctl = spawn("hyprctl", ["activewindow", "-j"]);
+      let geometryData = "";
+      let hyprctlError = "";
+
+      hyprctl.stdout.on("data", (data) => {
+        geometryData += data.toString();
+      });
+
+      hyprctl.stderr.on("data", (data) => {
+        hyprctlError += data.toString();
+      });
+
+      await new Promise((resolve, reject) => {
+        hyprctl.on("close", (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`hyprctl exited with code ${code}: ${hyprctlError}`));
+        });
+      });
+
+      const windowInfo = JSON.parse(geometryData);
+
+      // Validate window geometry structure
+      if (!windowInfo?.at?.[0] || !windowInfo?.at?.[1] ||
+          !windowInfo?.size?.[0] || !windowInfo?.size?.[1]) {
+        throw new Error(`Invalid window geometry from hyprctl: ${JSON.stringify(windowInfo)}`);
+      }
+
+      const x = windowInfo.at[0];
+      const y = windowInfo.at[1];
+      const width = windowInfo.size[0];
+      const height = windowInfo.size[1];
+
+      // Generate output filename
+      const audioBasename = path.basename(audioFile, path.extname(audioFile));
+      const timestamp = Date.now();
+      recordingOutputFile = path.join(
+        path.dirname(audioFile),
+        `${audioBasename}-recording-${timestamp}.mkv`
+      );
+
+      // Log file for wf-recorder output
+      const logFile = path.join(
+        path.dirname(audioFile),
+        `${audioBasename}-recording-${timestamp}.log`
+      );
+      const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+
+      // Start wf-recorder with specified encoding parameters
+      recorderProcess = spawn("wf-recorder", [
+        "-g", `${x},${y} ${width}x${height}`,
+        "-c", "h264_nvenc",
+        "-r", "60",
+        "-p", "pix_fmt=yuv444p",    // Codec parameter: pixel format
+        "-p", "b=50M",               // Codec parameter: bitrate
+        "-p", "g=60",                // Codec parameter: keyframe interval (1 second at 60fps)
+        "-a",                        // Capture audio
+        "-C", "pcm_f32le",           // Audio codec: float32 PCM
+        "-f", recordingOutputFile    // Output file
+      ]);
+
+      // Write all output to log file
+      logStream.write(`=== wf-recorder started at ${new Date().toISOString()} ===\n`);
+      logStream.write(`Command: wf-recorder -g ${x},${y} ${width}x${height} -c h264_nvenc -r 60 -p pix_fmt=yuv444p -p b=50M -p g=60 -a -C pcm_f32le -f ${recordingOutputFile}\n\n`);
+
+      // Capture stderr to log file
+      recorderProcess.stderr.on("data", (data) => {
+        logStream.write(`[STDERR] ${data.toString()}`);
+      });
+
+      // Capture stdout to log file
+      recorderProcess.stdout.on("data", (data) => {
+        logStream.write(`[STDOUT] ${data.toString()}`);
+      });
+
+      recorderProcess.on("error", (err) => {
+        logStream.write(`[ERROR] wf-recorder spawn error: ${err.message}\n`);
+        recorderProcess = null;
+      });
+
+      recorderProcess.on("exit", (code, signal) => {
+        logStream.write(`\n=== wf-recorder exited at ${new Date().toISOString()} ===\n`);
+        logStream.write(`Exit code: ${code}, Signal: ${signal}\n`);
+        logStream.end();
+      });
+
+      console.log(`   📁 Recording to: ${recordingOutputFile}`);
+      console.log(`   📄 Log file: ${logFile}`);
+    } catch (error) {
+      console.error(`⚠️  Failed to start recording: ${error.message}`);
+      recorderProcess = null;
+    }
+  }
+
   const startTime = Date.now();
   let lastTime = startTime / 1000;
   let nextSpawnTime = 0;
@@ -2341,6 +2456,30 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
   const cleanup = async () => {
     clearInterval(animationInterval);
 
+    // Stop recording gracefully if active
+    if (recorderProcess && !recorderProcess.killed) {
+      console.log("\n🛑 Stopping recording...");
+      recorderProcess.kill('SIGINT'); // Send Ctrl+C to wf-recorder for clean shutdown
+      await new Promise((resolve) => {
+        const timeout = setTimeout(resolve, 2000); // 2 second timeout
+        recorderProcess.once('exit', () => {
+          clearTimeout(timeout);
+
+          // Verify the file actually exists
+          if (recordingOutputFile && fs.existsSync(recordingOutputFile)) {
+            const stats = fs.statSync(recordingOutputFile);
+            const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+            console.log(`   ✅ Recording saved: ${recordingOutputFile} (${sizeMB} MB)`);
+          } else {
+            console.error(`   ❌ Recording file not found: ${recordingOutputFile}`);
+            console.error(`   ⚠️  wf-recorder may have failed - check error messages above`);
+          }
+
+          resolve();
+        });
+      });
+    }
+
     // Kill MPV and wait for it to exit
     if (mpv && !mpv.killed) {
       mpv.kill();
@@ -2392,7 +2531,7 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
             const next = playlistController.current;
             // Use setImmediate to break recursion chain
             setImmediate(() => {
-              startEnhancedAnimation(next.audioFile, next.choreographyFile, showOSD, playlistController);
+              startEnhancedAnimation(next.audioFile, next.choreographyFile, showOSD, playlistController, recordMode);
             });
             return; // Exit this animation
           } else {
@@ -2409,7 +2548,7 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
             const prev = playlistController.current;
             // Use setImmediate to break recursion chain
             setImmediate(() => {
-              startEnhancedAnimation(prev.audioFile, prev.choreographyFile, showOSD, playlistController);
+              startEnhancedAnimation(prev.audioFile, prev.choreographyFile, showOSD, playlistController, recordMode);
             });
             return; // Exit this animation
           } else {
@@ -2441,7 +2580,7 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
       const next = playlistController.current;
       // Use setImmediate to avoid recursion
       setImmediate(() => {
-        startEnhancedAnimation(next.audioFile, next.choreographyFile, showOSD, playlistController);
+        startEnhancedAnimation(next.audioFile, next.choreographyFile, showOSD, playlistController, recordMode);
       });
     } else {
       console.log("✅ Playback complete!");
@@ -2456,9 +2595,8 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
 
   // Handle Ctrl+C
   if (!playlistController) {
-    process.on("SIGINT", () => {
-      clearInterval(animationInterval);
-      mpv.kill();
+    process.on("SIGINT", async () => {
+      await cleanup();
       process.stdout.write("\x1B[?25h\x1B[0m");
       console.log("\n\n👋 Animation stopped");
       process.exit(0);
@@ -2474,9 +2612,10 @@ async function main() {
 
   const firstArg = args[0];
   const showOSD = args.includes("--osd");
+  const recordMode = args.includes("--record");
 
   if (!firstArg) {
-    console.error("Usage: node play-choreography-v1.1.js <audio.wav> [choreography.json] [--osd]");
+    console.error("Usage: node play-choreography-v1.1.js <audio.wav> [choreography.json] [--osd] [--record]");
     process.exit(1);
   }
 
@@ -2486,7 +2625,7 @@ async function main() {
   // Choreography is second positional argument
   const choreographyFile = args[1] && args[1].endsWith('.json') ? args[1] : null;
 
-  await startEnhancedAnimation(audioFile, choreographyFile, showOSD);
+  await startEnhancedAnimation(audioFile, choreographyFile, showOSD, null, recordMode);
 }
 
 // Start the show!

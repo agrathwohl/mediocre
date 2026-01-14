@@ -16,22 +16,14 @@ export function repairJSONEscapes(jsonText) {
   // Three or more consecutive quotes is always invalid JSON
   jsonText = jsonText.replace(/"""+/g, () => '\\"');
 
-  // Third pass: Remove any completely invalid escape sequences
-  // Replace \<char> with just <char> if it's not a valid JSON escape
+  // Third pass: Escape invalid backslashes instead of removing them
+  // Convert \<char> to \\<char> if it's not a valid JSON escape
   // Valid JSON escapes: \" \\ \/ \b \f \n \r \t \uXXXX
-  jsonText = jsonText.replace(/\\(?!["\\/bfnrtu]|u[0-9a-fA-F]{4})/g, '');
+  // The negative lookbehind (?<!\\) ensures we don't double-escape already-valid sequences
+  // This preserves backslashes in ASCII art by properly escaping them
+  jsonText = jsonText.replace(/(?<!\\)\\(?!["\\/bfnrtu]|u[0-9a-fA-F]{4})/g, '\\\\');
 
-  // Fourth pass: Fix remaining standalone backslash sequences
-  // Only fix sequences of backslashes NOT followed by valid escape chars
-  // Valid sequences like \" or \\ should be left alone
-  jsonText = jsonText.replace(/\\+(?!["\\/bfnrtu]|u[0-9a-fA-F]{4})/g, (match) => {
-    const count = match.length;
-    // If odd number of backslashes, it's invalid - make it even
-    const fixed = count % 2 === 1 ? count + 1 : count;
-    return '\\'.repeat(fixed);
-  });
-
-  // Fifth pass: Fix invalid enum values
+  // Fourth pass: Fix invalid enum values
   // Transition type fixes - valid values: "cut" | "crossfade" | "dissolve"
   jsonText = jsonText.replace(/"transition"\s*:\s*"fade"/gi, '"transition": "crossfade"');
   jsonText = jsonText.replace(/"transitionType"\s*:\s*"fade"/gi, '"transitionType": "crossfade"');

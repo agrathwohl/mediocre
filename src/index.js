@@ -781,6 +781,7 @@ program
   .option('--desc <path>', 'Path to file containing description')
   .option('-a, --abc <path>', 'Path to ABC notation file')
   .option('-o, --output <path>', 'Output directory', './output')
+  .option('--sequential', 'Use iterative expansion to reach target density (0.18 events/s, 0.80 actions/s)')
   .option('-v, --verbose', 'Show detailed progress')
   .action(async (options) => {
     try {
@@ -799,6 +800,7 @@ program
   .option('--desc <path>', 'Path to file containing description')
   .option('-a, --abc <path>', 'Path to ABC notation file')
   .option('-o, --output <path>', 'Output directory', './output')
+  .option('--sequential', 'Use iterative expansion to reach target density (0.18 events/s, 0.80 actions/s)')
   .option('-v, --verbose', 'Show detailed progress')
   .action(async (options) => {
     try {
@@ -974,15 +976,21 @@ program
   });
 
 // Default help message
+// Handle default command behavior
 if (process.argv.length === 2) {
+  // No arguments at all - default to generate command
+  process.argv.push('generate');
+  program.parse();
+} else if (process.argv.length === 3 && (process.argv[2] === '--help' || process.argv[2] === '-h')) {
+  // Just --help flag - show custom help menu
   console.log(`
   🎵 Mediocre - Music Generation Tool 🎵
-  
+
   Generate synthetic music compositions for AI training.
-  
+
   Commands:
     genres         Generate hybrid genre names by combining classical and modern genres
-    generate       Generate ABC notation files using Claude
+    generate       Generate ABC notation files using Claude (default)
     convert        Convert ABC files to MIDI, PDF, and WAV
     process        Apply audio effects to WAV files
     dataset        Build dataset from generated files
@@ -1002,6 +1010,7 @@ if (process.argv.length === 2) {
     validate-abc   Validate and fix formatting issues in ABC notation files
 
   Examples:
+    mediocre -g "baroque_x_jazz"                          # Defaults to generate command
     mediocre genres -c "baroque,classical,romantic" -m "techno,ambient,glitch" -n 5
     mediocre generate -C "baroque,classical" -M "techno,ambient" -c 3
     mediocre generate -g "baroque_x_jazz" --system-prompt my-prompt.txt --solo
@@ -1026,9 +1035,14 @@ if (process.argv.length === 2) {
     mediocre validate-abc                                 # Process and fix all ABC files in output dir
     mediocre validate-abc -i "/path/to/baroque_x_jazz-score1.abc" -o "/path/to/fixed.abc"  # Process a single file
     mediocre browse
-    
-  For more information, run: mediocre --help
+
+  For more information, run: mediocre <command> --help
   `);
+} else if (process.argv[2] && process.argv[2].startsWith('-')) {
+  // Starts with options but no command - default to generate
+  process.argv.splice(2, 0, 'generate');
+  program.parse();
 } else {
+  // Normal parsing with explicit command
   program.parse();
 }
