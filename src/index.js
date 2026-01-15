@@ -41,6 +41,11 @@ const INVALID_DRUM_PROGRAMS = new Set([
   119, 120, 121, 122, 123, 124
 ]);
 
+/**
+ * Detect invalid drum program numbers in ABC notation
+ * @param {string} abcContent - ABC notation content
+ * @returns {number[]} Array of invalid drum program numbers found
+ */
 function detectInvalidDrumPrograms(abcContent) {
   const invalidFound = [];
   const drumProgramRegex = /%%MIDI\s+(?:program\s+10|channel\s+10\s+program|drum(?:map)?)\s+(\d+)/gi;
@@ -197,6 +202,11 @@ program
             console.log(`  🔧 Validating initial generation with abc2midi...`);
             let initialValidation = await validateWithAbc2Midi(currentFile);
 
+            // Check for warning (abc2midi not installed)
+            if (initialValidation.warning) {
+              console.log(chalk.yellow(`  ⚠️  ${initialValidation.warning}`));
+            }
+
             if (!initialValidation.valid) {
               console.warn(`  ⚠️ Initial generation failed abc2midi: ${initialValidation.error}`);
               console.log(`  🔧 Attempting to fix initial ABC notation...`);
@@ -300,6 +310,11 @@ ${evaluation.instructions}`;
                 // VALIDATE with abc2midi after each expansion
                 console.log(`  🔧 Validating with abc2midi...`);
                 let validation = await validateWithAbc2Midi(modifiedFile);
+
+                // Check for warning (abc2midi not installed)
+                if (validation.warning) {
+                  console.log(chalk.yellow(`  ⚠️  ${validation.warning}`));
+                }
 
                 if (!validation.valid) {
                   console.warn(`  ⚠️ abc2midi validation failed: ${validation.error}`);

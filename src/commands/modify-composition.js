@@ -178,13 +178,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     output: args[3] || config.get('outputDir')
   };
   
-  modifyComposition(options)
-    .then(file => {
+  (async () => {
+    try {
+      const file = await modifyComposition(options);
       console.log(`Modified composition saved to: ${file}`);
       process.exit(0);
-    })
-    .catch(error => {
+    } catch (error) {
       console.error('Error:', error);
       process.exit(1);
-    });
+    }
+  })();
 }

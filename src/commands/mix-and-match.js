@@ -356,13 +356,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     output: args[args.length - 1] || config.get('outputDir')
   };
 
-  mixAndMatch(options)
-    .then(file => {
+  (async () => {
+    try {
+      const file = await mixAndMatch(options);
       console.log(`Mixed composition saved to: ${file}`);
       process.exit(0);
-    })
-    .catch(error => {
+    } catch (error) {
       console.error('Error:', error);
       process.exit(1);
-    });
+    }
+  })();
 }

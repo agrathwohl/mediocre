@@ -1,4 +1,4 @@
-import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, streamText } from "ai";
 import { config } from "./config.js";
 import fs from "fs";
@@ -468,6 +468,15 @@ export async function validateWithAbc2Midi(abcFilePath) {
       return { valid: false, error: "abc2midi did not produce output file" };
     }
   } catch (error) {
+    // Check if abc2midi is not installed (command not found)
+    if (error.code === 'ENOENT' || (error.message && error.message.includes('command not found'))) {
+      return {
+        valid: true, // Don't fail validation if tool is missing
+        error: null,
+        warning: 'abc2midi not installed - skipping validation (install abcmidi package for validation)'
+      };
+    }
+
     // Check for segfault - multiple ways to detect it
     const isSegfault = error.signal === "SIGSEGV" ||
                        error.signal === "SIGABRT" ||

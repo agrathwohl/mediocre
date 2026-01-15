@@ -135,13 +135,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     output: args[1] || config.get('datasetDir')
   };
   
-  buildDataset(options)
-    .then(outputDir => {
+  (async () => {
+    try {
+      const outputDir = await buildDataset(options);
       console.log(`Dataset built successfully at ${outputDir}`);
       process.exit(0);
-    })
-    .catch(error => {
+    } catch (error) {
       console.error('Error:', error);
       process.exit(1);
-    });
+    }
+  })();
 }

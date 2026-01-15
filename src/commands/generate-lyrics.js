@@ -161,15 +161,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     output: args[3] || config.get('outputDir')
   };
   
-  generateLyrics(options)
-    .then(file => {
+  (async () => {
+    try {
+      const file = await generateLyrics(options);
       console.log(`ABC notation with lyrics saved to: ${file}`);
       console.log('Convert to PDF to see the score with lyrics using:');
       console.log(`mediocre convert --input ${file} --to pdf`);
       process.exit(0);
-    })
-    .catch(error => {
+    } catch (error) {
       console.error('Error:', error);
       process.exit(1);
-    });
+    }
+  })();
 }

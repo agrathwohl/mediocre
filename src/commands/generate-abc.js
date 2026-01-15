@@ -362,13 +362,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     output: args[3] || config.get('outputDir')
   };
   
-  generateAbc(options)
-    .then(files => {
+  (async () => {
+    try {
+      const files = await generateAbc(options);
       console.log(`Generated ${files.length} composition(s)`);
       process.exit(0);
-    })
-    .catch(error => {
+    } catch (error) {
       console.error('Error:', error);
       process.exit(1);
-    });
+    }
+  })();
 }

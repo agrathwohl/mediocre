@@ -93,13 +93,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     output: args[2] || config.get('outputDir')
   };
   
-  convertToWav(options)
-    .then(files => {
+  (async () => {
+    try {
+      const files = await convertToWav(options);
       console.log(`Converted ${files.length} file(s) to WAV`);
       process.exit(0);
-    })
-    .catch(error => {
+    } catch (error) {
       console.error('Error:', error);
       process.exit(1);
-    });
+    }
+  })();
 }

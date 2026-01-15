@@ -165,13 +165,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     effect: args[3] || 'all'
   };
   
-  processEffects(options)
-    .then(files => {
+  (async () => {
+    try {
+      const files = await processEffects(options);
       console.log(`Processed ${files.length} file(s) with effects`);
       process.exit(0);
-    })
-    .catch(error => {
+    } catch (error) {
       console.error('Error:', error);
       process.exit(1);
-    });
+    }
+  })();
 }

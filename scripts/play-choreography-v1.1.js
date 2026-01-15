@@ -392,6 +392,35 @@ class TransformManager {
           centerY +
           Math.sin(obj.circularMotion.angle) * obj.circularMotion.radius * 0.5; // Flatten Y for terminal aspect ratio
       } else {
+        // Path-based animation (interpolate between path points)
+        if (obj.pathAnimation) {
+          const elapsed = (Date.now() - obj.pathAnimation.startTime) / 1000;
+          const progress = elapsed / obj.pathAnimation.totalDuration;
+
+          if (progress < 1 && obj.pathAnimation.points.length > 1) {
+            // Find current segment
+            let targetIndex = 0;
+            for (let i = 0; i < obj.pathAnimation.points.length; i++) {
+              if (elapsed >= obj.pathAnimation.points[i].time) {
+                targetIndex = i;
+              }
+            }
+
+            if (targetIndex < obj.pathAnimation.points.length - 1) {
+              const p1 = obj.pathAnimation.points[targetIndex];
+              const p2 = obj.pathAnimation.points[targetIndex + 1];
+              const segmentProgress = (elapsed - p1.time) / (p2.time - p1.time);
+
+              // Linear interpolation
+              obj.x = p1.x + (p2.x - p1.x) * segmentProgress;
+              obj.y = p1.y + (p2.y - p1.y) * segmentProgress;
+            }
+          } else if (progress >= 1) {
+            // Path complete, remove animation
+            delete obj.pathAnimation;
+          }
+        }
+
         // Motion ONLY when velocity is significant (rhythmic change happening)
         // Below threshold = minimal/no motion, above = proportional motion
         const motionThreshold = 0.15; // Only move when velocity > 15%
@@ -1894,6 +1923,21 @@ class ChoreographyManager {
         // Direct velocity setting
         obj.velocityX = action.movement.velocity.x || 0;
         obj.velocityY = action.movement.velocity.y || 0;
+        if (action.movement.acceleration) {
+          obj.accelerationX = action.movement.acceleration.x || 0;
+          obj.accelerationY = action.movement.acceleration.y || 0;
+        }
+      } else if (action.movement.path) {
+        // Path-based movement
+        const path = action.movement.path;
+        if (path && path.length > 0) {
+          obj.pathAnimation = {
+            points: path,
+            startTime: Date.now(),
+            currentIndex: 0,
+            totalDuration: path[path.length - 1].time || 1
+          };
+        }
       }
     }
   }
@@ -2280,6 +2324,30 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
         `${audioBasename}-recording-${timestamp}.mkv`
       );
 
+      // Get default audio sink monitor for system audio capture
+      let audioSource = null;
+      let defaultSink = null;
+      try {
+        defaultSink = execSync('pactl get-default-sink', { encoding: 'utf8' }).trim();
+        const monitorSource = `${defaultSink}.monitor`;
+
+        // Verify the monitor source actually exists
+        const sourcesOutput = execSync('pactl list sources', { encoding: 'utf8' });
+        const sourceNames = sourcesOutput.match(/Name: (.+)/g)?.map(line => line.replace('Name: ', '').trim()) || [];
+
+        if (sourceNames.includes(monitorSource)) {
+          audioSource = monitorSource;
+          console.log(`   ✓ System audio capture: ${defaultSink} → ${monitorSource}`);
+        } else {
+          console.error(`⚠️  Monitor source "${monitorSource}" not found in PulseAudio`);
+          console.error(`   Available sources: ${sourceNames.join(', ')}`);
+          console.error(`   Recording will use default input (likely microphone)`);
+        }
+      } catch (error) {
+        console.error(`❌ Failed to configure system audio capture: ${error.message}`);
+        console.error(`   Recording will capture default input (likely microphone) instead`);
+      }
+
       // Log file for wf-recorder output
       const logFile = path.join(
         path.dirname(audioFile),
@@ -2288,21 +2356,33 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
       const logStream = fs.createWriteStream(logFile, { flags: 'a' });
 
       // Start wf-recorder with specified encoding parameters
-      recorderProcess = spawn("wf-recorder", [
+      const wfRecorderArgs = [
         "-g", `${x},${y} ${width}x${height}`,
         "-c", "h264_nvenc",
         "-r", "60",
         "-p", "pix_fmt=yuv444p",    // Codec parameter: pixel format
         "-p", "b=50M",               // Codec parameter: bitrate
         "-p", "g=60",                // Codec parameter: keyframe interval (1 second at 60fps)
-        "-a",                        // Capture audio
-        "-C", "pcm_f32le",           // Audio codec: float32 PCM
-        "-f", recordingOutputFile    // Output file
-      ]);
+      ];
+
+      // Add audio capture with specified source or default
+      if (audioSource) {
+        wfRecorderArgs.push(`--audio=${audioSource}`);  // Specify audio source
+      } else {
+        wfRecorderArgs.push("-a");  // Use default audio device
+      }
+      wfRecorderArgs.push("-C", "pcm_f32le");
+
+      wfRecorderArgs.push("-f", recordingOutputFile);
+
+      recorderProcess = spawn("wf-recorder", wfRecorderArgs);
 
       // Write all output to log file
       logStream.write(`=== wf-recorder started at ${new Date().toISOString()} ===\n`);
-      logStream.write(`Command: wf-recorder -g ${x},${y} ${width}x${height} -c h264_nvenc -r 60 -p pix_fmt=yuv444p -p b=50M -p g=60 -a -C pcm_f32le -f ${recordingOutputFile}\n\n`);
+      logStream.write(`Audio source: ${audioSource || 'default'}\n`);
+      logStream.write(`Command: wf-recorder ${wfRecorderArgs.join(' ')}\n\n`);
+
+      console.log(`   🔊 Audio source: ${audioSource || 'default'}`);
 
       // Capture stderr to log file
       recorderProcess.stderr.on("data", (data) => {

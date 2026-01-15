@@ -3,7 +3,6 @@
 import fs from 'fs/promises';
 import path from 'path';
 import chalk from 'chalk';
-import { z } from 'zod';
 import { streamText, generateText, Output, NoObjectGeneratedError } from 'ai';
 import { getAnthropic } from '../utils/claude.js';
 import { getAudioMetadata } from '../utils/audio-metadata.js';
@@ -17,252 +16,8 @@ import {
   identifySparseEvents,
   DENSITY_TARGETS
 } from '../utils/choreography-density.js';
+import { buildChoreographySchemaV1_1 } from '../utils/choreography-schema.js';
 
-/**
- * Build Choreography Schema v1.1 (Extended) using Zod
- * @returns {z.ZodObject} The v1.1 choreography schema
- */
-function buildChoreographySchemaV1_1() {
-  // dynamicNumber: numeric or expression string
-  const dynamicNumber = z.union([
-    z.number(),
-    z.string()
-  ]);
-
-  // Metadata Schema v1.1
-  const MetadataSchema = z.object({
-    version: z.string().default("1.1"),
-    name: z.string(),
-    duration: z.number().describe("Total duration in seconds"),
-    bpm: z.number().optional().describe("Beats per minute"),
-    timeSignature: z.string().default("4/4"),
-    fps: z.number().default(120),
-    seed: z.number().optional(),
-    notes: z.string().optional()
-  });
-
-  // Settings Schema v1.1
-  const SettingsSchema = z.object({
-    audioReactive: z.object({
-      amplitudeMultiplier: z.number().default(1.0),
-      velocityThreshold: z.number().default(0.15),
-      frequencyBands: z.array(z.object({
-        name: z.string(),
-        range: z.array(z.number()).length(2),
-        weight: z.number()
-      })).optional(),
-      analysisWindow: z.number().optional(),
-      smoothing: z.number().optional()
-    }).optional(),
-    collisionBehavior: z.enum(["default", "scripted", "disabled"]).default("default"),
-    boundaryMode: z.enum(["bounce", "wrap", "stop", "destroy"]).default("bounce"),
-    randomness: z.object({
-      seed: z.number().optional(),
-      mode: z.enum(["deterministic", "random"]).optional()
-    }).optional(),
-    performanceBudget: z.object({
-      maxObjects: z.number().optional(),
-      maxTransformsPerSecond: z.number().optional()
-    }).optional()
-  }).optional();
-
-  // Templates Schema v1.1 - Passthrough for flexibility
-  const TemplatesSchema = z.object({
-    objects: z.record(z.object({}).passthrough()).optional(),
-    movements: z.record(z.object({}).passthrough()).optional(),
-    formations: z.record(z.object({}).passthrough()).optional()
-  }).passthrough().optional();
-
-  // Tracks Schema v1.1
-  const TracksSchema = z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    layer: z.number().int().describe("Z-order, higher = front"),
-    opacity: z.number().min(0).max(1),
-    audioChannel: z.enum(["stereo", "left", "right", "center"]).default("stereo")
-  })).optional();
-
-  // Action Types v1.1
-  const SpawnAction = z.object({
-    type: z.literal("spawn"),
-    objectId: z.string(),
-    template: z.string().optional(),
-    position: z.object({
-      x: dynamicNumber,
-      y: dynamicNumber,
-      relative: z.boolean().default(false)
-    }),
-    track: z.string().optional(),
-    delay: z.number().optional()
-  });
-
-  const MoveAction = z.object({
-    type: z.literal("move"),
-    target: z.string().describe("Object ID or 'all' or track ID"),
-    movement: z.union([
-      z.object({
-        preset: z.string(),
-        duration: dynamicNumber,
-        easing: z.string().optional()
-      }),
-      z.object({
-        path: z.array(z.object({
-          x: dynamicNumber,
-          y: dynamicNumber,
-          time: dynamicNumber
-        }))
-      }),
-      z.object({
-        velocity: z.object({ x: dynamicNumber, y: dynamicNumber }),
-        acceleration: z.object({ x: dynamicNumber, y: dynamicNumber }).optional()
-      })
-    ]),
-    delay: z.number().optional()
-  });
-
-  const TransformAction = z.object({
-    type: z.literal("transform"),
-    target: z.string(),
-    effect: z.string().describe("Transformation effect name"),
-    duration: dynamicNumber,
-    parameters: z.object({}).passthrough().optional(),
-    delay: z.number().optional()
-  });
-
-  const FormationAction = z.object({
-    type: z.literal("formation"),
-    objects: z.array(z.string()),
-    pattern: z.string(),
-    center: z.object({ x: dynamicNumber, y: dynamicNumber }),
-    duration: dynamicNumber,
-    stagger: z.number().optional(),
-    delay: z.number().optional()
-  });
-
-  const VisualAction = z.object({
-    type: z.literal("visual"),
-    target: z.string(),
-    changes: z.object({
-      color: z.string().optional(),
-      scale: dynamicNumber.optional(),
-      rotation: dynamicNumber.optional(),
-      opacity: dynamicNumber.optional(),
-      blur: dynamicNumber.optional(),
-      glow: z.object({
-        color: z.string(),
-        radius: dynamicNumber
-      }).optional()
-    }),
-    duration: dynamicNumber,
-    easing: z.string().optional(),
-    delay: z.number().optional()
-  });
-
-  const DestroyAction = z.object({
-    type: z.literal("destroy"),
-    target: z.string(),
-    effect: z.string().optional(),
-    delay: z.number().optional()
-  });
-
-  const AudioMapAction = z.object({
-    type: z.literal("audio-map"),
-    target: z.string(),
-    mapping: z.object({
-      amplitude: z.object({
-        property: z.string(),
-        range: z.array(dynamicNumber).length(2),
-        smoothing: z.number().optional()
-      }).optional(),
-      frequency: z.object({
-        band: z.string(),
-        property: z.string(),
-        range: z.array(dynamicNumber).length(2)
-      }).optional()
-    }),
-    delay: z.number().optional()
-  });
-
-  // Audio condition with boolean logic support
-  const AudioCondition = z.object({
-    type: z.literal("audio"),
-    conditions: z.array(z.object({
-      parameter: z.enum(["amplitude", "velocity", "frequency"]),
-      operator: z.enum([">", "<", "==", "spike", "drop"]),
-      value: z.number(),
-      band: z.string().optional()
-    })).optional(),
-    condition: z.object({
-      parameter: z.enum(["amplitude", "velocity", "frequency"]),
-      operator: z.enum([">", "<", "==", "spike", "drop"]),
-      value: z.number()
-    }).optional(),
-    logic: z.enum(["and", "or", "xor"]).optional()
-  });
-
-  // Timeline Schema v1.1
-  const TimelineSchema = z.array(z.object({
-    label: z.string().optional(),
-    trigger: z.union([
-      z.object({
-        type: z.literal("time"),
-        at: dynamicNumber.describe("Time in seconds or expression"),
-        jitter: z.number().optional()
-      }),
-      z.object({
-        type: z.literal("beat"),
-        measure: z.number().int(),
-        beat: dynamicNumber
-      }),
-      AudioCondition,
-      z.object({
-        type: z.literal("loop"),
-        every: dynamicNumber.describe("Interval or expression"),
-        count: z.number().int().describe("Number of repetitions, -1 for infinite")
-      })
-    ]),
-    actions: z.array(z.union([
-      SpawnAction,
-      MoveAction,
-      TransformAction,
-      FormationAction,
-      VisualAction,
-      DestroyAction,
-      AudioMapAction
-    ])),
-    _scene: z.string().optional()
-  }));
-
-  // Threads Schema v1.1
-  const ThreadsSchema = z.array(z.object({
-    id: z.string(),
-    name: z.string().optional(),
-    timeline: TimelineSchema
-  })).optional();
-
-  // Scenes Schema v1.1
-  const ScenesSchema = z.array(z.object({
-    name: z.string(),
-    start: z.number(),
-    duration: z.number(),
-    transition: z.object({
-      type: z.enum(["cut", "crossfade", "dissolve"]),
-      duration: z.number().optional()
-    }).optional(),
-    timeline: TimelineSchema.optional()
-  })).optional();
-
-  // Main Choreography Schema v1.1
-  return z.object({
-    metadata: MetadataSchema,
-    settings: SettingsSchema,
-    templates: TemplatesSchema,
-    tracks: TracksSchema,
-    scenes: ScenesSchema,
-    threads: ThreadsSchema,
-    timeline: TimelineSchema
-  });
-}
 
 /**
  * Parse ABC metadata from ABC notation content
@@ -294,6 +49,29 @@ function parseABCMetadata(abcContent) {
 }
 
 /**
+ * Filter description to remove ABC-specific content that confuses choreography generation
+ * @param {string} description - Raw description text
+ * @returns {string} Filtered description suitable for choreography prompts
+ */
+function filterDescriptionForChoreography(description) {
+  return description
+    .split('\n')
+    .filter(line => {
+      // Remove modification instructions section
+      if (line.includes('## Modification Instructions')) return false;
+      if (line.includes('DOUBLE the length') || line.includes('Add the following specific elements')) return false;
+      // Remove ABC notation section
+      if (line.includes('## ABC Notation')) return false;
+      if (line.includes('```')) return false;
+      // Keep everything else
+      return true;
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n') // Clean up multiple blank lines
+    .trim();
+}
+
+/**
  * Build choreography prompt for v1.1 schema
  * @param {string} description - Music description
  * @param {Object} metadata - ABC metadata
@@ -301,6 +79,8 @@ function parseABCMetadata(abcContent) {
  * @returns {string} Generated prompt
  */
 function buildChoreographyPromptV1_1(description, metadata, asciiShapes = []) {
+  const filteredDescription = filterDescriptionForChoreography(description);
+
   let asciiSection = "";
 
   if (asciiShapes.length > 0) {
@@ -375,7 +155,7 @@ ${asciiSection}MUSIC INFO:
 - Duration: ${metadata.duration} seconds
 - Tempo: ${metadata.tempo} BPM
 - Time Signature: ${metadata.timeSignature}
-- Description: ${description}
+- Description: ${filteredDescription}
 ${onsetSection}
 
 SCHEMA STRUCTURE v1.1:
@@ -479,10 +259,31 @@ SCHEMA STRUCTURE v1.1:
   ]
 }
 
-ACTION TYPES (same as v1.0 plus extensions):
-- spawn, move, transform, formation, visual, destroy, audio-map
+ACTION TYPES (v1.1 format - NOTE THE REQUIRED STRUCTURE):
+
+MOVE ACTIONS (v1.1 - CRITICAL CHANGE):
+{
+  "type": "move",
+  "target": "object_id",
+  "movement": {
+    "preset": "linear",  // or "circular", "zigzag", etc.
+    "duration": 2.5,
+    "easing": "easeInOut"  // Optional
+  }
+}
+// OR path-based: "movement": { "path": [{"x": 100, "y": 200, "time": 0.5}] }
+// OR velocity-based: "movement": { "velocity": {"x": 50, "y": -30} }
+
+OTHER ACTIONS:
+- spawn: Creates new object at position with template
+- transform: Changes scale/rotation/opacity with duration
+- formation: Arranges multiple objects in pattern
+- visual: Modifies visual properties (color, opacity)
+- destroy: Removes object from scene
+- audio-map: Maps audio analysis to object properties
 - All support optional "delay" parameter for stagger effects
-- Transformations: EXPLODE, SHATTER, MELT, PIXELATE, GLITCH, MORPH, WARP, MULTIPLY, RAINBOW, INVERT, MATRIX, DISSOLVE, MIRROR, CORRUPT, INVERSION, VORTEX, LIQUIFY, CRYSTALLIZE, WORMHOLE, ELECTRIC, FRACTAL, QUANTUM, PLASMA, SINGULARITY
+
+TRANSFORMATIONS: EXPLODE, SHATTER, MELT, PIXELATE, GLITCH, MORPH, WARP, MULTIPLY, RAINBOW, INVERT, MATRIX, DISSOLVE, MIRROR, CORRUPT, INVERSION, VORTEX, LIQUIFY, CRYSTALLIZE, WORMHOLE, ELECTRIC, FRACTAL, QUANTUM, PLASMA, SINGULARITY
 
 TRIGGERS:
 - time: { "type": "time", "at": seconds }
@@ -863,6 +664,7 @@ function buildSectionImprovementPrompt(section, existingChoreography, descriptio
   const bpm = existingChoreography.metadata.bpm;
   const templates = existingChoreography.templates || {};
   const templateNames = Object.keys(templates.objects || {});
+  const filteredDescription = filterDescriptionForChoreography(description);
 
   return `SECTION IMPROVEMENT TASK (${section.startTime}s - ${section.endTime}s)
 
@@ -870,7 +672,7 @@ Improve THIS SECTION of an existing choreography. Make it more exciting and deta
 
 FULL COMPOSITION CONTEXT:
 - Title: ${metadata.title}
-- Description: ${description}
+- Description: ${filteredDescription}
 - Full duration: ${duration}s
 - BPM: ${bpm}
 - Time Signature: ${metadata.timeSignature}
@@ -1040,9 +842,11 @@ EVENT SCHEMA (use this exact structure):
     {
       "type": "move",
       "target": "obj_<same_id>",
-      "x": 100,
-      "y": 100,
-      "duration": 1,
+      "movement": {
+        "preset": "linear",
+        "duration": 1,
+        "easing": "easeInOut"
+      },
       "delay": 0.5
     }
   ]
@@ -1175,6 +979,87 @@ Return JSON object:`
 }
 
 /**
+ * Load description from file or use default
+ * @param {Object} options - Options containing description or desc path
+ * @returns {Promise<string>} The loaded or default description
+ */
+async function loadDescription(options) {
+  let description = options.description || 'An experimental musical composition';
+  const descPath = options.desc;
+
+  if (descPath) {
+    try {
+      description = await fs.readFile(descPath, 'utf-8');
+      console.log(chalk.green(`✓ Loaded description from ${descPath}`));
+    } catch (error) {
+      console.log(chalk.yellow(`⚠️  Failed to read description file: ${error.message}`));
+    }
+  }
+
+  return description;
+}
+
+/**
+ * Load and parse metadata from ABC file or use defaults
+ * @param {Object} options - Options containing abc path and verbose flag
+ * @returns {Promise<Object>} Parsed metadata with duration and onsets
+ */
+async function loadAndParseMetadata(options) {
+  if (!options.abc) {
+    console.log(chalk.gray('No ABC file provided, using defaults\n'));
+    return {
+      title: "Generated Composition",
+      tempo: 120,
+      timeSignature: "4/4",
+      measures: 32,
+      beatsPerMeasure: 4,
+      duration: 60,
+      key: "C",
+      onsets: []
+    };
+  }
+
+  const abcPath = path.resolve(options.abc);
+  console.log(chalk.gray(`Reading ABC file: ${abcPath}`));
+
+  try {
+    const abcContent = await fs.readFile(abcPath, 'utf-8');
+    const metadata = parseABCMetadata(abcContent);
+
+    // Get actual duration and onsets from WAV file
+    const audioData = await getAudioMetadata(abcPath, { verbose: options.verbose });
+
+    if (audioData) {
+      metadata.duration = Math.round(audioData.duration);
+      metadata.onsets = audioData.onsets;
+      console.log(chalk.green(`✓ Parsed: ${metadata.title} (${metadata.duration}s @ ${metadata.tempo} BPM)\n`));
+    } else {
+      // Fallback: estimate duration from ABC if no WAV found
+      const totalBeats = metadata.measures * (metadata.beatsPerMeasure || 4);
+      metadata.duration = Math.round((totalBeats * 60) / metadata.tempo);
+      metadata.duration = Math.min(300, Math.max(10, metadata.duration));
+      console.log(chalk.yellow(`⚠️  Using estimated duration: ${metadata.duration}s\n`));
+    }
+
+    return metadata;
+  } catch (error) {
+    console.log(chalk.yellow(`⚠️  Could not read ABC file: ${error.message}`));
+    console.log(chalk.yellow('   Using default metadata\n'));
+
+    return {
+      title: "Untitled",
+      tempo: 120,
+      timeSignature: "4/4",
+      measures: 32,
+      beatsPerMeasure: 4,
+      duration: 60,
+      key: "C",
+      onsets: []
+    };
+  }
+}
+
+/**
  * Generate choreography JSON for audio visualization (v1.1 schema)
  * @param {Object} options - Command options
  * @param {string} options.description - Music description
@@ -1186,68 +1071,9 @@ Return JSON object:`
 export async function generateChoreographyNew(options) {
   console.log(chalk.cyan('🎭 Generating Choreography (Schema v1.1)...\n'));
 
-  // Get description
-  let description = options.description || 'An experimental musical composition';
-  const descPath = options.desc;
-  if (descPath) {
-    try {
-      description = await fs.readFile(descPath, 'utf-8');
-      console.log(chalk.green(`✓ Loaded description from ${descPath}`));
-    } catch (error) {
-      console.log(chalk.yellow(`⚠️  Failed to read description file: ${error.message}`));
-    }
-  }
-
-  // Parse ABC file or use defaults
-  let metadata;
-  if (options.abc) {
-    const abcPath = path.resolve(options.abc);
-    console.log(chalk.gray(`Reading ABC file: ${abcPath}`));
-
-    try {
-      const abcContent = await fs.readFile(abcPath, 'utf-8');
-      metadata = parseABCMetadata(abcContent);
-
-      // Get actual duration and onsets from WAV file
-      const audioData = await getAudioMetadata(abcPath, { verbose: options.verbose });
-      if (audioData) {
-        metadata.duration = Math.round(audioData.duration);
-        metadata.onsets = audioData.onsets;
-        console.log(chalk.green(`✓ Parsed: ${metadata.title} (${metadata.duration}s @ ${metadata.tempo} BPM)\n`));
-      } else {
-        // Fallback: estimate duration from ABC if no WAV found
-        const totalBeats = metadata.measures * (metadata.beatsPerMeasure || 4);
-        metadata.duration = Math.round((totalBeats * 60) / metadata.tempo);
-        metadata.duration = Math.min(300, Math.max(10, metadata.duration));
-        console.log(chalk.yellow(`⚠️  Using estimated duration: ${metadata.duration}s\n`));
-      }
-    } catch (error) {
-      console.log(chalk.yellow(`⚠️  Could not read ABC file: ${error.message}`));
-      console.log(chalk.yellow('   Using default metadata\n'));
-      metadata = {
-        title: "Untitled",
-        tempo: 120,
-        timeSignature: "4/4",
-        measures: 32,
-        beatsPerMeasure: 4,
-        duration: 60,
-        key: "C",
-        onsets: []
-      };
-    }
-  } else {
-    metadata = {
-      title: "Generated Composition",
-      tempo: 120,
-      timeSignature: "4/4",
-      measures: 32,
-      beatsPerMeasure: 4,
-      duration: 60,
-      key: "C",
-      onsets: []
-    };
-    console.log(chalk.gray('No ABC file provided, using defaults\n'));
-  }
+  // Load description and metadata using helper functions
+  const description = await loadDescription(options);
+  const metadata = await loadAndParseMetadata(options);
 
   // Load ASCII art shapes
   let asciiShapes = [];
@@ -1262,6 +1088,9 @@ export async function generateChoreographyNew(options) {
     asciiShapes = asciiArtManager.getArtForAbc(abcBasename) || [];
     if (asciiShapes.length > 0) {
       console.log(chalk.green(`✓ Found ${asciiShapes.length} ASCII art shapes for this composition`));
+    } else {
+      console.log(chalk.yellow(`⚠️  No ASCII art found in library for: ${abcBasename}`));
+      console.log(chalk.gray(`   Tip: Run 'node scripts/generate-ascii-for-abc.js ${options.abc}' to create custom ASCII art`));
     }
   }
 
@@ -1403,29 +1232,156 @@ export async function generateChoreographyNew(options) {
       }
     }
   } else {
-    // INITIAL GENERATION MODE
-    mode = 'initial';
-    console.log(chalk.cyan('📝 No existing choreography found - generating initial version'));
-    console.log(chalk.yellow('\n✨ Generating NEW choreography v1.1...\n'));
+    // No existing valid choreography found
+    console.log(chalk.cyan('📝 No existing choreography found\n'));
 
-    // Build initial prompt
-    prompt = buildChoreographyPromptV1_1(description, metadata, asciiShapes);
-    outputPath = path.join(outputDir, `${abcBasename}-choreography.v1.1.json`);
+    // CHECK FOR RECOVERY FILES
+    const recoveryFiles = [
+      path.join(outputDir, `${abcBasename}-choreography.v1.1-recovery-raw.txt`),
+      path.join(outputDir, `${abcBasename}-choreography.v1.1-recovery-text.txt`),
+      path.join(outputDir, `${abcBasename}-choreography.v1.1-recovery-extracted.json`)
+    ];
 
-    if (options.verbose) {
-      console.log(chalk.gray('Initial prompt preview:'));
-      console.log(chalk.gray(prompt.substring(0, 500) + '...\n'));
+    let recoveryFileToUse = null;
+    for (const recoveryPath of recoveryFiles) {
+      try {
+        await fs.access(recoveryPath);
+        const stats = await fs.stat(recoveryPath);
+        if (!recoveryFileToUse || stats.mtime > recoveryFileToUse.mtime) {
+          recoveryFileToUse = { path: recoveryPath, mtime: stats.mtime };
+        }
+      } catch (error) {
+        // File doesn't exist, continue
+      }
     }
 
-    // Generate choreography for initial mode
-    choreography = await generateChoreographyWithFallbacks(
-      prompt,
-      metadata,
-      description,
-      options,
-      null, // onsetCachePath not needed here
-      outputPath
-    );
+    if (recoveryFileToUse) {
+      // RECOVERY MODE - FIX INVALID JSON FROM PREVIOUS FAILURE
+      mode = 'recovery';
+      const ageMinutes = Math.round((Date.now() - recoveryFileToUse.mtime.getTime()) / 1000 / 60);
+      console.log(chalk.yellow(`⚠️  RECOVERY MODE: Found failed output from ${ageMinutes} minute(s) ago\n`));
+      console.log(chalk.cyan(`Loading: ${path.basename(recoveryFileToUse.path)}\n`));
+
+      let rawContent;
+      try {
+        rawContent = await fs.readFile(recoveryFileToUse.path, 'utf-8');
+        console.log(chalk.green(`✓ Loaded ${(rawContent.length / 1024).toFixed(1)} KB of raw output\n`));
+      } catch (error) {
+        console.error(chalk.red(`❌ Failed to read recovery file: ${error.message}\n`));
+        throw error;
+      }
+
+      // Use LLM to repair the invalid JSON
+      console.log(chalk.cyan('🔧 Using LLM to repair invalid JSON...\n'));
+
+      const myAnthropic = getAnthropic();
+      const model = myAnthropic("claude-3-7-sonnet-20250219");
+      const ChoreographySchema = buildChoreographySchemaV1_1();
+
+      const repairPrompt = `You are a JSON repair specialist. Fix this invalid choreography JSON that has control character errors.
+
+CRITICAL RULES:
+1. Fix ALL control characters in string literals (newlines, tabs, etc.) by escaping them properly
+2. Ensure all strings use proper escape sequences: \\n for newline, \\t for tab, \\\\ for backslash
+3. Fix any malformed JSON structure (missing commas, brackets, quotes)
+4. Preserve ALL data - do not remove or truncate any content
+5. Return ONLY the valid JSON - no explanations, no markdown code blocks
+
+Common issues to fix:
+- Unescaped newlines in strings → Replace with \\n
+- Unescaped tabs in strings → Replace with \\t
+- Unescaped quotes in strings → Replace with \\"
+- Control characters (ASCII 0-31) → Remove or escape appropriately
+- Missing commas between array/object elements
+- Trailing commas before closing brackets
+- Unclosed strings, arrays, or objects
+
+INVALID JSON:
+${rawContent}
+
+Return the repaired, valid JSON immediately.`;
+
+      const { text: repairedText } = await generateText({
+        model,
+        prompt: repairPrompt,
+        temperature: 0.1,
+        maxTokens: 50000
+      });
+
+      let repairedJson = repairedText.trim();
+
+      // Remove markdown code blocks if present
+      if (repairedJson.startsWith('```json')) {
+        repairedJson = repairedJson.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+      } else if (repairedJson.startsWith('```')) {
+        repairedJson = repairedJson.replace(/```\n?/g, '');
+      }
+
+      // Try to parse and validate
+      try {
+        console.log(chalk.cyan('🔍 Parsing repaired JSON...\n'));
+        const parsed = JSON.parse(repairedJson);
+
+        console.log(chalk.cyan('🔍 Validating against choreography schema...\n'));
+        choreography = ChoreographySchema.parse(parsed);
+
+        console.log(chalk.green('✅ JSON repaired and validated successfully!\n'));
+
+        // Save the repaired version
+        outputPath = path.join(outputDir, `${abcBasename}-choreography.v1.1.json`);
+        await fs.writeFile(outputPath, JSON.stringify(choreography, null, 2));
+        console.log(chalk.green(`✅ Saved repaired choreography to: ${path.basename(outputPath)}\n`));
+
+        // Also save the raw repaired JSON for reference
+        const repairedRawPath = path.join(outputDir, `${abcBasename}-choreography.v1.1-REPAIRED.json`);
+        await fs.writeFile(repairedRawPath, repairedJson);
+        console.log(chalk.gray(`   Also saved raw repaired JSON to: ${path.basename(repairedRawPath)}\n`));
+
+        console.log(chalk.yellow('⚠️  Recovery files kept for your reference\n'));
+
+      } catch (error) {
+        console.error(chalk.red(`❌ Recovery failed: ${error.message}\n`));
+        console.log(chalk.yellow('Falling back to initial generation...\n'));
+
+        // Fall back to initial generation
+        mode = 'initial';
+        prompt = buildChoreographyPromptV1_1(description, metadata, asciiShapes);
+        outputPath = path.join(outputDir, `${abcBasename}-choreography.v1.1.json`);
+
+        choreography = await generateChoreographyWithFallbacks(
+          prompt,
+          metadata,
+          description,
+          options,
+          null,
+          outputPath
+        );
+      }
+
+    } else {
+      // INITIAL GENERATION MODE - No recovery files found
+      mode = 'initial';
+      console.log(chalk.yellow('✨ Generating NEW choreography v1.1...\n'));
+
+      // Build initial prompt
+      prompt = buildChoreographyPromptV1_1(description, metadata, asciiShapes);
+      outputPath = path.join(outputDir, `${abcBasename}-choreography.v1.1.json`);
+
+      if (options.verbose) {
+        console.log(chalk.gray('Initial prompt preview:'));
+        console.log(chalk.gray(prompt.substring(0, 500) + '...\n'));
+      }
+
+      // Generate choreography for initial mode
+      choreography = await generateChoreographyWithFallbacks(
+        prompt,
+        metadata,
+        description,
+        options,
+        null, // onsetCachePath not needed here
+        outputPath
+      );
+    }
   }
 
   // Get onset cache path for sequential expansion (outside the else block)

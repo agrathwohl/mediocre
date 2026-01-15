@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { anthropic, createAnthropic } from '@ai-sdk/anthropic';
 import { generateText, streamText } from 'ai';
 import { config } from '../utils/config.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
@@ -252,6 +251,12 @@ export async function combineCompositions(options) {
       // VALIDATE WITH ABC2MIDI IMMEDIATELY - prevent segfaults
       console.log(`  🔧 Validating with abc2midi...`);
       let validation = await validateWithAbc2Midi(abcFilePath);
+
+      // Check for warning (abc2midi not installed)
+      if (validation.warning) {
+        console.log(chalk.yellow(`  ⚠️  ${validation.warning}`));
+      }
+
       const MAX_FIX_ATTEMPTS = 3;
       let fixAttempt = 0;
 
@@ -664,13 +669,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     output: args[5] || config.get('outputDir')
   };
 
-  combineCompositions(options)
-    .then(files => {
+  (async () => {
+    try {
+      const files = await combineCompositions(options);
       console.log(`Generated ${files.length} combined compositions`);
       process.exit(0);
-    })
-    .catch(error => {
+    } catch (error) {
       console.error('Error:', error);
       process.exit(1);
-    });
+    }
+  })();
 }
