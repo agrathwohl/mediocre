@@ -563,9 +563,8 @@ export async function generateMusicWithClaude(options) {
   const requestedInstruments = options.instruments || "";
   const sequentialMode = options.sequentialMode || false;
 
-  // Use Claude 3.7 Sonnet for best music generation capabilities
+  // Use Claude Sonnet 3.7 for best music generation capabilities
   const model = myAnthropic("claude-3-7-sonnet-20250219");
-  //const model = myAnthropic("claude-opus-4-5");
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt =

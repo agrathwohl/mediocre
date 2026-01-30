@@ -1,5 +1,20 @@
 #!/usr/bin/env node
 
+/**
+ * Choreography v1.1 Playback Script - COMPLETE IMPLEMENTATION
+ *
+ * This version implements ALL v1.1 schema features:
+ * - PHASE 1: Template defaultColor support (objects maintain color identity)
+ * - PHASE 2: Bounds-based AABB collision detection (accurate bounding boxes)
+ * - PHASE 3: Physics simulation (mass, friction, elasticity)
+ *
+ * Status: PRODUCTION READY
+ * Backward Compatible: YES (all new features use fallback defaults)
+ *
+ * See docs/V1.1_IMPLEMENTATION_PROPOSAL.md for technical specification
+ * See docs/CHOREOGRAPHY_V1.1_SCHEMA.md for schema details
+ */
+
 import { spawn, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -7,6 +22,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import AudioAnalyzer from "../src/utils/audio-analyzer.js";
 import asciiArtManager from "../src/utils/ascii-art-manager.js";
+import { BackgroundManager } from "../src/utils/background-manager.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -305,14 +321,25 @@ class TransformManager {
     this.objects = [];
     this.screenWidth = process.stdout.columns || 80;
     this.screenHeight = process.stdout.rows || 24;
+
     // Buffer limits to prevent crashes
     this.MAX_OBJECTS = 50; // Hard limit on total objects
     this.MULTIPLY_LIMIT = 8; // Maximum objects from multiplication
     this.MAX_SCALE = 8; // Maximum scale multiplier
     this.MIN_SCALE = 0.1; // Minimum scale before removal
+
+    // PHASE 3: Default physics values (centralized for maintainability)
+    this.DEFAULT_PHYSICS = Object.freeze({
+      mass: 1,
+      friction: 0.8,
+      elasticity: 0.3
+    });
+
+    // Terminal aspect ratio for height calculations
+    this.TERMINAL_ASPECT_RATIO = 0.5; // Characters are ~2x taller than wide
   }
 
-  addObject(art, x, y, scale = 1, rotation = 0, amplitude = 0, velocity = 0) {
+  addObject(art, x, y, scale = 1, rotation = 0, amplitude = 0, velocity = 0, template = null) {
     // Don't add if we've hit the object limit
     if (this.objects.length >= this.MAX_OBJECTS) {
       // Remove oldest object to make room
@@ -325,6 +352,10 @@ class TransformManager {
       y,
       scale,
       rotation,
+      // PHASE 1: Store template color, bounds, and physics
+      color: template?.defaultColor || null,
+      bounds: template?.bounds || null,
+      physics: template?.physics || { ...this.DEFAULT_PHYSICS },
       // Motion depends on VELOCITY not amplitude - objects move with rhythmic changes
       velocityX: (Math.random() - 0.5) * (velocity * 6), // Motion only with velocity
       velocityY: (Math.random() - 0.5) * (velocity * 3), // No velocity = no motion
@@ -421,14 +452,26 @@ class TransformManager {
           }
         }
 
+        // PHASE 3: Apply physics-based motion with friction and mass
+        const friction = obj.physics?.friction ?? this.DEFAULT_PHYSICS.friction;
+        const mass = obj.physics?.mass ?? this.DEFAULT_PHYSICS.mass;
+
+        // PHASE 3: Friction decays velocity (higher friction = more decay)
+        const frictionDecay = Math.pow(1 - friction, deltaTime);
+        obj.velocityX *= frictionDecay;
+        obj.velocityY *= frictionDecay;
+
         // Motion ONLY when velocity is significant (rhythmic change happening)
         // Below threshold = minimal/no motion, above = proportional motion
         const motionThreshold = 0.15; // Only move when velocity > 15%
         const motionMultiplier =
           velocity > motionThreshold ? (velocity - motionThreshold) * 3 : 0;
 
-        obj.x += obj.velocityX * deltaTime * 5 * motionMultiplier; // Much less motion
-        obj.y += obj.velocityY * deltaTime * 3 * motionMultiplier; // Controlled movement
+        // PHASE 3: Mass affects acceleration (heavier = slower acceleration from forces)
+        const massMultiplier = 1 / Math.sqrt(mass);
+
+        obj.x += obj.velocityX * deltaTime * 5 * motionMultiplier * massMultiplier;
+        obj.y += obj.velocityY * deltaTime * 3 * motionMultiplier * massMultiplier;
       }
 
       // Rotation only with significant velocity
@@ -565,14 +608,24 @@ class TransformManager {
       // Enforce scale limits
       obj.scale = Math.max(this.MIN_SCALE, Math.min(obj.scale, this.MAX_SCALE));
 
-      // Boundary bounce
-      if (obj.x < 0 || obj.x > this.screenWidth - 10) {
-        obj.velocityX *= -1;
-        obj.x = Math.max(0, Math.min(this.screenWidth - 10, obj.x));
+      // PHASE 3: Boundary bounce with elasticity
+      const elasticity = obj.physics?.elasticity ?? this.DEFAULT_PHYSICS.elasticity;
+
+      if (obj.x < 0) {
+        obj.x = 0;
+        obj.velocityX = Math.abs(obj.velocityX) * elasticity; // Bounce with energy loss
       }
-      if (obj.y < 0 || obj.y > this.screenHeight - 10) {
-        obj.velocityY *= -1;
-        obj.y = Math.max(0, Math.min(this.screenHeight - 10, obj.y));
+      if (obj.x > this.screenWidth - 10) {
+        obj.x = this.screenWidth - 10;
+        obj.velocityX = -Math.abs(obj.velocityX) * elasticity;
+      }
+      if (obj.y < 0) {
+        obj.y = 0;
+        obj.velocityY = Math.abs(obj.velocityY) * elasticity;
+      }
+      if (obj.y > this.screenHeight - 10) {
+        obj.y = this.screenHeight - 10;
+        obj.velocityY = -Math.abs(obj.velocityY) * elasticity;
       }
 
       // Update lifetime
@@ -664,6 +717,27 @@ class TransformManager {
     return transformed;
   }
 
+  // PHASE 2: Get actual bounding box dimensions for object
+  getObjectBounds(obj) {
+    // Validate template bounds before using (prevents NaN crashes)
+    if (obj.bounds?.width > 0 && obj.bounds?.height > 0) {
+      // Use template-provided bounds, scaled by object scale
+      return {
+        width: obj.bounds.width * obj.scale,
+        height: obj.bounds.height * obj.scale
+      };
+    } else {
+      // Fallback: estimate from ASCII art dimensions
+      const artLines = obj.art.art.split('\n');
+      const width = Math.max(...artLines.map(line => line.length));
+      const height = artLines.length;
+      return {
+        width: width * obj.scale,
+        height: height * obj.scale * this.TERMINAL_ASPECT_RATIO
+      };
+    }
+  }
+
   // Detect collisions between objects and apply EXTREME transformations
   detectAndHandleCollisions(amplitude, velocity) {
     for (let i = 0; i < this.objects.length; i++) {
@@ -674,26 +748,48 @@ class TransformManager {
         // Skip if either is on cooldown
         if (obj1.collisionCooldown > 0 || obj2.collisionCooldown > 0) continue;
 
-        // Calculate distance between objects (simple bounding box)
+        // PHASE 2: Get actual bounding boxes
+        const bounds1 = this.getObjectBounds(obj1);
+        const bounds2 = this.getObjectBounds(obj2);
+
+        // PHASE 2: AABB collision detection
         const dx = Math.abs(obj1.x - obj2.x);
         const dy = Math.abs(obj1.y - obj2.y);
-        const collisionDistance = 8 + (obj1.scale + obj2.scale) * 3;
+        const minDistX = (bounds1.width + bounds2.width) / 2;
+        const minDistY = (bounds1.height + bounds2.height) / 2;
 
-        if (dx < collisionDistance && dy < collisionDistance) {
+        if (dx < minDistX && dy < minDistY) {
           // COLLISION DETECTED! Apply EXTREME transformations
           this.applyExtremeTransformation(obj1, obj2, amplitude, velocity);
 
-          // Bounce objects apart with extreme force
+          // Bounce objects apart
           const angleFromObj1ToObj2 = Math.atan2(
             obj2.y - obj1.y,
             obj2.x - obj1.x,
           );
-          const collisionForce = 3 + velocity * 5;
 
-          obj1.velocityX -= Math.cos(angleFromObj1ToObj2) * collisionForce;
-          obj1.velocityY -= Math.sin(angleFromObj1ToObj2) * collisionForce;
-          obj2.velocityX += Math.cos(angleFromObj1ToObj2) * collisionForce;
-          obj2.velocityY += Math.sin(angleFromObj1ToObj2) * collisionForce;
+          // PHASE 3: Mass-based collision response
+          const mass1 = obj1.physics?.mass ?? this.DEFAULT_PHYSICS.mass;
+          const mass2 = obj2.physics?.mass ?? this.DEFAULT_PHYSICS.mass;
+          const totalMass = mass1 + mass2;
+
+          // PHASE 3: Elasticity-based collision force
+          const elasticity1 = obj1.physics?.elasticity ?? this.DEFAULT_PHYSICS.elasticity;
+          const elasticity2 = obj2.physics?.elasticity ?? this.DEFAULT_PHYSICS.elasticity;
+          const avgElasticity = (elasticity1 + elasticity2) / 2;
+
+          // Collision force with elasticity multiplier
+          const baseForce = 3 + velocity * 5;
+          const collisionForce = baseForce * (1 + avgElasticity);
+
+          // Forces proportional to mass ratio (lighter object gets pushed more)
+          const force1 = collisionForce * (mass2 / totalMass);
+          const force2 = collisionForce * (mass1 / totalMass);
+
+          obj1.velocityX -= Math.cos(angleFromObj1ToObj2) * force1;
+          obj1.velocityY -= Math.sin(angleFromObj1ToObj2) * force1;
+          obj2.velocityX += Math.cos(angleFromObj1ToObj2) * force2;
+          obj2.velocityY += Math.sin(angleFromObj1ToObj2) * force2;
 
           // Set cooldown to prevent immediate re-collision
           obj1.collisionCooldown = 5.0; // 5 second cooldown for ALL collisions
@@ -1445,10 +1541,19 @@ class TransformManager {
 
 // Render manager
 class RenderManager {
-  constructor() {
+  constructor(choreographySettings = null) {
     this.colorSystem = new ColorSystem();
     this.transformManager = new TransformManager();
     this.buffer = [];
+
+    // Initialize BackgroundManager with choreography settings if provided
+    const termWidth = process.stdout.columns || 80;
+    const termHeight = process.stdout.rows || 24;
+    this.backgroundManager = new BackgroundManager(
+      choreographySettings?.background || {},
+      termWidth,
+      termHeight
+    );
   }
 
   clear() {
@@ -1459,16 +1564,20 @@ class RenderManager {
     const width = process.stdout.columns || 80;
     const height = process.stdout.rows || 24;
 
+    // Render background using BackgroundManager
+    const backgroundRender = this.backgroundManager.render(amplitude, elapsed);
+    const bgColor = backgroundRender.ansi;
+    const backgroundContent = backgroundRender.content;
+    const bgPattern = backgroundRender.pattern;
+    const bgPatternColor = backgroundRender.patternColor;
+
     // Initialize screen buffer with background
     this.buffer = Array(height)
       .fill(null)
       .map(() => Array(width).fill(" "));
-    const colorBuffer = Array(height)
+    let colorBuffer = Array(height)
       .fill(null)
       .map(() => Array(width).fill(""));
-
-    // Set background color
-    const bgColor = this.colorSystem.getBackgroundColor(amplitude, elapsed);
 
     // Render each object
     this.transformManager.objects.forEach((obj, index) => {
@@ -1477,14 +1586,24 @@ class RenderManager {
         obj.scale,
         obj.rotation,
       );
-      const borderColor = this.colorSystem.getBorderColor(
-        amplitude + index * 0.1,
-        elapsed,
-      );
-      const interiorColor = this.colorSystem.getInteriorColor(
-        amplitude + index * 0.15,
-        elapsed,
-      );
+      // PHASE 1: Use template color if available, otherwise ColorSystem
+      let borderColor, interiorColor;
+      if (obj.color) {
+        // Use template-specific color
+        const templateColor = this.parseColorToAnsi(obj.color);
+        borderColor = templateColor;
+        interiorColor = templateColor;
+      } else {
+        // Fallback to ColorSystem cycling
+        borderColor = this.colorSystem.getBorderColor(
+          amplitude + index * 0.1,
+          elapsed,
+        );
+        interiorColor = this.colorSystem.getInteriorColor(
+          amplitude + index * 0.15,
+          elapsed,
+        );
+      }
 
       // Place transformed art in buffer
       const startY = Math.floor(obj.y);
@@ -1542,18 +1661,93 @@ class RenderManager {
       }
     });
 
+    // Render background content if present (text, banners, ASCII art)
+    if (backgroundContent && backgroundContent.content) {
+      const contentLines = backgroundContent.content.split('\n');
+      const contentColor = backgroundContent.color ?
+        this.parseColorToAnsi(backgroundContent.color) : '\x1b[37m'; // White default
+
+      // Calculate position
+      let startY = 0, startX = 0;
+      const pos = backgroundContent.position;
+
+      if (pos.y === 'top') startY = 1;
+      else if (pos.y === 'center') startY = Math.floor((height - contentLines.length) / 2);
+      else if (pos.y === 'bottom') startY = height - contentLines.length - 1;
+
+      // Render each line of content
+      for (let lineIdx = 0; lineIdx < contentLines.length; lineIdx++) {
+        const line = contentLines[lineIdx];
+        const y = startY + lineIdx;
+
+        if (y < 0 || y >= height) continue;
+
+        if (pos.x === 'left') startX = 1;
+        else if (pos.x === 'center') startX = Math.floor((width - line.length) / 2);
+        else if (pos.x === 'right') startX = width - line.length - 1;
+
+        // Place content in buffer
+        for (let charIdx = 0; charIdx < line.length; charIdx++) {
+          const x = startX + charIdx;
+          if (x >= 0 && x < width) {
+            this.buffer[y][x] = line[charIdx];
+            colorBuffer[y][x] = contentColor;
+          }
+        }
+      }
+    }
+
     // Output the buffer with colors
     let output = bgColor;
 
     const maxHeight = showOSD ? height - 5 : height; // Use full height if no OSD
+
+    // Helper: Get contrasting foreground color
+    const getContrastFg = (r, g, b) => {
+      const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      return luminance > 0.5 ? '\x1b[38;2;0;0;0m' : '\x1b[38;2;255;255;255m';
+    };
 
     for (let y = 0; y < maxHeight; y++) {
       let line = "";
       let lastColor = bgColor;
 
       for (let x = 0; x < width; x++) {
-        const char = this.buffer[y][x];
-        const color = colorBuffer[y][x] || "";
+        let char = this.buffer[y][x];
+        let color = colorBuffer[y][x] || "";
+
+        // Procedural pattern rendering for empty pixels
+        if (char === ' ' && bgPattern && bgPatternColor) {
+          const hash = (x * 7919 + y * 7907) % 1000;
+          const fgColor = getContrastFg(bgPatternColor.r, bgPatternColor.g, bgPatternColor.b);
+
+          if (bgPattern === 'noise') {
+            if (hash < 250) { // 25% density
+              const noiseChars = ['░', '▒', '▓'];
+              char = noiseChars[hash % 3];
+              color = fgColor + bgColor;
+            }
+          } else if (bgPattern === 'dots') {
+            if (hash < 100) { // 10% density
+              char = '·';
+              color = fgColor + bgColor;
+            }
+          } else if (bgPattern === 'grid') {
+            const cellW = 8, cellH = 4;
+            const isVLine = x % cellW === 0;
+            const isHLine = y % cellH === 0;
+            if (isVLine || isHLine) {
+              if (isVLine && isHLine) {
+                char = y % cellH === 0 && x % cellW === 0 ? '┼' : '│';
+              } else if (isVLine) {
+                char = '│';
+              } else {
+                char = '─';
+              }
+              color = fgColor + bgColor;
+            }
+          }
+        }
 
         if (color !== lastColor) {
           line += color || bgColor;
@@ -1598,22 +1792,49 @@ class RenderManager {
 \x1B[K║ [${meter}] ${"".padEnd(width - meterWidth - 5)}║
 \x1B[K╚${"═".repeat(width - 2)}╝\x1B[0m`;
   }
+
+  // Parse CSS color string to ANSI escape code
+  parseColorToAnsi(colorStr) {
+    // Simple hex parser for now
+    if (colorStr.startsWith('#')) {
+      const hex = colorStr.slice(1);
+      let r, g, b;
+      if (hex.length === 3) {
+        r = parseInt(hex[0] + hex[0], 16);
+        g = parseInt(hex[1] + hex[1], 16);
+        b = parseInt(hex[2] + hex[2], 16);
+      } else {
+        r = parseInt(hex.slice(0, 2), 16);
+        g = parseInt(hex.slice(2, 4), 16);
+        b = parseInt(hex.slice(4, 6), 16);
+      }
+      return `\x1b[38;2;${r};${g};${b}m`;
+    }
+    // Fallback to white
+    return '\x1b[37m';
+  }
 }
 
 // Choreography Manager for handling timeline-based events
 class ChoreographyManager {
-  constructor(choreographyData) {
+  constructor(choreographyData, renderManager = null) {
     this.data = choreographyData;
     this.metadata = choreographyData.metadata || {};
     this.settings = choreographyData.settings || {};
     this.templates = choreographyData.templates || {};
     this.timeline = choreographyData.timeline || [];
+    this.backgroundEvents = choreographyData.backgroundEvents || [];
     this.tracks = choreographyData.tracks || [];
 
     // Track executed events to avoid duplicates
     this.executedEvents = new Set();
+    this.executedBackgroundEvents = new Set();
     this.activeObjects = new Map(); // Track spawned objects by ID
     this.timelineIndex = 0;
+    this.backgroundIndex = 0;
+
+    // Reference to RenderManager for background updates
+    this.renderManager = renderManager;
 
     // Calculate centroid of all spawn positions for centering
     this.centroid = this.calculateCentroid();
@@ -1742,6 +1963,37 @@ class ChoreographyManager {
     }
   }
 
+  // Process background events for the current time
+  processBackgroundEvents(currentTime) {
+    // Process all background events that should trigger by current time
+    for (let i = this.backgroundIndex; i < this.backgroundEvents.length; i++) {
+      const event = this.backgroundEvents[i];
+      const eventId = `bg_event_${i}`;
+
+      // Check if this event has already been executed
+      if (this.executedBackgroundEvents.has(eventId)) {
+        continue;
+      }
+
+      // Background events only use time triggers
+      if (event.trigger.type === 'time' && currentTime >= event.trigger.at) {
+        // Execute all background actions for this event
+        if (event.actions) {
+          for (const action of event.actions) {
+            this.executeBackground(action);
+          }
+        }
+
+        // Mark as executed
+        this.executedBackgroundEvents.add(eventId);
+        this.backgroundIndex = i + 1;
+      } else if (event.trigger.type === 'time' && event.trigger.at > currentTime) {
+        // Stop checking future time-based events
+        break;
+      }
+    }
+  }
+
   // Check if a trigger condition is met
   checkTrigger(trigger, currentTime, amplitude, velocity) {
     switch (trigger.type) {
@@ -1820,6 +2072,9 @@ class ChoreographyManager {
       case "audio-map":
         this.executeAudioMap(action, transformManager);
         break;
+      case "background":
+        this.executeBackground(action);
+        break;
     }
   }
 
@@ -1872,7 +2127,7 @@ class ChoreographyManager {
       }
     }
 
-    // Add object to transform manager
+    // PHASE 1: Add object to transform manager with template for color/bounds/physics
     transformManager.addObject(
       art,
       x,
@@ -1881,6 +2136,7 @@ class ChoreographyManager {
       0,
       amplitude,
       velocity,
+      template, // Pass full template for defaultColor, bounds, physics
     );
 
     // Track the spawned object
@@ -1892,27 +2148,62 @@ class ChoreographyManager {
     }
   }
 
-  // Move objects
+  // Move objects - GAY SCHEMA VERSION
   executeMove(action, transformManager) {
     let targets = [];
 
-    if (action.target === "all") {
+    // GAY SCHEMA: uses objectId instead of target
+    const targetId = action.target || action.objectId;
+
+    if (targetId === "all") {
       targets = transformManager.objects;
-    } else if (this.activeObjects.has(action.target)) {
-      targets = [this.activeObjects.get(action.target)];
+    } else if (this.activeObjects.has(targetId)) {
+      targets = [this.activeObjects.get(targetId)];
     }
 
-    // Apply movement to targets
+    // GAY SCHEMA: simple "to" coordinate movement
+    if (action.to) {
+      const duration = (action.duration || 1) * 1000; // ms
+
+      for (const obj of targets) {
+        const termCols = process.stdout.columns || 80;
+        const termRows = process.stdout.rows || 24;
+
+        // Scale from 1920x1080 to terminal
+        const targetX = (action.to.x / 1920) * termCols;
+        const targetY = (action.to.y / 1080) * termRows;
+
+        // Calculate velocity to reach target
+        const deltaX = targetX - obj.x;
+        const deltaY = targetY - obj.y;
+        const framesNeeded = duration / (1000 / 30); // 30 FPS
+
+        obj.velocityX = deltaX / framesNeeded;
+        obj.velocityY = deltaY / framesNeeded;
+
+        obj.moveAnimation = {
+          targetX,
+          targetY,
+          startTime: Date.now(),
+          duration
+        };
+      }
+      return;
+    }
+
+    // OFFICIAL SCHEMA FALLBACK
+    if (!action.movement) {
+      return;
+    }
+
     for (const obj of targets) {
       if (action.movement.preset) {
         const preset = this.getMovementPreset(action.movement.preset);
         if (preset && preset.type === "linear") {
-          // Apply linear movement
           const speed = preset.parameters.speed || 0.5;
           obj.velocityX = (Math.random() - 0.5) * speed * 10;
           obj.velocityY = (Math.random() - 0.5) * speed * 10;
         } else if (preset && preset.type === "circular") {
-          // Set up circular movement
           obj.circularMotion = {
             radius: preset.parameters.radius || 10,
             speed: preset.parameters.speed || 1,
@@ -1920,7 +2211,6 @@ class ChoreographyManager {
           };
         }
       } else if (action.movement.velocity) {
-        // Direct velocity setting
         obj.velocityX = action.movement.velocity.x || 0;
         obj.velocityY = action.movement.velocity.y || 0;
         if (action.movement.acceleration) {
@@ -1928,7 +2218,6 @@ class ChoreographyManager {
           obj.accelerationY = action.movement.acceleration.y || 0;
         }
       } else if (action.movement.path) {
-        // Path-based movement
         const path = action.movement.path;
         if (path && path.length > 0) {
           obj.pathAnimation = {
@@ -1942,17 +2231,40 @@ class ChoreographyManager {
     }
   }
 
-  // Apply transformation effects
+  // Apply transformation effects - GAY SCHEMA VERSION
   executeTransform(action, transformManager) {
     let targets = [];
 
-    if (action.target === "all") {
+    // GAY SCHEMA: uses objectId instead of target
+    const targetId = action.target || action.objectId;
+
+    if (targetId === "all") {
       targets = transformManager.objects;
-    } else if (this.activeObjects.has(action.target)) {
-      targets = [this.activeObjects.get(action.target)];
+    } else if (this.activeObjects.has(targetId)) {
+      targets = [this.activeObjects.get(targetId)];
     }
 
-    // Apply transformation to targets
+    // GAY SCHEMA: direct scale/rotation/alpha properties
+    if (action.scale !== undefined || action.rotation !== undefined || action.alpha !== undefined) {
+      for (const obj of targets) {
+        if (action.scale !== undefined) {
+          obj.scale = action.scale;
+        }
+        if (action.rotation !== undefined) {
+          obj.rotation = (action.rotation * Math.PI) / 180; // degrees to radians
+        }
+        if (action.alpha !== undefined) {
+          obj.alpha = action.alpha;
+        }
+      }
+      return;
+    }
+
+    // OFFICIAL SCHEMA FALLBACK: effect string
+    if (!action.effect) {
+      return;
+    }
+
     for (const obj of targets) {
       transformManager.applyTransformationType(obj, action.effect);
     }
@@ -1972,24 +2284,46 @@ class ChoreographyManager {
     }
   }
 
-  // Apply visual changes
+  // Apply visual changes - GAY SCHEMA VERSION
   executeVisual(action, transformManager) {
     let targets = [];
 
-    if (action.target === "all") {
+    // GAY SCHEMA: uses objectId instead of target
+    const targetId = action.target || action.objectId;
+
+    if (targetId === "all") {
       targets = transformManager.objects;
-    } else if (this.activeObjects.has(action.target)) {
-      targets = [this.activeObjects.get(action.target)];
+    } else if (this.activeObjects.has(targetId)) {
+      targets = [this.activeObjects.get(targetId)];
     }
 
-    // Apply visual changes to targets
-    for (const obj of targets) {
-      if (action.changes) {
+    // GAY SCHEMA: flat color/alpha properties
+    if (action.color || action.alpha !== undefined) {
+      for (const obj of targets) {
+        if (action.color) {
+          obj.color = action.color;
+        }
+        if (action.alpha !== undefined) {
+          obj.alpha = action.alpha;
+        }
+      }
+      return;
+    }
+
+    // OFFICIAL SCHEMA FALLBACK: changes object
+    if (action.changes) {
+      for (const obj of targets) {
+        if (action.changes.color) {
+          obj.color = action.changes.color;
+        }
         if (action.changes.scale !== undefined) {
           obj.scale = action.changes.scale;
         }
         if (action.changes.rotation !== undefined) {
           obj.rotation = (action.changes.rotation * Math.PI) / 180;
+        }
+        if (action.changes.opacity !== undefined) {
+          obj.alpha = action.changes.opacity;
         }
       }
     }
@@ -2006,6 +2340,197 @@ class ChoreographyManager {
     // Implementation for audio mapping
     // This would link audio properties to visual properties
   }
+
+  executeBackground(action) {
+    if (!this.renderManager || !this.renderManager.backgroundManager) {
+      return; // No render manager available
+    }
+
+    // Extract background configuration from action
+    const mode = action.mode || this.renderManager.backgroundManager.currentMode;
+
+    // Extract mode-specific config directly (NOT wrapped in another object)
+    let config = {};
+    if (mode === 'static' && action.static) {
+      config = { ...action.static };
+    } else if (mode === 'audio-reactive' && action.audioReactive) {
+      config = { ...action.audioReactive };
+    } else if (mode === 'content' && action.content) {
+      config = { ...action.content };
+    }
+
+    // Get transition settings
+    const transition = action.transition || this.settings.background?.transition || { duration: 0.5, easing: 'ease-in-out' };
+
+    // Update background through RenderManager's BackgroundManager
+    this.renderManager.backgroundManager.updateBackground(mode, config, transition);
+  }
+}
+
+/**
+ * Log comprehensive choreography preview before playback
+ * Shows timeline events, background events, and composition summary
+ */
+function logChoreographyPreview(choreographyManager) {
+  // DETAILED TIMELINE PREVIEW
+  console.log('\n╔═══════════════════════════════════════════════════════════════════════╗');
+  console.log('║                     📋 TIMELINE PREVIEW                               ║');
+  console.log('╚═══════════════════════════════════════════════════════════════════════╝\n');
+
+  if (choreographyManager.timeline.length > 0) {
+    choreographyManager.timeline.forEach((event, idx) => {
+      const triggerStr = event.trigger.type === 'time'
+        ? `⏱️  ${event.trigger.at}s`
+        : event.trigger.type === 'beat'
+        ? `🎵 Beat ${event.trigger.measure}:${event.trigger.beat}`
+        : event.trigger.type === 'audio'
+        ? `🔊 Audio condition`
+        : event.trigger.type === 'onset'
+        ? `🎵 Onset at ${event.trigger.at}s`
+        : event.trigger.type === 'loop'
+        ? `🔄 Loop every ${event.trigger.every || 'unknown'}`
+        : `❓ ${event.trigger.type}`;
+
+      const label = event.label ? `"${event.label}"` : `Event ${idx + 1}`;
+      console.log(`  ${idx + 1}. ${triggerStr} → ${label}`);
+
+      event.actions.forEach((action) => {
+        let actionDesc = '';
+        switch(action.type) {
+          case 'spawn':
+            const posX = action.position?.x ?? 'unknown';
+            const posY = action.position?.y ?? 'unknown';
+            actionDesc = `     ↳ SPAWN: ${action.objectId || 'unknown'} at (${posX}, ${posY})`;
+            if (action.template) actionDesc += ` [template: ${action.template}]`;
+            break;
+          case 'move':
+            const moveTarget = action.target || action.objectId || 'unknown';
+            if (action.to) {
+              actionDesc = `     ↳ MOVE: ${moveTarget} → (${action.to.x}, ${action.to.y}) (${action.duration}s)`;
+            } else if (action.movement?.preset) {
+              actionDesc = `     ↳ MOVE: ${moveTarget} → ${action.movement.preset} (${action.movement.duration}s)`;
+            } else if (action.movement?.path) {
+              actionDesc = `     ↳ MOVE: ${moveTarget} → path with ${action.movement.path.length} points`;
+            } else if (action.movement?.velocity) {
+              actionDesc = `     ↳ MOVE: ${moveTarget} → velocity-based`;
+            } else {
+              actionDesc = `     ↳ MOVE: ${moveTarget} → unknown movement`;
+            }
+            break;
+          case 'transform':
+            const transTarget = action.target || action.objectId || 'unknown';
+            const transEffect = action.effect || (action.scale ? 'scale' : action.rotation ? 'rotate' : 'transform');
+            const transDuration = action.duration || 'unknown';
+            actionDesc = `     ↳ TRANSFORM: ${transTarget} → ${transEffect} (${transDuration}s)`;
+            break;
+          case 'formation':
+            const objCount = action.objects ? action.objects.length : 0;
+            actionDesc = `     ↳ FORMATION: ${objCount} objects → ${action.pattern || 'unknown'}`;
+            break;
+          case 'visual':
+            const visualTarget = action.target || action.objectId || 'unknown';
+            let visualChanges = [];
+            if (action.changes) {
+              visualChanges = Object.keys(action.changes);
+            } else {
+              if (action.color) visualChanges.push('color');
+              if (action.alpha !== undefined) visualChanges.push('alpha');
+              if (action.scale !== undefined) visualChanges.push('scale');
+              if (action.rotation !== undefined) visualChanges.push('rotation');
+            }
+            const changes = visualChanges.length > 0 ? visualChanges.join(', ') : 'unknown';
+            actionDesc = `     ↳ VISUAL: ${visualTarget} → ${changes}`;
+            break;
+          case 'destroy':
+            const destroyTarget = action.target || 'unknown';
+            actionDesc = `     ↳ DESTROY: ${destroyTarget}`;
+            if (action.effect) actionDesc += ` [effect: ${action.effect}]`;
+            break;
+          case 'audio-map':
+            const audioTarget = action.target || 'unknown';
+            const mappings = action.mapping ? Object.keys(action.mapping).join(', ') : 'unknown';
+            actionDesc = `     ↳ AUDIO-MAP: ${audioTarget} → ${mappings}`;
+            break;
+          case 'background':
+            actionDesc = `     ↳ BACKGROUND: ${action.mode || 'change'}`;
+            break;
+          default:
+            actionDesc = `     ↳ ${action.type.toUpperCase()}`;
+        }
+        console.log(actionDesc);
+      });
+      console.log(''); // blank line between events
+    });
+  } else {
+    console.log('  (No timeline events)');
+  }
+
+  // DETAILED BACKGROUND EVENTS PREVIEW
+  console.log('\n╔═══════════════════════════════════════════════════════════════════════╗');
+  console.log('║                  🎨 BACKGROUND EVENTS PREVIEW                         ║');
+  console.log('╚═══════════════════════════════════════════════════════════════════════╝\n');
+
+  if (choreographyManager.backgroundEvents.length > 0) {
+    choreographyManager.backgroundEvents.forEach((event, idx) => {
+      const triggerStr = event.trigger.type === 'time'
+        ? `⏱️  ${event.trigger.at ?? 'unknown'}s`
+        : `🎵 Beat ${event.trigger.measure ?? '?'}:${event.trigger.beat ?? '?'}`;
+
+      const label = event.label || `Background Event ${idx + 1}`;
+      console.log(`  ${idx + 1}. ${triggerStr} → "${label}"`);
+
+      event.actions.forEach((action) => {
+        if (action.type === 'background') {
+          let desc = `     ↳ MODE: ${action.mode}`;
+
+          if (action.mode === 'static' && action.static) {
+            desc += ` | Color: ${action.static.color} | Pattern: ${action.static.pattern || 'solid'}`;
+          } else if (action.mode === 'audio-reactive' && action.audioReactive) {
+            desc += ` | Sensitivity: ${action.audioReactive.sensitivity}x`;
+            if (action.audioReactive.colorWheelOffset) {
+              desc += ` | Hue offset: ${action.audioReactive.colorWheelOffset}°`;
+            }
+          } else if (action.mode === 'content' && action.content) {
+            desc += ` | Content: ${action.content.type}`;
+            if (action.content.text) desc += ` "${action.content.text}"`;
+          }
+
+          if (action.transition) {
+            desc += ` | Transition: ${action.transition.duration}s ${action.transition.easing}`;
+          }
+
+          console.log(desc);
+        }
+      });
+      console.log(''); // blank line between events
+    });
+  } else {
+    console.log('  (No background events - using settings.background configuration)');
+  }
+
+  // COMPOSITION SUMMARY
+  console.log('\n╔═══════════════════════════════════════════════════════════════════════╗');
+  console.log('║                    🎬 COMPOSITION SUMMARY                             ║');
+  console.log('╚═══════════════════════════════════════════════════════════════════════╝');
+  console.log(`  Total Duration: ${choreographyManager.metadata.duration}s`);
+  console.log(`  Timeline Events: ${choreographyManager.timeline.length}`);
+  console.log(`  Background Events: ${choreographyManager.backgroundEvents.length}`);
+
+  // Count action types
+  const actionCounts = {};
+  choreographyManager.timeline.forEach(event => {
+    event.actions.forEach(action => {
+      actionCounts[action.type] = (actionCounts[action.type] || 0) + 1;
+    });
+  });
+
+  if (Object.keys(actionCounts).length > 0) {
+    console.log('  Action Breakdown:');
+    Object.entries(actionCounts).sort((a, b) => b[1] - a[1]).forEach(([type, count]) => {
+      console.log(`    • ${type}: ${count}`);
+    });
+  }
+  console.log('');
 }
 
 // Parse playlist file format: 'wavfile.wav' 'choreography.json' per line
@@ -2158,6 +2683,13 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
       console.log(
         `   • Timeline events: ${choreographyManager.timeline.length}`,
       );
+      console.log(
+        `   • Background events: ${choreographyManager.backgroundEvents.length}`,
+      );
+
+      // Show detailed preview of choreography interpretation
+      logChoreographyPreview(choreographyManager);
+
     } catch (error) {
       console.error(`Error loading choreography file: ${error.message}`);
       return false;
@@ -2192,10 +2724,10 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
     }
   }
 
-  // Analyze audio
+  // Analyze audio with caching (uses audiowaveform by default)
   const analyzer = new AudioAnalyzer(audioFile, {
     sampleRate: 30, // Higher sample rate for smoother animation
-    method: "sox",
+    method: "audiowaveform",
   });
 
   const samples = await analyzer.extractAmplitudes();
@@ -2249,14 +2781,175 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
 
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  // Initialize render manager
-  const renderManager = new RenderManager();
+  // Initialize render manager (with choreography settings if available)
+  const choreographySettings = choreographyManager ? choreographyManager.settings : null;
+  const renderManager = new RenderManager(choreographySettings);
+
+  // Connect render manager to choreography manager for background actions
+  if (choreographyManager) {
+    choreographyManager.renderManager = renderManager;
+  }
 
   // Hide cursor and clear screen
   process.stdout.write("\x1B[?25l");
   renderManager.clear();
 
   // Start audio playback at 100% volume
+  // Start recording FIRST if enabled - wait for portal selection before playback
+  if (recordMode) {
+    try {
+      // Check if gpu-screen-recorder is available
+      try {
+        execSync('which gpu-screen-recorder', { stdio: 'ignore' });
+      } catch {
+        console.error("❌ gpu-screen-recorder not found. Install with: nix-shell -p gpu-screen-recorder");
+        recordMode = false;
+        return;
+      }
+
+      console.log("🎥 Recording started");
+
+      // Query available audio devices
+      let audioDevice = "default_output";
+      try {
+        const audioDevices = execSync('gpu-screen-recorder --list-audio-devices', { encoding: 'utf8' });
+        console.log(`   🔊 Available audio devices:\n${audioDevices}`);
+
+        // Try to find default output or first output device
+        const lines = audioDevices.split('\n');
+        const outputDevice = lines.find(line =>
+          line.includes('default_output') ||
+          line.includes('.monitor') ||
+          line.includes('output')
+        );
+
+        if (outputDevice) {
+          // Extract device name (format: "Device: name")
+          const match = outputDevice.match(/Device:\s*(\S+)/);
+          if (match) {
+            audioDevice = match[1];
+          }
+        }
+
+        console.log(`   ✓ Using audio device: ${audioDevice}`);
+      } catch (error) {
+        console.error(`   ⚠️  Could not query audio devices: ${error.message}`);
+        console.error(`   Using default: ${audioDevice}`);
+      }
+
+      // Generate output filename
+      const audioBasename = path.basename(audioFile, path.extname(audioFile));
+      const timestamp = Date.now();
+      recordingOutputFile = path.join(
+        path.dirname(audioFile),
+        `${audioBasename}-recording-${timestamp}.mkv`
+      );
+
+      // Log file for gpu-screen-recorder output
+      const logFile = path.join(
+        path.dirname(audioFile),
+        `${audioBasename}-recording-${timestamp}.log`
+      );
+      const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+
+      // Start gpu-screen-recorder with desktop portal window selection
+      const recorderArgs = [
+        "-w", "portal",            // Desktop portal (user selects window)
+        "-f", "60",                // 60fps
+        "-k", "h264",              // H.264 codec (uses NVENC)
+        "-bm", "cbr",              // Constant bitrate mode
+        "-q", "25000",             // Bitrate in kbps (25 Mbps = 25000 kbps)
+        "-keyint", "60",           // Keyframe every 60 frames (1 second at 60fps)
+        "-a", audioDevice,         // Audio device
+        "-ac", "opus",             // Opus audio codec (flac disabled in gpu-screen-recorder)
+        "-ab", "510",              // Audio bitrate 510kbps (max opus)
+        "-c", "mkv",               // Matroska container
+        "-o", recordingOutputFile  // Output file
+      ];
+
+      recorderProcess = spawn("gpu-screen-recorder", recorderArgs);
+
+      // Write all output to log file
+      logStream.write(`=== gpu-screen-recorder started at ${new Date().toISOString()} ===\n`);
+      logStream.write(`Window: portal (user will select window)\n`);
+      logStream.write(`Audio device: ${audioDevice}\n`);
+      logStream.write(`Command: gpu-screen-recorder ${recorderArgs.join(' ')}\n\n`);
+
+      console.log(`   🪟 Desktop portal - select the terminal window`);
+      console.log(`   🔊 Audio: ${audioDevice}`);
+
+      let recordingFailed = false;
+
+      // Capture stderr to log file
+      recorderProcess.stderr.on("data", (data) => {
+        const output = data.toString();
+        logStream.write(`[STDERR] ${output}`);
+
+        // Check for immediate errors
+        if (output.includes('error:') || output.includes('Error:') || output.includes('failed')) {
+          recordingFailed = true;
+        }
+      });
+
+      // Capture stdout to log file
+      recorderProcess.stdout.on("data", (data) => {
+        logStream.write(`[STDOUT] ${data.toString()}`);
+      });
+
+      recorderProcess.on("error", (err) => {
+        logStream.write(`[ERROR] gpu-screen-recorder spawn error: ${err.message}\n`);
+        console.error(`\n❌ Recording failed to start: ${err.message}`);
+        console.error(`   Aborting playback.`);
+        recordingFailed = true;
+        recorderProcess = null;
+        process.exit(1);
+      });
+
+      recorderProcess.on("exit", (code, signal) => {
+        logStream.write(`\n=== gpu-screen-recorder exited at ${new Date().toISOString()} ===\n`);
+        logStream.write(`Exit code: ${code}, Signal: ${signal}\n`);
+        logStream.end();
+
+        // If recorder exits immediately with error, abort playback
+        if (code !== 0 && code !== null && Date.now() - timestamp < 5000) {
+          console.error(`\n❌ Recording failed with exit code ${code}`);
+          console.error(`   Check log file: ${logFile}`);
+          console.error(`   Aborting playback.`);
+          process.exit(1);
+        }
+      });
+
+      console.log(`   📁 Recording to: ${recordingOutputFile}`);
+      console.log(`   📄 Log file: ${logFile}`);
+
+      // Wait for user to select window via portal before starting playback
+      console.log(`\n⏳ Waiting for window selection (10 seconds)...`);
+      await new Promise((resolve, reject) => {
+        const startWaitTime = Date.now();
+        const checkInterval = setInterval(() => {
+          // If recorder exited with error quickly, reject
+          if (!recorderProcess || recorderProcess.killed) {
+            clearInterval(checkInterval);
+            reject(new Error("Recording failed to start"));
+            return;
+          }
+
+          // Wait 10 seconds for user to select window
+          if (Date.now() - startWaitTime > 10000) {
+            clearInterval(checkInterval);
+            console.log(`   ✓ Starting playback\n`);
+            resolve();
+          }
+        }, 100);
+      });
+    } catch (error) {
+      console.error(`⚠️  Failed to start recording: ${error.message}`);
+      recorderProcess = null;
+      process.exit(1);
+    }
+  }
+
+  // Start audio playback
   const mpv = spawn("mpv", [
     audioFile,
     "--no-video",
@@ -2268,150 +2961,6 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
     console.error("Error starting mpv:", err.message);
     process.exit(1);
   });
-
-  // Start recording if enabled - RIGHT when playback begins
-  if (recordMode) {
-    try {
-      // Check if wf-recorder is available
-      try {
-        execSync('which wf-recorder', { stdio: 'ignore' });
-      } catch {
-        console.error("❌ wf-recorder not found. Install with: nix-shell -p wf-recorder");
-        recordMode = false;
-        return;
-      }
-
-      console.log("🎥 Recording started");
-
-      // Get window geometry from hyprctl
-      const hyprctl = spawn("hyprctl", ["activewindow", "-j"]);
-      let geometryData = "";
-      let hyprctlError = "";
-
-      hyprctl.stdout.on("data", (data) => {
-        geometryData += data.toString();
-      });
-
-      hyprctl.stderr.on("data", (data) => {
-        hyprctlError += data.toString();
-      });
-
-      await new Promise((resolve, reject) => {
-        hyprctl.on("close", (code) => {
-          if (code === 0) resolve();
-          else reject(new Error(`hyprctl exited with code ${code}: ${hyprctlError}`));
-        });
-      });
-
-      const windowInfo = JSON.parse(geometryData);
-
-      // Validate window geometry structure
-      if (!windowInfo?.at?.[0] || !windowInfo?.at?.[1] ||
-          !windowInfo?.size?.[0] || !windowInfo?.size?.[1]) {
-        throw new Error(`Invalid window geometry from hyprctl: ${JSON.stringify(windowInfo)}`);
-      }
-
-      const x = windowInfo.at[0];
-      const y = windowInfo.at[1];
-      const width = windowInfo.size[0];
-      const height = windowInfo.size[1];
-
-      // Generate output filename
-      const audioBasename = path.basename(audioFile, path.extname(audioFile));
-      const timestamp = Date.now();
-      recordingOutputFile = path.join(
-        path.dirname(audioFile),
-        `${audioBasename}-recording-${timestamp}.mkv`
-      );
-
-      // Get default audio sink monitor for system audio capture
-      let audioSource = null;
-      let defaultSink = null;
-      try {
-        defaultSink = execSync('pactl get-default-sink', { encoding: 'utf8' }).trim();
-        const monitorSource = `${defaultSink}.monitor`;
-
-        // Verify the monitor source actually exists
-        const sourcesOutput = execSync('pactl list sources', { encoding: 'utf8' });
-        const sourceNames = sourcesOutput.match(/Name: (.+)/g)?.map(line => line.replace('Name: ', '').trim()) || [];
-
-        if (sourceNames.includes(monitorSource)) {
-          audioSource = monitorSource;
-          console.log(`   ✓ System audio capture: ${defaultSink} → ${monitorSource}`);
-        } else {
-          console.error(`⚠️  Monitor source "${monitorSource}" not found in PulseAudio`);
-          console.error(`   Available sources: ${sourceNames.join(', ')}`);
-          console.error(`   Recording will use default input (likely microphone)`);
-        }
-      } catch (error) {
-        console.error(`❌ Failed to configure system audio capture: ${error.message}`);
-        console.error(`   Recording will capture default input (likely microphone) instead`);
-      }
-
-      // Log file for wf-recorder output
-      const logFile = path.join(
-        path.dirname(audioFile),
-        `${audioBasename}-recording-${timestamp}.log`
-      );
-      const logStream = fs.createWriteStream(logFile, { flags: 'a' });
-
-      // Start wf-recorder with specified encoding parameters
-      const wfRecorderArgs = [
-        "-g", `${x},${y} ${width}x${height}`,
-        "-c", "h264_nvenc",
-        "-r", "60",
-        "-p", "pix_fmt=yuv444p",    // Codec parameter: pixel format
-        "-p", "b=50M",               // Codec parameter: bitrate
-        "-p", "g=60",                // Codec parameter: keyframe interval (1 second at 60fps)
-      ];
-
-      // Add audio capture with specified source or default
-      if (audioSource) {
-        wfRecorderArgs.push(`--audio=${audioSource}`);  // Specify audio source
-      } else {
-        wfRecorderArgs.push("-a");  // Use default audio device
-      }
-      wfRecorderArgs.push("-C", "pcm_f32le");
-
-      wfRecorderArgs.push("-f", recordingOutputFile);
-
-      recorderProcess = spawn("wf-recorder", wfRecorderArgs);
-
-      // Write all output to log file
-      logStream.write(`=== wf-recorder started at ${new Date().toISOString()} ===\n`);
-      logStream.write(`Audio source: ${audioSource || 'default'}\n`);
-      logStream.write(`Command: wf-recorder ${wfRecorderArgs.join(' ')}\n\n`);
-
-      console.log(`   🔊 Audio source: ${audioSource || 'default'}`);
-
-      // Capture stderr to log file
-      recorderProcess.stderr.on("data", (data) => {
-        logStream.write(`[STDERR] ${data.toString()}`);
-      });
-
-      // Capture stdout to log file
-      recorderProcess.stdout.on("data", (data) => {
-        logStream.write(`[STDOUT] ${data.toString()}`);
-      });
-
-      recorderProcess.on("error", (err) => {
-        logStream.write(`[ERROR] wf-recorder spawn error: ${err.message}\n`);
-        recorderProcess = null;
-      });
-
-      recorderProcess.on("exit", (code, signal) => {
-        logStream.write(`\n=== wf-recorder exited at ${new Date().toISOString()} ===\n`);
-        logStream.write(`Exit code: ${code}, Signal: ${signal}\n`);
-        logStream.end();
-      });
-
-      console.log(`   📁 Recording to: ${recordingOutputFile}`);
-      console.log(`   📄 Log file: ${logFile}`);
-    } catch (error) {
-      console.error(`⚠️  Failed to start recording: ${error.message}`);
-      recorderProcess = null;
-    }
-  }
 
   const startTime = Date.now();
   let lastTime = startTime / 1000;
@@ -2475,6 +3024,9 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
         amplitude,
         normalizedVelocity,
       );
+
+      // Process background events
+      choreographyManager.processBackgroundEvents(elapsed);
     } else {
       // Default behavior: Spawn objects based on VELOCITY (rhythmic changes) not just amplitude
       if (
@@ -2542,17 +3094,17 @@ async function startEnhancedAnimation(audioFile, choreographyFile = null, showOS
       recorderProcess.kill('SIGINT'); // Send Ctrl+C to wf-recorder for clean shutdown
       await new Promise((resolve) => {
         const timeout = setTimeout(resolve, 2000); // 2 second timeout
-        recorderProcess.once('exit', () => {
+        recorderProcess.once('exit', async () => {
           clearTimeout(timeout);
 
-          // Verify the file actually exists
+          // Verify the recording file exists
           if (recordingOutputFile && fs.existsSync(recordingOutputFile)) {
             const stats = fs.statSync(recordingOutputFile);
             const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
             console.log(`   ✅ Recording saved: ${recordingOutputFile} (${sizeMB} MB)`);
           } else {
             console.error(`   ❌ Recording file not found: ${recordingOutputFile}`);
-            console.error(`   ⚠️  wf-recorder may have failed - check error messages above`);
+            console.error(`   ⚠️  gpu-screen-recorder may have failed - check log file for details`);
           }
 
           resolve();

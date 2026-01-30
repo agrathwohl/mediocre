@@ -170,14 +170,49 @@ ${abcContent}
 \`\`\`
 ${styleHint}
 
-Generate ${count} ASCII art shapes with varying intensities (small, medium, high, max) that could represent different elements of this music. Each shape should be distinct and visually interesting.
+Generate ${count} ASCII art shapes with DIVERSE SIZES and varying intensities (small, medium, high, max) that could represent different elements of this music. Each shape should be distinct and visually interesting.
 
-IMPORTANT: Create artistic, conceptual, and magical forms - NOT literal stick figures or simple human forms. Use abstract symbolism, flowing patterns, ethereal shapes, mystical symbols, energy manifestations, or conceptual representations of musical elements. Think surreal, dreamlike, and artistic rather than representational. Examples: swirling vortexes, fractal patterns, flowing ribbons of energy, abstract dancers made of symbols, ethereal beings, cosmic shapes, musical notation as art forms.
+🎨 SIZE DIVERSITY REQUIREMENTS:
+Create a MIX of different sizes - NOT all big shapes!
+
+**TINY objects (small intensity):**
+- 1x1: Single Nerd Font glyph (󰎈 󰎁 󰎆 󰎇  󰎊) or emoji (✨ 🌟 💫 ⭐ 🔥)
+- 2x1: Two characters side-by-side (◆◇ ▲▼ ◀▶ ★☆)
+- 2x2: Small 2-line blocks
+- 3x2: Compact mini-shapes
+- 4x2: Tiny horizontal elements
+- 4x3: Small detailed objects
+
+**SMALL objects (medium intensity):**
+- 5x3 to 8x5: Moderate-sized shapes with some detail
+
+**MEDIUM objects (high intensity):**
+- 10x6 to 15x10: Standard choreography objects
+
+**LARGE objects (max intensity):**
+- 20x12 to 30x20: Major visual centerpieces
+
+📏 SIZE GUIDELINES:
+- At LEAST ${Math.ceil(count * 0.3)} shapes should be TINY (1x1 to 4x3)
+- At LEAST ${Math.ceil(count * 0.2)} shapes should be SMALL (5x3 to 8x5)
+- Remaining shapes can be MEDIUM or LARGE
+- Use Nerd Font glyphs (       󰎈 󰎁  etc.) for compact, iconic shapes
+- Use emojis (✨🌟💫⭐🔥💧🌊🎵🎶🎼) for instant recognizable tiny elements
+- Mix character types: Unicode symbols (◆◇▲▼◀▶★☆●○■□), box drawing (╔╗╚╝║═), blocks (█▓▒░)
+
+🌟 CREATIVE DIRECTION:
+Create artistic, conceptual, and magical forms - NOT literal stick figures or simple human forms. Use abstract symbolism, flowing patterns, ethereal shapes, mystical symbols, energy manifestations, or conceptual representations of musical elements. Think surreal, dreamlike, and artistic rather than representational.
+
+Examples by size:
+- TINY: Single glyphs/emojis (✨ 󰎈 ⭐), small pairs (◆◇), compact symbols
+- SMALL: Musical notes, energy bursts, flowing ribbons, abstract mini-dancers
+- MEDIUM: Swirling vortexes, fractal patterns, ethereal beings
+- LARGE: Cosmic shapes, complex energy manifestations, elaborate abstract forms
 
 For each shape, provide:
 1. A description of what it represents
 2. An intensity level (small, medium, high, or max)
-3. The ASCII art itself (10-30 lines tall, colorful with terminal escape codes if desired)
+3. The ASCII art itself (size appropriate to intensity)
 
 Format each shape as:
 
@@ -187,7 +222,7 @@ Intensity: [small|medium|high|max]
 Art:
 [ASCII art here]
 
-Generate all ${count} shapes now.`;
+Generate all ${count} shapes with SIZE DIVERSITY now.`;
 }
 
 /**

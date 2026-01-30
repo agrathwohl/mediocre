@@ -9,6 +9,7 @@ import { getAudioMetadata } from '../utils/audio-metadata.js';
 import asciiArtManager from '../utils/ascii-art-manager.js';
 import { createOnsetQueryTool, getOnsetStatistics } from '../utils/onset-query-tool.js';
 import { repairJSONEscapes, parseTemplatesField } from '../utils/json-repair.js';
+import { generateChoreographyMultiAgent } from './generate-choreography-multi-agent.js';
 import {
   evaluateChoreographyDensity,
   generateImprovementStrategy,
@@ -138,6 +139,27 @@ Pick onset times that align with your choreography sections and use them in your
 - Think BIG - create expansive scenes, sweeping movements
 - Or go minimal - the choice is yours!
 
+🌟 CREATIVE DIRECTION - MAKE IT COMPELLING:
+**STRONGLY ENCOURAGED:** Seek opportunities for:
+- 🔮 **Kaleidoscopic Patterns**: Mirror symmetries, repeating motifs, fractal-like arrangements
+- 📐 **Geometric Symmetry**: Balanced compositions, radial patterns, tessellations
+- 🎪 **Composite Forms**: Use MULTIPLE ASCII art pieces positioned strategically to create:
+  * Larger recognizable shapes (faces, buildings, creatures from smaller elements)
+  * Abstract forms that emerge from the arrangement of individual pieces
+  * Visual ideas and concepts built from constituent parts
+  * Choreographed movements where objects collaborate to tell a story
+
+**ALTERNATIVE:** If geometric/visual approaches don't inspire you:
+- 📖 **Tell a Story**: Create a narrative arc through the choreography
+  * Character journeys (objects with personality moving through scenes)
+  * Emotional progressions (calm → tension → resolution)
+  * Visual metaphors for the musical themes
+
+**CRITICAL REQUIREMENT:**
+⚡ This MUST be ACTIVE, ENGAGING, and INTERESTING
+❌ AVOID: Static displays, boring linear movements, sparse uninspired positioning
+✅ CREATE: Dynamic compositions, surprising transformations, rich visual density
+
 ✨ V1.1 EXTENDED FEATURES:
 - **Shape Arrays**: Multi-line ASCII art using ["line1", "line2", ...] format
 - **Extended Metadata**: Add seed (numeric), notes (description)
@@ -171,6 +193,31 @@ SCHEMA STRUCTURE v1.1:
     "notes": "Description"  // Optional notes
   },
   "settings": {
+    "background": {  // NEW: Background control (optional)
+      "mode": "audio-reactive",  // "audio-reactive" | "static" | "content" | "disabled"
+      "audioReactive": {  // Config for audio-reactive mode
+        "sensitivity": 1.0,  // 0.1 to 5.0 (higher = more reactive)
+        "colorWheelOffset": 0,  // 0-360 degrees hue offset
+        "saturation": { "min": 50, "max": 100 },  // 0-100
+        "lightness": { "min": 10, "max": 40 },  // 0-100
+        "updateRate": 30  // Updates per second (1-120)
+      },
+      "static": {  // Config for static mode
+        "color": "#1a1a2e",  // CSS color string
+        "pattern": "solid"  // "solid" | "grid" | "dots" | "noise"
+      },
+      "content": {  // Config for content mode
+        "type": "text",  // "text" | "ascii-art" | "banner"
+        "text": "♪ MUSIC ♪",
+        "position": { "x": "center", "y": "center" },
+        "color": "#FFFFFF",
+        "opacity": 0.8
+      },
+      "transition": {  // Smooth transitions between modes
+        "duration": 0.5,  // seconds
+        "easing": "ease-in-out"  // "linear" | "ease-in" | "ease-out" | "ease-in-out"
+      }
+    },
     "collisionBehavior": "default",
     "boundaryMode": "bounce",
     "audioReactive": {
@@ -321,14 +368,26 @@ Generate a complete v1.1 choreography with extended features.`;
  * @param {string} outputPath - Output file path for recovery files
  * @returns {Promise<Object>} Generated choreography
  */
-async function generateChoreographyWithFallbacks(prompt, metadata, description, options, onsetCachePath, outputPath) {
+
+/**
+ * Multi-Agent Choreography Generation Wrapper
+ * Replaced monolithic approach due to Anthropic's 24 optional parameter limit (schema had 210)
+ */
+async function generateChoreographyWithFallbacks(prompt, metadata, description, options, onsetCachePath, outputPath, asciiShapes = []) {
+  return await generateChoreographyMultiAgent(prompt, metadata, description, options, onsetCachePath, outputPath, asciiShapes);
+}
+
+// OLD MONOLITHIC IMPLEMENTATION - DISABLED
+// Kept for reference, can be deleted after multi-agent validation
+/*
+async function generateChoreographyWithFallbacks_OLD(prompt, metadata, description, options, onsetCachePath, outputPath) {
   let choreography = null;
   let rawTextOutput = null;
   const ChoreographySchema = buildChoreographySchemaV1_1();
 
-  // Get the model
+  // Get the model - use Opus 4.5 for complex creative choreography generation
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-3-7-sonnet-20250219");
+  const model = myAnthropic("claude-sonnet-4-5");
 
   // Note: Onset data included directly in prompt (see buildChoreographyPromptV1_1)
   // Tool-based onset queries disabled - onset times embedded for reliability
@@ -422,12 +481,33 @@ async function generateChoreographyWithFallbacks(prompt, metadata, description, 
             console.log(chalk.green('✓ Successfully parsed templates'));
           }
 
-          const validated = ChoreographySchema.safeParse(templateResult.choreography);
-          if (validated.success) {
-            choreography = validated.data;
-            console.log(chalk.green('✓ Successfully repaired and validated JSON!'));
+          // Check for essential structure (skip strict Zod validation)
+          // Playback script is more forgiving than strict schema validation
+          const hasEssentials = templateResult.choreography.metadata &&
+                                templateResult.choreography.timeline &&
+                                Array.isArray(templateResult.choreography.timeline) &&
+                                templateResult.choreography.templates;
+
+          if (hasEssentials) {
+            choreography = templateResult.choreography;
+            console.log(chalk.green('✓ Successfully repaired JSON with essential structure'));
+
+            // Optional: Run Zod validation for warnings only (non-blocking)
+            const validated = ChoreographySchema.safeParse(templateResult.choreography);
+            if (!validated.success) {
+              console.log(chalk.gray('ℹ️  Schema validation warnings (non-blocking):'));
+              const errors = validated.error.errors.slice(0, 3); // Show first 3 errors only
+              errors.forEach(err => {
+                console.log(chalk.gray(`   - ${err.path.join('.')}: ${err.message}`));
+              });
+              if (validated.error.errors.length > 3) {
+                console.log(chalk.gray(`   ... and ${validated.error.errors.length - 3} more warnings`));
+              }
+            } else {
+              console.log(chalk.gray('ℹ️  Schema validation: passed'));
+            }
           } else {
-            console.log(chalk.yellow('⚠️  Repaired JSON but validation failed'));
+            console.log(chalk.yellow('⚠️  Repaired JSON missing essential structure'));
             // Save repaired JSON for inspection
             const repairedPath = outputPath.replace('.json', '-recovery-repaired.json');
             await fs.writeFile(repairedPath, JSON.stringify(templateResult.choreography, null, 2));
@@ -495,25 +575,37 @@ async function generateChoreographyWithFallbacks(prompt, metadata, description, 
             console.log(chalk.green('✓ Successfully parsed templates'));
           }
 
-          const validated = ChoreographySchema.safeParse(templateResult.choreography);
-          if (validated.success) {
-            choreography = validated.data;
-            console.log(chalk.green('✓ Text generation with extraction successful'));
-          } else {
-            console.log(chalk.yellow('⚠️  Validation errors:'));
-            validated.error.issues.forEach((issue, idx) => {
-              console.log(chalk.gray(`  ${idx + 1}. ${issue.path.join('.')} - ${issue.message}`));
-            });
+          // Check for essential structure (skip strict Zod validation)
+          // Playback script is more forgiving than strict schema validation
+          const hasEssentials = templateResult.choreography.metadata &&
+                                templateResult.choreography.timeline &&
+                                Array.isArray(templateResult.choreography.timeline) &&
+                                templateResult.choreography.templates;
 
+          if (hasEssentials) {
+            choreography = templateResult.choreography;
+            console.log(chalk.green('✓ Text generation with extraction successful'));
+
+            // Optional: Run Zod validation for warnings only (non-blocking)
+            const validated = ChoreographySchema.safeParse(templateResult.choreography);
+            if (!validated.success) {
+              console.log(chalk.gray('ℹ️  Schema validation warnings (non-blocking):'));
+              const errors = validated.error.errors.slice(0, 3); // Show first 3 errors only
+              errors.forEach(err => {
+                console.log(chalk.gray(`   - ${err.path.join('.')}: ${err.message}`));
+              });
+              if (validated.error.errors.length > 3) {
+                console.log(chalk.gray(`   ... and ${validated.error.errors.length - 3} more warnings`));
+              }
+            } else {
+              console.log(chalk.gray('ℹ️  Schema validation: passed'));
+            }
+          } else {
+            console.log(chalk.yellow('⚠️  Parsed JSON missing essential structure'));
             // Save the parsed but invalid JSON for manual recovery
             const parsedPath = outputPath.replace('.json', '-recovery-parsed.json');
             await fs.writeFile(parsedPath, JSON.stringify(templateResult.choreography, null, 2));
-            console.log(chalk.yellow(`💾 Saved parsed (invalid) JSON to: ${parsedPath}`));
-
-            if (options.verbose) {
-              console.log(chalk.gray('\nFull error details:'));
-              console.log(chalk.gray(JSON.stringify(validated.error.issues, null, 2)));
-            }
+            console.log(chalk.yellow(`💾 Saved parsed JSON to: ${parsedPath}`));
           }
         } catch (parseError) {
           console.log(chalk.red(`❌ JSON parse error: ${parseError.message}`));
@@ -550,6 +642,7 @@ async function generateChoreographyWithFallbacks(prompt, metadata, description, 
 
   return choreography;
 }
+*/
 
 /**
  * Detect latest choreography version for given basename
@@ -621,6 +714,132 @@ async function loadExistingChoreography(filePath) {
  * @param {number} sectionLength - Length of each section (default 60s)
  * @returns {{startTime: number, endTime: number, events: Array, density: number}}
  */
+/**
+ * Detect if choreography uses background control system
+ * @param {Object} choreography - Full choreography object
+ * @returns {boolean} True if any timeline events have background actions
+ */
+function usesBackgroundSystem(choreography) {
+  if (!choreography || typeof choreography !== 'object') {
+    return false;
+  }
+
+  const timeline = choreography.timeline || [];
+  const threads = choreography.threads || [];
+
+  // Early exit if both are empty
+  if (timeline.length === 0 && threads.length === 0) {
+    return false;
+  }
+
+  // Check main timeline
+  for (const event of timeline) {
+    if (event?.actions && Array.isArray(event.actions)) {
+      for (const action of event.actions) {
+        if (action && action.type === 'background') {
+          return true;
+        }
+      }
+    }
+  }
+
+  // Check threads
+  for (const thread of threads) {
+    if (thread?.timeline && Array.isArray(thread.timeline)) {
+      for (const event of thread.timeline) {
+        if (event?.actions && Array.isArray(event.actions)) {
+          for (const action of event.actions) {
+            if (action && action.type === 'background') {
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Build prompt for adding background control actions to choreography
+ * @param {Object} existingChoreography - Full choreography for context
+ * @param {string} description - Music description
+ * @param {Object} metadata - ABC metadata
+ * @returns {string} Background improvement prompt
+ */
+function buildBackgroundImprovementPrompt(existingChoreography, description, metadata) {
+  const duration = existingChoreography.metadata.duration;
+  const bpm = existingChoreography.metadata.bpm;
+  const filteredDescription = filterDescriptionForChoreography(description);
+
+  return `BACKGROUND SYSTEM MODERNIZATION TASK
+
+You are upgrading an existing choreography to use the new v1.1 background control system.
+
+COMPOSITION CONTEXT:
+- Title: ${metadata.title}
+- Description: ${filteredDescription}
+- Duration: ${duration}s
+- BPM: ${bpm}
+- Time Signature: ${metadata.timeSignature}
+
+CURRENT CHOREOGRAPHY:
+- Timeline events: ${existingChoreography.timeline.length}
+- Background system: NOT USED (needs modernization)
+
+YOUR TASK:
+Add 3-5 background action events throughout the timeline to enhance the visual experience.
+
+BACKGROUND ACTION SCHEMA:
+{
+  "label": "background_change_<descriptive_name>",
+  "trigger": { "type": "time", "at": <timestamp_in_seconds> },
+  "actions": [
+    {
+      "type": "background",
+      "mode": "audio-reactive" | "static" | "content" | "disabled",
+      "audioReactive": {
+        "sensitivity": 0.5-2.0,
+        "colorWheelOffset": 0-360,
+        "saturation": { "min": 30-70, "max": 60-100 },
+        "lightness": { "min": 5-20, "max": 20-50 }
+      },
+      "static": {
+        "color": "#RRGGBB"
+      },
+      "content": {
+        "type": "banner",
+        "banner": {
+          "text": "scrolling text",
+          "scrollSpeed": 0.5-2.0
+        },
+        "position": { "x": "center", "y": "bottom" },
+        "color": "#FFFFFF",
+        "opacity": 0.5-1.0
+      },
+      "transition": {
+        "duration": 0.5-2.0,
+        "easing": "ease-in-out"
+      },
+      "delay": 0
+    }
+  ]
+}
+
+GUIDELINES:
+1. Space events throughout the duration (every 10-20 seconds)
+2. Match background changes to musical mood and structure
+3. Use audio-reactive mode for dynamic sections
+4. Use static mode for calm or minimal sections
+5. Use content mode sparingly for title cards or special moments
+6. Transitions should be smooth (0.5-1.5s duration)
+7. Return ONLY a JSON array of timeline events
+
+OUTPUT FORMAT: [ {...event1}, {...event2}, {...event3} ]
+Each event must have: { label, trigger: {type: "time", at: <seconds>}, actions: [{type: "background", ...}] }`;
+}
+
 function findWeakestSection(timeline, duration, sectionLength = 60) {
   const numSections = Math.ceil(duration / sectionLength);
   const sections = [];
@@ -688,6 +907,27 @@ ${templateNames.map(name => `- "${name}"`).join('\n')}
 EXISTING EVENTS IN THIS SECTION:
 ${JSON.stringify(section.events, null, 2)}
 
+🌟 CREATIVE DIRECTION - MAKE IT COMPELLING:
+**STRONGLY ENCOURAGED:** Seek opportunities for:
+- 🔮 **Kaleidoscopic Patterns**: Mirror symmetries, repeating motifs, fractal-like arrangements
+- 📐 **Geometric Symmetry**: Balanced compositions, radial patterns, tessellations
+- 🎪 **Composite Forms**: Use MULTIPLE ASCII art pieces positioned strategically to create:
+  * Larger recognizable shapes (faces, buildings, creatures from smaller elements)
+  * Abstract forms that emerge from the arrangement of individual pieces
+  * Visual ideas and concepts built from constituent parts
+  * Choreographed movements where objects collaborate to tell a story
+
+**ALTERNATIVE:** If geometric/visual approaches don't inspire you:
+- 📖 **Tell a Story**: Create a narrative arc through the choreography
+  * Character journeys (objects with personality moving through scenes)
+  * Emotional progressions (calm → tension → resolution)
+  * Visual metaphors for the musical themes
+
+**CRITICAL REQUIREMENT:**
+⚡ This MUST be ACTIVE, ENGAGING, and INTERESTING
+❌ AVOID: Static displays, boring linear movements, sparse uninspired positioning
+✅ CREATE: Dynamic compositions, surprising transformations, rich visual density
+
 YOUR TASK:
 1. Keep ALL good existing events from this section
 2. ADD new events to fill sparse gaps
@@ -744,7 +984,7 @@ async function enrichSparseEvents(choreography, sparseEvents, metadata, options)
 
     try {
       const { text } = await generateText({
-        model: anthropic('claude-3-7-sonnet-20250219'),
+        model: anthropic('claude-sonnet-4-5'),
         messages: [
           {
             role: 'system',
@@ -756,6 +996,18 @@ ACTION SCHEMA (use these exact structures):
 - Transform: { "type": "transform", "target": "object_id", "scale": 1.5, "rotation": 45, "duration": 1, "delay": 0 }
 - Visual: { "type": "visual", "target": "object_id", "style": {"color": "cyan", "bold": true}, "delay": 0 }
 - Destroy: { "type": "destroy", "target": "object_id", "delay": 0 }
+- Background: { "type": "background", "mode": "static", "static": {"color": "#000000"}, "transition": {"duration": 1.0}, "delay": 0 }
+
+🌟 CREATIVE DIRECTION - MAKE IT COMPELLING:
+**STRONGLY ENCOURAGED:** Seek opportunities for:
+- 🔮 Kaleidoscopic patterns: Mirror symmetries, repeating motifs
+- 📐 Geometric symmetry: Balanced compositions, radial patterns
+- 🎪 Composite forms: Multiple objects positioned to create larger shapes or ideas
+- 📖 Storytelling: Actions that tell a narrative or create emotional progression
+
+**CRITICAL:** Actions MUST be ACTIVE, ENGAGING, and INTERESTING
+❌ AVOID: Static positioning, boring linear movements
+✅ CREATE: Dynamic compositions, surprising transformations, rich visual density
 
 GUIDELINES:
 - Use "delay" parameter (0-2 seconds) to stagger actions within the event
@@ -821,7 +1073,7 @@ async function fillTimelineGaps(choreography, gaps, metadata, options, onsetCach
   for (const gap of gaps.slice(0, 2)) {
     try {
       const { text } = await generateText({
-        model: anthropic('claude-3-7-sonnet-20250219'),
+        model: anthropic('claude-sonnet-4-5'),
         messages: [
           {
             role: 'system',
@@ -852,7 +1104,19 @@ EVENT SCHEMA (use this exact structure):
   ]
 }
 
-ACTION TYPES: spawn, move, transform, visual, destroy
+ACTION TYPES: spawn, move, transform, visual, destroy, background
+
+🌟 CREATIVE DIRECTION - MAKE IT COMPELLING:
+**STRONGLY ENCOURAGED:** Seek opportunities for:
+- 🔮 Kaleidoscopic patterns: Mirror symmetries, repeating motifs
+- 📐 Geometric symmetry: Balanced compositions, radial patterns
+- 🎪 Composite forms: Multiple objects positioned to create larger shapes or ideas
+- 📖 Storytelling: Events that tell a narrative or create emotional progression
+
+**CRITICAL:** Events MUST be ACTIVE, ENGAGING, and INTERESTING
+❌ AVOID: Static positioning, boring linear movements
+✅ CREATE: Dynamic compositions, surprising transformations, rich visual density
+
 GUIDELINES:
 - Use "delay" to stagger actions (0-2 seconds)
 - Each event should have ${Math.ceil(DENSITY_TARGETS.targetActionsPerEvent)} actions
@@ -915,7 +1179,7 @@ async function addNewTemplates(choreography, count, metadata, options) {
 
   try {
     const { text } = await generateText({
-      model: anthropic('claude-3-7-sonnet-20250219'),
+      model: anthropic('claude-sonnet-4-5'),
       messages: [
         {
           role: 'system',
@@ -1069,453 +1333,326 @@ async function loadAndParseMetadata(options) {
  * @param {boolean} options.verbose - Show detailed progress
  */
 export async function generateChoreographyNew(options) {
-  console.log(chalk.cyan('🎭 Generating Choreography (Schema v1.1)...\n'));
+  try {
+    console.log(chalk.cyan('🎭 Generating Choreography (Schema v1.1)...\n'));
 
-  // Load description and metadata using helper functions
-  const description = await loadDescription(options);
-  const metadata = await loadAndParseMetadata(options);
+    // Load description and metadata using helper functions
+    const description = await loadDescription(options);
+    const metadata = await loadAndParseMetadata(options);
 
-  // Load ASCII art shapes
-  let asciiShapes = [];
-  const abcBasename = options.abc ?
-    path.basename(options.abc, path.extname(options.abc)) :
-    `composition-${Date.now()}`;
+    // Load ASCII art shapes
+    let asciiShapes = [];
+    const abcBasename = options.abc ?
+      path.basename(options.abc, path.extname(options.abc)) :
+      `composition-${Date.now()}`;
 
-  const outputDir = path.resolve(options.output || './output');
+    const outputDir = path.resolve(options.output || './output');
 
-  // Actually load the ASCII art from manager
-  if (options.abc) {
-    asciiShapes = asciiArtManager.getArtForAbc(abcBasename) || [];
-    if (asciiShapes.length > 0) {
-      console.log(chalk.green(`✓ Found ${asciiShapes.length} ASCII art shapes for this composition`));
-    } else {
-      console.log(chalk.yellow(`⚠️  No ASCII art found in library for: ${abcBasename}`));
-      console.log(chalk.gray(`   Tip: Run 'node scripts/generate-ascii-for-abc.js ${options.abc}' to create custom ASCII art`));
-    }
-  }
-
-  // Check for existing choreography versions
-  const versionInfo = await detectLatestChoreographyVersion(abcBasename, outputDir);
-
-  let prompt = '';
-  let outputPath = '';
-  let mode = '';
-  let choreography;
-
-  if (versionInfo.exists) {
-    // SECTION-BASED IMPROVEMENT MODE
-    try {
-      const existingChoreography = await loadExistingChoreography(versionInfo.latestPath);
-      const nextVersion = versionInfo.latestVersion + 1;
-
-      mode = 'improvement';
-      console.log(chalk.cyan(`📝 Found existing choreography v${versionInfo.latestVersion}`));
-      console.log(chalk.cyan(`   Path: ${versionInfo.latestPath}`));
-      console.log(chalk.cyan(`   Timeline events: ${existingChoreography.timeline?.length || 0}`));
-      console.log(chalk.yellow(`\n🔄 Improving weakest section...\n`));
-
-      // Find weakest section
-      const section = findWeakestSection(
-        existingChoreography.timeline,
-        existingChoreography.metadata.duration,
-        60 // 60 second sections
-      );
-
-      console.log(chalk.cyan(`📍 Target section: ${section.startTime}s - ${section.endTime}s`));
-      console.log(chalk.cyan(`   Current events: ${section.eventCount}`));
-      console.log(chalk.cyan(`   Density: ${section.density.toFixed(2)} events/sec\n`));
-
-      // Build section improvement prompt
-      const sectionPrompt = buildSectionImprovementPrompt(section, existingChoreography, description, metadata);
-
-      if (options.verbose) {
-        console.log(chalk.gray('Section improvement prompt preview:'));
-        console.log(chalk.gray(sectionPrompt.substring(0, 500) + '...\n'));
-      }
-
-      // Generate improved section using direct text generation
-      const myAnthropic = getAnthropic();
-      const model = myAnthropic("claude-3-7-sonnet-20250219");
-
-      console.log(chalk.yellow('Generating improved section events...\n'));
-
-      const { text } = await generateText({
-        model,
-        prompt: sectionPrompt + "\n\nIMPORTANT: Return ONLY the JSON array of events, no other text.",
-        temperature: 0.7,
-        maxTokens: 32000
-      });
-
-      // Parse section events from response with comprehensive error handling
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        console.log(chalk.yellow('⚠️  Failed to extract JSON array from response'));
-        // Save raw text for debugging
-        const debugPath = path.join(outputDir, `${abcBasename}-section-debug.txt`);
-        await fs.writeFile(debugPath, text);
-        console.log(chalk.yellow(`💾 Saved raw response to: ${debugPath}`));
-        throw new Error('Failed to extract JSON array from LLM response');
-      }
-
-      let improvedSectionEvents;
-      try {
-        const repairedJSON = repairJSONEscapes(jsonMatch[0]);
-        improvedSectionEvents = JSON.parse(repairedJSON);
-
-        // Validate it's actually an array
-        if (!Array.isArray(improvedSectionEvents)) {
-          throw new Error('Parsed JSON is not an array');
-        }
-
-        // Basic validation: each event should have trigger and actions
-        let validCount = 0;
-        for (const event of improvedSectionEvents) {
-          if (!event.trigger || !event.actions) {
-            console.log(chalk.yellow(`⚠️  Invalid event structure: ${JSON.stringify(event).substring(0, 100)}`));
-          } else {
-            validCount++;
-          }
-        }
-
-        console.log(chalk.green(`✓ Generated ${validCount} valid improved events for section\n`));
-      } catch (parseError) {
-        console.log(chalk.red(`❌ Failed to parse section events: ${parseError.message}`));
-        const debugPath = path.join(outputDir, `${abcBasename}-section-invalid.json`);
-        await fs.writeFile(debugPath, jsonMatch[0]);
-        console.log(chalk.yellow(`💾 Saved invalid JSON to: ${debugPath}`));
-        throw parseError;
-      }
-
-      // Merge improved section back into full timeline
-      const updatedTimeline = mergeSectionIntoTimeline(
-        existingChoreography.timeline,
-        improvedSectionEvents,
-        section.startTime,
-        section.endTime
-      );
-
-      // Create v2 choreography with updated timeline
-      choreography = {
-        ...existingChoreography,
-        timeline: updatedTimeline
-      };
-
-      outputPath = path.join(outputDir, `${abcBasename}-choreography.v${nextVersion}.json`);
-
-      console.log(chalk.green(`✓ Merged section into choreography`));
-      console.log(chalk.cyan(`   Total events: ${choreography.timeline.length}\n`));
-
-    } catch (error) {
-      // Corrupted JSON or improvement error - fall back to initial generation
-      if (error.message.startsWith('CORRUPTED_JSON')) {
-        console.log(chalk.yellow('   Falling back to fresh generation...\n'));
-        mode = 'initial';
-        prompt = buildChoreographyPromptV1_1(description, metadata, asciiShapes);
-        outputPath = path.join(outputDir, `${abcBasename}-choreography.v1.1.json`);
-
-        // Generate new choreography
-        const onsetCachePath = options.abc ?
-          `${path.resolve(options.abc).replace(/\.abc$/i, '')}-onsets.json` :
-          null;
-
-        choreography = await generateChoreographyWithFallbacks(
-          prompt,
-          metadata,
-          description,
-          options,
-          onsetCachePath,
-          outputPath
-        );
+    // Actually load the ASCII art from manager
+    if (options.abc) {
+      asciiShapes = asciiArtManager.getArtForAbc(abcBasename) || [];
+      if (asciiShapes.length > 0) {
+        console.log(chalk.green(`✓ Found ${asciiShapes.length} ASCII art shapes for this composition`));
       } else {
-        // Unexpected error - rethrow
-        throw error;
+        console.log(chalk.yellow(`⚠️  No ASCII art found in library for: ${abcBasename}`));
+        console.log(chalk.gray(`   Tip: Run 'node scripts/generate-ascii-for-abc.js ${options.abc}' to create custom ASCII art`));
       }
     }
-  } else {
-    // No existing valid choreography found
-    console.log(chalk.cyan('📝 No existing choreography found\n'));
 
-    // CHECK FOR RECOVERY FILES
-    const recoveryFiles = [
-      path.join(outputDir, `${abcBasename}-choreography.v1.1-recovery-raw.txt`),
-      path.join(outputDir, `${abcBasename}-choreography.v1.1-recovery-text.txt`),
-      path.join(outputDir, `${abcBasename}-choreography.v1.1-recovery-extracted.json`)
-    ];
+    // Check for existing choreography versions
+    const versionInfo = await detectLatestChoreographyVersion(abcBasename, outputDir);
 
-    let recoveryFileToUse = null;
-    for (const recoveryPath of recoveryFiles) {
+    let prompt = '';
+    let outputPath = '';
+    let mode = '';
+    let choreography;
+
+    if (versionInfo.exists) {
+      // SECTION-BASED IMPROVEMENT MODE
       try {
-        await fs.access(recoveryPath);
-        const stats = await fs.stat(recoveryPath);
-        if (!recoveryFileToUse || stats.mtime > recoveryFileToUse.mtime) {
-          recoveryFileToUse = { path: recoveryPath, mtime: stats.mtime };
+        const existingChoreography = await loadExistingChoreography(versionInfo.latestPath);
+        const nextVersion = versionInfo.latestVersion + 1;
+
+        mode = 'improvement';
+        console.log(chalk.cyan(`📝 Found existing choreography v${versionInfo.latestVersion}`));
+        console.log(chalk.cyan(`   Path: ${versionInfo.latestPath}`));
+        console.log(chalk.cyan(`   Timeline events: ${existingChoreography.timeline?.length || 0}`));
+
+        // PRIORITY 1: Check if background system is used
+        const hasBackground = usesBackgroundSystem(existingChoreography);
+
+        if (!hasBackground) {
+          // Background system not used - add it FIRST before any density improvements
+          console.log(chalk.yellow(`\n🎨 Background system not detected - adding background control...\n`));
+
+          // Build background improvement prompt
+          const backgroundPrompt = buildBackgroundImprovementPrompt(existingChoreography, description, metadata);
+
+          if (options.verbose) {
+            console.log(chalk.gray('Background improvement prompt preview:'));
+            console.log(chalk.gray(backgroundPrompt.substring(0, 500) + '...\n'));
+          }
+
+          // Generate background events using direct text generation
+          const myAnthropic = getAnthropic();
+          const model = myAnthropic("claude-sonnet-4-5");
+
+          console.log(chalk.yellow('Generating background control events...\n'));
+
+          const { text } = await generateText({
+            model,
+            prompt: backgroundPrompt + "\n\nIMPORTANT: Return ONLY the JSON array of background events, no other text.",
+            temperature: 0.7,
+            maxTokens: 16000
+          });
+
+          // Parse background events from response
+          const jsonMatch = text.match(/\[[\s\S]*\]/);
+          if (!jsonMatch) {
+            console.log(chalk.yellow('⚠️  Failed to extract JSON array from background response'));
+            const debugPath = path.join(outputDir, `${abcBasename}-background-debug.txt`);
+            await fs.writeFile(debugPath, text);
+            console.log(chalk.yellow(`💾 Saved raw response to: ${debugPath}`));
+            throw new Error('Failed to extract JSON array from background LLM response');
+          }
+
+          let backgroundEvents;
+          let validBackgroundEvents = [];  // Declare before try block for wider scope
+          try {
+            const repairedJSON = repairJSONEscapes(jsonMatch[0]);
+            backgroundEvents = JSON.parse(repairedJSON);
+
+            if (!Array.isArray(backgroundEvents)) {
+              throw new Error('Parsed JSON is not an array');
+            }
+
+            // Validate each event has trigger and actions, filter invalid events
+            let invalidCount = 0;
+
+            for (const event of backgroundEvents) {
+              if (!event?.trigger || !event?.actions || !Array.isArray(event.actions)) {
+                console.log(chalk.yellow(`⚠️  Invalid event structure (skipping): ${JSON.stringify(event).substring(0, 100)}`));
+                invalidCount++;
+              } else {
+                validBackgroundEvents.push(event);
+              }
+            }
+
+            const validCount = validBackgroundEvents.length;
+            if (invalidCount > 0) {
+              console.log(chalk.green(`✓ Generated ${validCount} valid background events (${invalidCount} invalid filtered)\n`));
+            } else {
+              console.log(chalk.green(`✓ Generated ${validCount} valid background events\n`));
+            }
+          } catch (parseError) {
+            console.log(chalk.red(`❌ Failed to parse background events: ${parseError.message}`));
+            const debugPath = path.join(outputDir, `${abcBasename}-background-invalid.json`);
+            await fs.writeFile(debugPath, jsonMatch[0]);
+            console.log(chalk.yellow(`💾 Saved invalid JSON to: ${debugPath}`));
+            throw parseError;
+          }
+
+          // Merge only valid background events into timeline (sorted by time)
+          const updatedTimeline = [...existingChoreography.timeline, ...validBackgroundEvents].sort((a, b) => {
+            const timeA = a.trigger?.at || 0;
+            const timeB = b.trigger?.at || 0;
+            return timeA - timeB;
+          });
+
+          // Create next version with background system
+          choreography = {
+            ...existingChoreography,
+            timeline: updatedTimeline
+          };
+
+          outputPath = path.join(outputDir, `${abcBasename}-choreography.v${nextVersion}.json`);
+
+          console.log(chalk.green(`✓ Added background system to choreography`));
+          console.log(chalk.cyan(`   Total events: ${choreography.timeline.length}`));
+          console.log(chalk.cyan(`   Background events added: ${validBackgroundEvents.length}\n`));
+
+          // Save and exit - background improvement takes priority over density improvements
+          await fs.writeFile(outputPath, JSON.stringify(choreography, null, 2));
+          console.log(chalk.green(`✅ Choreography saved: ${outputPath}\n`));
+          console.log(chalk.cyan(`💡 Next run will improve section density\n`));
+          return;
         }
-      } catch (error) {
-        // File doesn't exist, continue
-      }
-    }
 
-    if (recoveryFileToUse) {
-      // RECOVERY MODE - FIX INVALID JSON FROM PREVIOUS FAILURE
-      mode = 'recovery';
-      const ageMinutes = Math.round((Date.now() - recoveryFileToUse.mtime.getTime()) / 1000 / 60);
-      console.log(chalk.yellow(`⚠️  RECOVERY MODE: Found failed output from ${ageMinutes} minute(s) ago\n`));
-      console.log(chalk.cyan(`Loading: ${path.basename(recoveryFileToUse.path)}\n`));
+        // Background system exists - proceed with density-based section improvement
+        console.log(chalk.yellow(`\n🔄 Improving weakest section...\n`));
 
-      let rawContent;
-      try {
-        rawContent = await fs.readFile(recoveryFileToUse.path, 'utf-8');
-        console.log(chalk.green(`✓ Loaded ${(rawContent.length / 1024).toFixed(1)} KB of raw output\n`));
-      } catch (error) {
-        console.error(chalk.red(`❌ Failed to read recovery file: ${error.message}\n`));
-        throw error;
-      }
-
-      // Use LLM to repair the invalid JSON
-      console.log(chalk.cyan('🔧 Using LLM to repair invalid JSON...\n'));
-
-      const myAnthropic = getAnthropic();
-      const model = myAnthropic("claude-3-7-sonnet-20250219");
-      const ChoreographySchema = buildChoreographySchemaV1_1();
-
-      const repairPrompt = `You are a JSON repair specialist. Fix this invalid choreography JSON that has control character errors.
-
-CRITICAL RULES:
-1. Fix ALL control characters in string literals (newlines, tabs, etc.) by escaping them properly
-2. Ensure all strings use proper escape sequences: \\n for newline, \\t for tab, \\\\ for backslash
-3. Fix any malformed JSON structure (missing commas, brackets, quotes)
-4. Preserve ALL data - do not remove or truncate any content
-5. Return ONLY the valid JSON - no explanations, no markdown code blocks
-
-Common issues to fix:
-- Unescaped newlines in strings → Replace with \\n
-- Unescaped tabs in strings → Replace with \\t
-- Unescaped quotes in strings → Replace with \\"
-- Control characters (ASCII 0-31) → Remove or escape appropriately
-- Missing commas between array/object elements
-- Trailing commas before closing brackets
-- Unclosed strings, arrays, or objects
-
-INVALID JSON:
-${rawContent}
-
-Return the repaired, valid JSON immediately.`;
-
-      const { text: repairedText } = await generateText({
-        model,
-        prompt: repairPrompt,
-        temperature: 0.1,
-        maxTokens: 50000
-      });
-
-      let repairedJson = repairedText.trim();
-
-      // Remove markdown code blocks if present
-      if (repairedJson.startsWith('```json')) {
-        repairedJson = repairedJson.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
-      } else if (repairedJson.startsWith('```')) {
-        repairedJson = repairedJson.replace(/```\n?/g, '');
-      }
-
-      // Try to parse and validate
-      try {
-        console.log(chalk.cyan('🔍 Parsing repaired JSON...\n'));
-        const parsed = JSON.parse(repairedJson);
-
-        console.log(chalk.cyan('🔍 Validating against choreography schema...\n'));
-        choreography = ChoreographySchema.parse(parsed);
-
-        console.log(chalk.green('✅ JSON repaired and validated successfully!\n'));
-
-        // Save the repaired version
-        outputPath = path.join(outputDir, `${abcBasename}-choreography.v1.1.json`);
-        await fs.writeFile(outputPath, JSON.stringify(choreography, null, 2));
-        console.log(chalk.green(`✅ Saved repaired choreography to: ${path.basename(outputPath)}\n`));
-
-        // Also save the raw repaired JSON for reference
-        const repairedRawPath = path.join(outputDir, `${abcBasename}-choreography.v1.1-REPAIRED.json`);
-        await fs.writeFile(repairedRawPath, repairedJson);
-        console.log(chalk.gray(`   Also saved raw repaired JSON to: ${path.basename(repairedRawPath)}\n`));
-
-        console.log(chalk.yellow('⚠️  Recovery files kept for your reference\n'));
-
-      } catch (error) {
-        console.error(chalk.red(`❌ Recovery failed: ${error.message}\n`));
-        console.log(chalk.yellow('Falling back to initial generation...\n'));
-
-        // Fall back to initial generation
-        mode = 'initial';
-        prompt = buildChoreographyPromptV1_1(description, metadata, asciiShapes);
-        outputPath = path.join(outputDir, `${abcBasename}-choreography.v1.1.json`);
-
-        choreography = await generateChoreographyWithFallbacks(
-          prompt,
-          metadata,
-          description,
-          options,
-          null,
-          outputPath
+        // Find weakest section
+        const section = findWeakestSection(
+          existingChoreography.timeline,
+          existingChoreography.metadata.duration,
+          60 // 60 second sections
         );
+
+        console.log(chalk.cyan(`📍 Target section: ${section.startTime}s - ${section.endTime}s`));
+        console.log(chalk.cyan(`   Current events: ${section.eventCount}`));
+        console.log(chalk.cyan(`   Density: ${section.density.toFixed(2)} events/sec\n`));
+
+        // Build section improvement prompt
+        const sectionPrompt = buildSectionImprovementPrompt(section, existingChoreography, description, metadata);
+
+        if (options.verbose) {
+          console.log(chalk.gray('Section improvement prompt preview:'));
+          console.log(chalk.gray(sectionPrompt.substring(0, 500) + '...\n'));
+        }
+
+        // Generate improved section using direct text generation
+        const myAnthropic = getAnthropic();
+        const model = myAnthropic("claude-sonnet-4-5");
+
+        console.log(chalk.yellow('Generating improved section events...\n'));
+
+        const { text } = await generateText({
+          model,
+          prompt: sectionPrompt + "\n\nIMPORTANT: Return ONLY the JSON array of events, no other text.",
+          temperature: 0.7,
+          maxTokens: 32000
+        });
+
+        // Parse section events from response with comprehensive error handling
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) {
+          console.log(chalk.yellow('⚠️  Failed to extract JSON array from response'));
+          // Save raw text for debugging
+          const debugPath = path.join(outputDir, `${abcBasename}-section-debug.txt`);
+          await fs.writeFile(debugPath, text);
+          console.log(chalk.yellow(`💾 Saved raw response to: ${debugPath}`));
+          throw new Error('Failed to extract JSON array from LLM response');
+        }
+
+        let improvedSectionEvents;
+        try {
+          const repairedJSON = repairJSONEscapes(jsonMatch[0]);
+          improvedSectionEvents = JSON.parse(repairedJSON);
+
+          // Validate it's actually an array
+          if (!Array.isArray(improvedSectionEvents)) {
+            throw new Error('Parsed JSON is not an array');
+          }
+
+          // Basic validation: each event should have trigger and actions
+          let validCount = 0;
+          for (const event of improvedSectionEvents) {
+            if (!event.trigger || !event.actions) {
+              console.log(chalk.yellow(`⚠️  Invalid event structure: ${JSON.stringify(event).substring(0, 100)}`));
+            } else {
+              validCount++;
+            }
+          }
+
+          console.log(chalk.green(`✓ Generated ${validCount} valid improved events for section\n`));
+        } catch (parseError) {
+          console.log(chalk.red(`❌ Failed to parse section events: ${parseError.message}`));
+          const debugPath = path.join(outputDir, `${abcBasename}-section-invalid.json`);
+          await fs.writeFile(debugPath, jsonMatch[0]);
+          console.log(chalk.yellow(`💾 Saved invalid JSON to: ${debugPath}`));
+          throw parseError;
+        }
+
+        // Merge improved section back into full timeline
+        const updatedTimeline = mergeSectionIntoTimeline(
+          existingChoreography.timeline,
+          improvedSectionEvents,
+          section.startTime,
+          section.endTime
+        );
+
+        // Create v2 choreography with updated timeline
+        choreography = {
+          ...existingChoreography,
+          timeline: updatedTimeline
+        };
+
+        outputPath = path.join(outputDir, `${abcBasename}-choreography.v${nextVersion}.json`);
+
+        console.log(chalk.green(`✓ Merged section into choreography`));
+        console.log(chalk.cyan(`   Total events: ${choreography.timeline.length}\n`));
+
+      } catch (error) {
+        // Corrupted JSON or improvement error - fall back to initial generation
+        if (error.message.startsWith('CORRUPTED_JSON')) {
+          console.log(chalk.yellow('   Falling back to fresh generation...\n'));
+          mode = 'initial';
+          prompt = buildChoreographyPromptV1_1(description, metadata, asciiShapes);
+          outputPath = path.join(outputDir, `${abcBasename}-choreography.v1.1.json`);
+
+          // Generate new choreography
+          const onsetCachePath = options.abc ?
+            `${path.resolve(options.abc).replace(/\.abc$/i, '')}-onsets.json` :
+            null;
+
+          choreography = await generateChoreographyWithFallbacks(
+            prompt,
+            metadata,
+            description,
+            options,
+            onsetCachePath,
+            outputPath,
+            asciiShapes
+          );
+        } else {
+          throw error;
+        }
       }
-
     } else {
-      // INITIAL GENERATION MODE - No recovery files found
+      // INITIAL GENERATION MODE
       mode = 'initial';
-      console.log(chalk.yellow('✨ Generating NEW choreography v1.1...\n'));
+      console.log(chalk.yellow('🎬 No existing choreography found - creating initial version...\n'));
 
-      // Build initial prompt
-      prompt = buildChoreographyPromptV1_1(description, metadata, asciiShapes);
+      // Build choreography prompt
+      const prompt = buildChoreographyPromptV1_1(description, metadata, asciiShapes);
       outputPath = path.join(outputDir, `${abcBasename}-choreography.v1.1.json`);
 
-      if (options.verbose) {
-        console.log(chalk.gray('Initial prompt preview:'));
-        console.log(chalk.gray(prompt.substring(0, 500) + '...\n'));
-      }
+      // Generate using sequential expansion with fallbacks
+      const onsetCachePath = options.abc ?
+        `${path.resolve(options.abc).replace(/\.abc$/i, '')}-onsets.json` :
+        null;
 
-      // Generate choreography for initial mode
       choreography = await generateChoreographyWithFallbacks(
         prompt,
         metadata,
         description,
         options,
-        null, // onsetCachePath not needed here
-        outputPath
+        onsetCachePath,
+        outputPath,
+        asciiShapes
       );
     }
-  }
 
-  // Get onset cache path for sequential expansion (outside the else block)
-  const onsetCachePath = options.abc ?
-    `${path.resolve(options.abc).replace(/\.abc$/i, '')}-onsets.json` :
-    null;
-
-  // Sequential expansion mode: iteratively improve choreography density
-  if (options.sequential && mode === 'initial') {
-    console.log(chalk.cyan('\n🔄 Sequential expansion mode enabled'));
-    console.log(chalk.gray(`Target: ${DENSITY_TARGETS.targetEventsPerSecond} events/s, ${DENSITY_TARGETS.targetActionsPerSecond} actions/s\n`));
-
-    let iteration = 0;
-    const maxIterations = 5;
-    let lastDensityScore = 0;
-    let stagnationCount = 0;
-    const stagnationThreshold = 2;
-
-    while (iteration < maxIterations) {
-      // Evaluate current density
-      const evaluation = evaluateChoreographyDensity(choreography);
-
-      // Check for stagnation (no improvement)
-      if (iteration > 0 && Math.abs(evaluation.scores.densityScore - lastDensityScore) < 0.01) {
-        stagnationCount++;
-        console.log(chalk.yellow(`   ⚠️  No improvement detected (stagnation: ${stagnationCount}/${stagnationThreshold})`));
-
-        if (stagnationCount >= stagnationThreshold) {
-          console.log(chalk.yellow(`\n⚠️  No improvement after ${stagnationThreshold} iterations, stopping expansion`));
-          break;
-        }
-      } else {
-        stagnationCount = 0;
-      }
-
-      lastDensityScore = evaluation.scores.densityScore;
-
-      console.log(chalk.cyan(`\n📊 Iteration ${iteration + 1} - Current Density:`));
-      console.log(chalk.gray(`   Events/second: ${evaluation.metrics.eventsPerSecond.toFixed(3)} (target: ${DENSITY_TARGETS.targetEventsPerSecond})`));
-      console.log(chalk.gray(`   Actions/second: ${evaluation.metrics.actionsPerSecond.toFixed(3)} (target: ${DENSITY_TARGETS.targetActionsPerSecond})`));
-      console.log(chalk.gray(`   Actions/event: ${evaluation.metrics.actionsPerEvent.toFixed(2)} (target: ${DENSITY_TARGETS.targetActionsPerEvent})`));
-      console.log(chalk.gray(`   Templates: ${evaluation.metrics.templateCount} (target: ${DENSITY_TARGETS.targetTemplates})`));
-      console.log(chalk.gray(`   Density score: ${(evaluation.scores.densityScore * 100).toFixed(1)}% (target: ${DENSITY_TARGETS.minDensityScore * 100}%)`));
-
-      // Check if target met
-      if (evaluation.meetsTarget) {
-        console.log(chalk.green(`\n✅ Density target achieved after ${iteration} improvement${iteration !== 1 ? 's' : ''}!`));
-        break;
-      }
-
-      // Generate improvement strategy
-      const strategy = generateImprovementStrategy(evaluation, choreography);
-
-      if (strategy.actions.length === 0) {
-        console.log(chalk.yellow('\n⚠️  No improvement actions identified, stopping expansion'));
-        break;
-      }
-
-      console.log(chalk.cyan(`\n🎯 Improvement strategy: ${strategy.priority.join(' → ')}`));
-
-      // Apply improvements based on strategy
-      for (const action of strategy.actions) {
-        if (action.type === 'enrich_events') {
-          console.log(chalk.gray(`\n   Enriching ${action.targetCount} sparse events...`));
-          await enrichSparseEvents(choreography, action.sparseEvents, metadata, options);
-        } else if (action.type === 'fill_gaps') {
-          console.log(chalk.gray(`\n   Filling ${action.targetCount} large gaps...`));
-          await fillTimelineGaps(choreography, action.gaps, metadata, options, onsetCachePath);
-        } else if (action.type === 'add_templates') {
-          console.log(chalk.gray(`\n   Adding ${action.needsMore} new templates...`));
-          await addNewTemplates(choreography, action.needsMore, metadata, options);
-        }
-      }
-
-      // SAVE OUTPUT AFTER EVERY ITERATION
-      const iterationOutputPath = outputPath.replace('.json', `-iter${iteration + 1}.json`);
-      try {
-        await fs.writeFile(iterationOutputPath, JSON.stringify(choreography, null, 2));
-        console.log(chalk.green(`\n💾 Saved iteration ${iteration + 1} to: ${iterationOutputPath}`));
-      } catch (saveError) {
-        console.log(chalk.yellow(`⚠️  Failed to save iteration ${iteration + 1}: ${saveError.message}`));
-      }
-
-      iteration++;
-    }
-
-    if (iteration === maxIterations) {
-      console.log(chalk.yellow(`\n⚠️  Reached maximum iterations (${maxIterations}), stopping expansion`));
-    }
-
-    // Final evaluation
-    const finalEvaluation = evaluateChoreographyDensity(choreography);
-    console.log(chalk.cyan(`\n📊 Final Density:`));
-    console.log(chalk.gray(`   Events/second: ${finalEvaluation.metrics.eventsPerSecond.toFixed(3)}`));
-    console.log(chalk.gray(`   Actions/second: ${finalEvaluation.metrics.actionsPerSecond.toFixed(3)}`));
-    console.log(chalk.gray(`   Actions/event: ${finalEvaluation.metrics.actionsPerEvent.toFixed(2)}`));
-    console.log(chalk.gray(`   Density score: ${(finalEvaluation.scores.densityScore * 100).toFixed(1)}%`));
-  }
-
-  // ALWAYS save output - try primary path first, fallback to recovery if it fails
-  let finalPath = outputPath;
-  try {
+    // Write choreography to file
     await fs.writeFile(outputPath, JSON.stringify(choreography, null, 2));
-    console.log(chalk.green(`\n✅ Choreography saved to: ${outputPath}`));
-  } catch (writeError) {
-    // Primary write failed - save to recovery location
-    const recoveryPath = outputPath.replace('.json', '-final-recovery.json');
-    console.log(chalk.yellow(`\n⚠️  Failed to write to primary path: ${writeError.message}`));
-    console.log(chalk.yellow(`   Saving to recovery location: ${recoveryPath}`));
+    console.log(chalk.green(`✅ Choreography saved: ${outputPath}\n`));
 
-    try {
-      await fs.writeFile(recoveryPath, JSON.stringify(choreography, null, 2));
-      finalPath = recoveryPath;
-      console.log(chalk.green(`✅ Choreography saved to recovery path: ${recoveryPath}`));
-    } catch (recoveryError) {
-      // Even recovery failed - dump to stdout as last resort
-      console.log(chalk.red(`\n❌ Failed to write to recovery path: ${recoveryError.message}`));
-      console.log(chalk.yellow(`\n📋 CHOREOGRAPHY JSON (copy manually):`));
-      console.log(JSON.stringify(choreography, null, 2));
-      throw new Error(`Failed to save choreography: ${writeError.message}`);
+    // Optionally validate against schema
+    if (options.validate) {
+      console.log(chalk.cyan('🔍 Validating choreography against schema...\n'));
+      try {
+        const validation = validateChoreographySchema(choreography);
+        if (validation.valid) {
+          console.log(chalk.green('✓ Choreography schema valid\n'));
+        } else {
+          console.log(chalk.yellow('⚠️  Schema validation warnings:'));
+          validation.errors.forEach(err => {
+            console.log(chalk.yellow(`   - ${err.path}: ${err.message}`));
+          });
+          console.log('');
+        }
+      } catch (validationError) {
+        console.log(chalk.red(`❌ Schema validation error: ${validationError.message}\n`));
+      }
     }
-  }
 
-  console.log(chalk.cyan(`   Mode: ${mode === 'improvement' ? 'Iterative improvement' : 'Initial generation'}`));
-  console.log(chalk.cyan(`   Timeline events: ${choreography.timeline.length}`));
-  console.log(chalk.cyan(`   Duration: ${choreography.metadata.duration}s`));
-  console.log(chalk.cyan(`   Schema version: ${choreography.metadata.version}`));
-  if (choreography.scenes) {
-    console.log(chalk.cyan(`   Scenes: ${choreography.scenes.length}`));
-  }
-  if (choreography.threads) {
-    console.log(chalk.cyan(`   Threads: ${choreography.threads.length}`));
-  }
-  console.log();
+    return choreography;
 
-  return finalPath;
+  } catch (error) {
+    console.error(chalk.red(`\n❌ Error generating choreography: ${error.message}`));
+    if (error.stack && options.verbose) {
+      console.error(chalk.gray(error.stack));
+    }
+    process.exit(1);
+  }
 }
