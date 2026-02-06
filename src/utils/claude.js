@@ -564,7 +564,9 @@ export async function generateMusicWithClaude(options) {
   const sequentialMode = options.sequentialMode || false;
 
   // Use Claude Sonnet 3.7 for best music generation capabilities
-  const model = myAnthropic("claude-3-7-sonnet-20250219");
+  // const model = myAnthropic("claude-3-7-sonnet-20250219");
+  // const model = myAnthropic("claude-sonnet-4-20250514");
+  const model = myAnthropic("claude-haiku-4-5-20251001");
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt =
@@ -861,7 +863,8 @@ ${options.sequentialMode ? "IMPORTANT: Focus on QUALITY over length. Create exce
  */
 export async function modifyCompositionWithClaude(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-3-7-sonnet-20250219");
+  // const model = myAnthropic("claude-sonnet-4-20250514");
+  const model = myAnthropic("claude-haiku-4-5-20251001");
 
   const abcNotation = options.abcNotation;
   const instructions = options.instructions;
@@ -1127,7 +1130,7 @@ Organize your analysis into these sections:
  */
 export async function evaluateCompositionCompleteness(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-3-7-sonnet-20250219");
+  const model = myAnthropic("claude-sonnet-4-20250514");
 
   const abcNotation = options.abcNotation;
   const genre = options.genre || "Classical_x_Contemporary";

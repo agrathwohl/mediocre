@@ -23,6 +23,7 @@ import { sanitizeDrums } from './commands/sanitize-drums.js';
 import { generateAsciiArt, listAsciiArt, exportAsciiArt } from './commands/generate-ascii-art.js';
 import { generateChoreographyNew } from './commands/generate-choreography-new.js';
 import { generateOnsets } from './commands/generate-onsets.js';
+import { playChoreography } from './commands/play-choreography.js';
 import { createDatasetBrowser } from './ui/index.js';
 import { validateAbcNotation, cleanAbcNotation, evaluateCompositionCompleteness, validateWithAbc2Midi } from './utils/claude.js';
 import { extractMidiStems } from './utils/stem-extractor.js';
@@ -847,49 +848,16 @@ program
   .option('--osd', 'Show on-screen display with playback info')
   .option('--no-title', 'Skip title card and ASCII art starring displays')
   .option('--no-descript', 'Skip subtitle/descript text overlay')
+  .option('--record', 'Record screen to video file using gpu-screen-recorder')
   .action(async (audio, choreography, options) => {
     try {
-      // Resolve script path relative to this module (src/index.js -> ../scripts/play-choreography-v1.1.js)
-      const scriptPath = path.join(__dirname, '..', 'scripts', 'play-choreography-v1.1.js');
-
-      // Verify script exists
-      if (!fs.existsSync(scriptPath)) {
-        console.error(`Script not found: ${scriptPath}`);
-        console.error('This may indicate an incomplete installation.');
-        process.exit(1);
-      }
-
-      const args = [audio];
-
-      if (choreography) {
-        args.push(choreography);
-      }
-
-      if (options.osd) {
-        args.push('--osd');
-      }
-
-      if (options.noTitle) {
-        args.push('--no-title');
-      }
-
-      if (options.noDescript) {
-        args.push('--no-descript');
-      }
-
-      // Delegate to standalone script for terminal control and real-time playback
-      const child = spawn('node', [scriptPath, ...args], {
-        stdio: 'inherit',
-        cwd: process.cwd()
-      });
-
-      child.on('error', (error) => {
-        console.error('Error launching play-choreography:', error);
-        process.exit(1);
-      });
-
-      child.on('exit', (code) => {
-        process.exit(code || 0);
+      await playChoreography({
+        audio,
+        choreography,
+        osd: options.osd,
+        noTitle: options.noTitle,
+        noDescript: options.noDescript,
+        record: options.record
       });
     } catch (error) {
       console.error('Error playing choreography:', error);
