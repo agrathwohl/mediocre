@@ -82,10 +82,12 @@ async function ensureUniqueTitle(abcNotation, genre) {
 
   while (currentTitle && titleExists(currentTitle) && attempts < maxAttempts) {
     attempts++;
-    console.log(`Title "${currentTitle}" already exists, generating unique title (attempt ${attempts})...`);
+    console.log(
+      `Title "${currentTitle}" already exists, generating unique title (attempt ${attempts})...`,
+    );
 
     const myAnthropic = getAnthropic();
-    const model = myAnthropic("claude-3-5-haiku-20241022"); // Use Haiku for this tiny task
+    const model = myAnthropic("claude-4-5-haiku-20241022"); // Use Haiku for this tiny task
 
     const { text } = await generateText({
       model,
@@ -95,11 +97,11 @@ async function ensureUniqueTitle(abcNotation, genre) {
           content: `The title "${currentTitle}" is already taken. Generate ONE new unique creative title for this ${genre} composition. Return ONLY the new title, nothing else. Be specific and inventive - avoid generic titles like "Serialist Chaos" or "Prepared Noise".`,
         },
       ],
-      temperature: 0.9 + (attempts * 0.05), // Increase randomness on retries
+      temperature: 0.9 + attempts * 0.05, // Increase randomness on retries
       maxTokens: 50,
     });
 
-    const newTitle = text.trim().replace(/^["']|["']$/g, ''); // Remove any quotes
+    const newTitle = text.trim().replace(/^["']|["']$/g, ""); // Remove any quotes
     console.log(`New title: "${newTitle}"`);
 
     // Replace the title in the ABC notation
@@ -110,7 +112,9 @@ async function ensureUniqueTitle(abcNotation, genre) {
   if (attempts >= maxAttempts && titleExists(currentTitle)) {
     // Last resort: append timestamp to make unique
     const uniqueTitle = `${currentTitle} (${Date.now()})`;
-    console.log(`Max attempts reached, using timestamped title: "${uniqueTitle}"`);
+    console.log(
+      `Max attempts reached, using timestamped title: "${uniqueTitle}"`,
+    );
     result = result.replace(/^T:\s*.+$/m, `T:${uniqueTitle}`);
   }
 
@@ -138,25 +142,36 @@ export async function selectSoundfontsWithClaude(options) {
   // Get soundfont recommendations based on genre
   const exploration = exploreSoundFontsForComposition({
     genreHybrid: genre,
-    requiredInstruments: requestedInstruments ? requestedInstruments.split(',').map(i => i.trim()) : [],
-    style: ''
+    requiredInstruments: requestedInstruments
+      ? requestedInstruments.split(",").map((i) => i.trim())
+      : [],
+    style: "",
   });
 
   // Format the available soundfonts for the LLM
   const availableSoundfonts = `
 ## Primary Recommendations (Best matches for ${genre}):
-${exploration.genreRecommendations.primary.map(sf => `- ${sf.filename} (score: ${sf.score}, presets: ${sf.presetCount}) - Keywords: ${sf.matchedKeywords.join(', ')}`).join('\n')}
+${exploration.genreRecommendations.primary.map((sf) => `- ${sf.filename} (score: ${sf.score}, presets: ${sf.presetCount}) - Keywords: ${sf.matchedKeywords.join(", ")}`).join("\n")}
 
 ## Secondary Options:
-${exploration.genreRecommendations.secondary.map(sf => `- ${sf.filename}`).join('\n')}
+${exploration.genreRecommendations.secondary.map((sf) => `- ${sf.filename}`).join("\n")}
 
 ## Auto-Suggested Selection:
-${exploration.suggestedSelection.join(', ')}
+${exploration.suggestedSelection.join(", ")}
 
 ## Categories Available:
-- Drums: ${exploration.categoryResults.drums.slice(0, 3).map(sf => sf.filename).join(', ')}
-- Bass: ${exploration.categoryResults.bass.slice(0, 3).map(sf => sf.filename).join(', ')}
-- Strings: ${exploration.categoryResults.strings.slice(0, 3).map(sf => sf.filename).join(', ')}
+- Drums: ${exploration.categoryResults.drums
+    .slice(0, 3)
+    .map((sf) => sf.filename)
+    .join(", ")}
+- Bass: ${exploration.categoryResults.bass
+    .slice(0, 3)
+    .map((sf) => sf.filename)
+    .join(", ")}
+- Strings: ${exploration.categoryResults.strings
+    .slice(0, 3)
+    .map((sf) => sf.filename)
+    .join(", ")}
 `;
 
   const systemPrompt = `You are a music producer selecting soundfonts for a composition.
@@ -179,7 +194,7 @@ You MUST respond in this EXACT JSON format:
 
   const userPrompt = `Select soundfonts for a ${genre} composition (fusion of ${classicalGenre} and ${modernGenre}).
 
-${requestedInstruments ? `Required instruments: ${requestedInstruments}` : ''}
+${requestedInstruments ? `Required instruments: ${requestedInstruments}` : ""}
 
 Available soundfonts and recommendations:
 ${availableSoundfonts}
@@ -190,8 +205,8 @@ Select the optimal soundfont combination. Return ONLY the JSON response.`;
     const { text } = await generateText({
       model,
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
       temperature: 0.3,
       maxTokens: 1000,
@@ -206,31 +221,43 @@ Select the optimal soundfont combination. Return ONLY the JSON response.`;
     const result = JSON.parse(jsonStr);
 
     // Validate soundfonts exist and add .sf2 extension if missing
-    let validatedSoundfonts = result.soundfonts.map(sf => {
-      if (!sf.endsWith('.sf2')) {
-        return sf + '.sf2';
+    let validatedSoundfonts = result.soundfonts.map((sf) => {
+      if (!sf.endsWith(".sf2")) {
+        return sf + ".sf2";
       }
       return sf;
     });
 
     // Filter out banned soundfonts that crash TiMidity
-    const bannedFound = validatedSoundfonts.filter(sf => BANNED_SOUNDFONTS.includes(sf));
+    const bannedFound = validatedSoundfonts.filter((sf) =>
+      BANNED_SOUNDFONTS.includes(sf),
+    );
     if (bannedFound.length > 0) {
-      console.warn(`⚠️ Filtering out banned soundfonts that crash TiMidity: ${bannedFound.join(', ')}`);
-      validatedSoundfonts = validatedSoundfonts.filter(sf => !BANNED_SOUNDFONTS.includes(sf));
+      console.warn(
+        `⚠️ Filtering out banned soundfonts that crash TiMidity: ${bannedFound.join(", ")}`,
+      );
+      validatedSoundfonts = validatedSoundfonts.filter(
+        (sf) => !BANNED_SOUNDFONTS.includes(sf),
+      );
     }
 
     return {
       soundfonts: validatedSoundfonts,
-      reasoning: result.reasoning || "Soundfonts selected based on genre compatibility"
+      reasoning:
+        result.reasoning || "Soundfonts selected based on genre compatibility",
     };
   } catch (error) {
-    console.warn("Failed to get LLM soundfont selection, using auto-suggested selection:", error.message);
+    console.warn(
+      "Failed to get LLM soundfont selection, using auto-suggested selection:",
+      error.message,
+    );
     // Fall back to auto-suggested selection, also filtering banned soundfonts
-    const fallbackSoundfonts = exploration.suggestedSelection.filter(sf => !BANNED_SOUNDFONTS.includes(sf));
+    const fallbackSoundfonts = exploration.suggestedSelection.filter(
+      (sf) => !BANNED_SOUNDFONTS.includes(sf),
+    );
     return {
       soundfonts: fallbackSoundfonts,
-      reasoning: "Auto-selected based on genre keyword matching"
+      reasoning: "Auto-selected based on genre keyword matching",
     };
   }
 }
@@ -246,7 +273,13 @@ Select the optimal soundfont combination. Return ONLY the JSON response.`;
  * @returns {string} Path to the saved config file
  */
 export function saveCustomTimidityConfig(options) {
-  const { soundfonts, outputDir, baseFilename, title = 'Composition', genre = '' } = options;
+  const {
+    soundfonts,
+    outputDir,
+    baseFilename,
+    title = "Composition",
+    genre = "",
+  } = options;
 
   // Generate the config content
   const configContent = generateTimidityConfig(soundfonts, { title, genre });
@@ -469,20 +502,25 @@ export async function validateWithAbc2Midi(abcFilePath) {
     }
   } catch (error) {
     // Check if abc2midi is not installed (command not found)
-    if (error.code === 'ENOENT' || (error.message && error.message.includes('command not found'))) {
+    if (
+      error.code === "ENOENT" ||
+      (error.message && error.message.includes("command not found"))
+    ) {
       return {
         valid: true, // Don't fail validation if tool is missing
         error: null,
-        warning: 'abc2midi not installed - skipping validation (install abcmidi package for validation)'
+        warning:
+          "abc2midi not installed - skipping validation (install abcmidi package for validation)",
       };
     }
 
     // Check for segfault - multiple ways to detect it
-    const isSegfault = error.signal === "SIGSEGV" ||
-                       error.signal === "SIGABRT" ||
-                       (error.status && error.status > 128) ||  // Signals add 128 to exit code
-                       (error.message && error.message.includes("segmentation fault")) ||
-                       (error.stderr && error.stderr.includes("segmentation fault"));
+    const isSegfault =
+      error.signal === "SIGSEGV" ||
+      error.signal === "SIGABRT" ||
+      (error.status && error.status > 128) || // Signals add 128 to exit code
+      (error.message && error.message.includes("segmentation fault")) ||
+      (error.stderr && error.stderr.includes("segmentation fault"));
 
     if (isSegfault) {
       if (fs.existsSync(tempMidiPath)) {
@@ -565,8 +603,8 @@ export async function generateMusicWithClaude(options) {
 
   // Use Claude Sonnet 3.7 for best music generation capabilities
   // const model = myAnthropic("claude-3-7-sonnet-20250219");
-  // const model = myAnthropic("claude-sonnet-4-20250514");
-  const model = myAnthropic("claude-haiku-4-5-20251001");
+  const model = myAnthropic("claude-sonnet-4-20250514");
+  // const model = myAnthropic("claude-haiku-4-5-20251001");
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt =
@@ -786,9 +824,9 @@ export async function generateMusicWithSoundfonts(options) {
       soundfonts: [
         "GeneralUser GS v1.471.sf2",
         "FluidR3 GM + GS.sf2",
-        "SGM-128 v1.17.sf2"
+        "SGM-128 v1.17.sf2",
       ],
-      reasoning: "Using default GM soundfonts (soundfont selection skipped)"
+      reasoning: "Using default GM soundfonts (soundfont selection skipped)",
     };
   } else {
     console.log(`Selecting soundfonts for ${genre}...`);
@@ -796,9 +834,11 @@ export async function generateMusicWithSoundfonts(options) {
       genre,
       classicalGenre,
       modernGenre,
-      instruments: options.instruments
+      instruments: options.instruments,
     });
-    console.log(`Selected ${soundfontSelection.soundfonts.length} soundfonts: ${soundfontSelection.soundfonts.slice(0, 3).join(', ')}...`);
+    console.log(
+      `Selected ${soundfontSelection.soundfonts.length} soundfonts: ${soundfontSelection.soundfonts.slice(0, 3).join(", ")}...`,
+    );
     console.log(`Reasoning: ${soundfontSelection.reasoning}`);
   }
 
@@ -808,7 +848,7 @@ export async function generateMusicWithSoundfonts(options) {
 The following soundfonts have been selected specifically for this ${genre} composition.
 Your instrument choices will be rendered using these soundfonts, in this priority order (later ones override earlier):
 
-${soundfontSelection.soundfonts.map((sf, i) => `${i + 1}. ${sf}`).join('\n')}
+${soundfontSelection.soundfonts.map((sf, i) => `${i + 1}. ${sf}`).join("\n")}
 
 Selection reasoning: ${soundfontSelection.reasoning}
 
@@ -836,13 +876,13 @@ ${options.solo ? "Include a dedicated solo section for the lead instrument." : "
 ${options.recordLabel ? `Style the composition to sound like it was released on the record label "${options.recordLabel}".` : ""}
 ${options.producer ? `Style the composition to sound as if it was produced by ${options.producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}
 ${options.instruments ? `Your composition MUST include at minimum these instruments: ${options.instruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""}
-${options.sequentialMode ? "IMPORTANT: Focus on QUALITY over length. Create exceptional thematic material in 16-32 measures. Another agent will expand your work - your job is to create brilliant foundational ideas worth developing." : "Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest."}`
+${options.sequentialMode ? "IMPORTANT: Focus on QUALITY over length. Create exceptional thematic material in 16-32 measures. Another agent will expand your work - your job is to create brilliant foundational ideas worth developing." : "Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest."}`,
   });
 
   return {
     abcNotation,
     soundfonts: soundfontSelection.soundfonts,
-    soundfontReasoning: soundfontSelection.reasoning
+    soundfontReasoning: soundfontSelection.reasoning,
   };
 }
 
@@ -864,14 +904,18 @@ ${options.sequentialMode ? "IMPORTANT: Focus on QUALITY over length. Create exce
 export async function modifyCompositionWithClaude(options) {
   const myAnthropic = getAnthropic();
   // const model = myAnthropic("claude-sonnet-4-20250514");
-  const model = myAnthropic("claude-haiku-4-5-20251001");
+  const model = myAnthropic("claude-sonnet-4-20250514");
+  // const model = myAnthropic("claude-haiku-4-5-20251001");
 
   const abcNotation = options.abcNotation;
   const instructions = options.instructions;
 
   // Detect if this is a FIX operation (minimal prompt) vs MODIFY operation (full prompt)
-  const isFixOperation = instructions.includes('FIX') &&
-    (instructions.includes('abc2midi') || instructions.includes('VALIDATION') || instructions.includes('validation'));
+  const isFixOperation =
+    instructions.includes("FIX") &&
+    (instructions.includes("abc2midi") ||
+      instructions.includes("VALIDATION") ||
+      instructions.includes("validation"));
 
   if (isFixOperation) {
     // MINIMAL prompt for fixing ABC syntax errors - NO composition rules, NO banned notes, JUST fix the syntax
@@ -891,8 +935,8 @@ ${abcNotation}`;
     const { text } = await generateText({
       model,
       messages: [
-        { role: 'system', content: fixSystemPrompt },
-        { role: 'user', content: fixUserPrompt },
+        { role: "system", content: fixSystemPrompt },
+        { role: "user", content: fixUserPrompt },
       ],
       temperature: 0.2,
       maxTokens: 32000,
@@ -1055,7 +1099,8 @@ Your modifications should respect both the user's instructions and the musical i
  */
 export async function generateDescription(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-3-7-sonnet-20250219");
+  const model = myAnthropic("claude-sonnet-4-20250514");
+  // const model = myAnthropic("claude-3-7-sonnet-20250219");
   const abcNotation = options.abcNotation;
   const genre = options.genre || "Classical_x_Contemporary";
   const classicalGenre = options.classicalGenre || "Classical";

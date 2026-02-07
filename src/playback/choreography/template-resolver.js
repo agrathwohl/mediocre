@@ -22,24 +22,17 @@
  * const position = resolver.resolvePosition({ x: 'center', y: 'top' }, 80, 24);
  */
 
+import { SCREEN_RESOLUTION } from '../../utils/constants.js';
+
 /**
- * Default template configuration
+ * Default template when none specified
  * @type {Object}
  */
 export const DEFAULT_TEMPLATE = {
+  name: "default",
   shape: "★",
-  defaultColor: "white",
   defaultScale: 1,
-  physics: { mass: 1, friction: 0.1, elasticity: 0.8 },
-};
-
-/**
- * Screen resolution for coordinate scaling
- * @type {Object}
- */
-export const SCREEN_RESOLUTION = {
-  width: 1920,
-  height: 1080,
+  color: null,
 };
 
 /**

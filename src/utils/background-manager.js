@@ -493,45 +493,12 @@ export class BackgroundManager {
   /**
    * Render image background using kitty protocol
    * @returns {Promise<Object>} { imageData: string, opacity: number, blur: number }
-   *
-   * TODO: Image mode disabled - requires API integration for image downloads
-   * See generate-choreography-multi-agent.js Agent 2.5 for details
+   * 
+   * Note: Image mode requires API integration (Tavily, Unsplash, or Pexels)
    */
   async renderImage() {
-    // DISABLED - no image downloads available
+    // Image downloads not available - API integration required
     return { imageData: null, opacity: 1.0, blur: 0 };
-
-    /* COMMENTED OUT - Enable when Agent 2.5 is fixed
-    const config = this.currentConfig;
-    const imagePath = config.path;
-
-    if (!imagePath) {
-      return { imageData: null, opacity: 1.0, blur: 0 };
-    }
-
-    try {
-      // Read image file
-      const imageBuffer = await fs.readFile(imagePath);
-
-      // Generate kitty protocol image data
-      const imageData = await terminalImage.buffer(imageBuffer, {
-        width: this.terminalWidth,
-        height: this.terminalHeight,
-        preserveAspectRatio: config.fit !== 'stretch'
-      });
-
-      return {
-        imageData,
-        opacity: config.opacity ?? 1.0,
-        blur: config.blur ?? 0,
-        fit: config.fit || 'cover',
-        position: config.position || { x: 'center', y: 'center' }
-      };
-    } catch (error) {
-      console.error('Error rendering image:', error.message);
-      return { imageData: null, opacity: 1.0, blur: 0 };
-    }
-    */
   }
 
   /**
@@ -587,8 +554,7 @@ export class BackgroundManager {
         break;
 
       case 'image':
-        // TODO: Image mode disabled pending API integration
-        // Fall back to audio-reactive mode
+        // Image mode requires API integration - fallback to audio-reactive
         console.warn('Image background mode not available, using audio-reactive fallback');
         ansi = this.renderAudioReactive(amplitude);
         break;

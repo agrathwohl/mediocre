@@ -49,13 +49,15 @@ export {
   TimelineProcessor,
   ActionExecutor,
   DEFAULT_TEMPLATE,
-  SCREEN_RESOLUTION,
   SHAPE_MAP,
   DEFAULT_BPM,
   BEATS_PER_MEASURE,
   TRIGGER_TYPES,
   AUDIO_OPERATORS
 } from './choreography/index.js';
+
+// Constants
+export { SCREEN_RESOLUTION } from '../utils/constants.js';
 
 // Playlist modules
 export { PlaylistController } from './playlist/index.js';

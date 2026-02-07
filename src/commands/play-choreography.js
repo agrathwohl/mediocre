@@ -347,8 +347,7 @@ export async function playChoreography(options) {
 
   // Validate audio file
   if (!fs.existsSync(audio)) {
-    console.error(chalk.red(`Error: Audio file not found: ${audio}`));
-    process.exit(1);
+    throw new Error(`Audio file not found: ${audio}`);
   }
 
   // Auto-detect choreography file if not provided
@@ -372,9 +371,7 @@ export async function playChoreography(options) {
     }
 
     if (!choreographyPath) {
-      console.error(chalk.red('Error: No choreography file provided and auto-detection failed.'));
-      console.error(chalk.gray('Please provide a choreography JSON file path.'));
-      process.exit(1);
+      throw new Error('No choreography file provided and auto-detection failed. Please provide a choreography JSON file path.');
     }
   }
 
@@ -383,8 +380,7 @@ export async function playChoreography(options) {
   try {
     choreographyData = loadChoreography(choreographyPath);
   } catch (error) {
-    console.error(chalk.red(`Error loading choreography: ${error.message}`));
-    process.exit(1);
+    throw new Error(`Failed to load choreography: ${error.message}`);
   }
 
   console.log(chalk.green(`🎭 Loaded choreography: ${choreographyData.metadata?.name || choreographyData.metadata?.title || 'Untitled'}`));
@@ -462,9 +458,7 @@ export async function playChoreography(options) {
       const recording = await startScreenRecording(audio);
       recorderProcess = recording.process;
     } catch (error) {
-      console.error(chalk.red(`\n❌ Recording failed: ${error.message}`));
-      console.error(chalk.red(`Aborting playback.`));
-      process.exit(1);
+      throw new Error(`Screen recording failed: ${error.message}`);
     }
   }
 

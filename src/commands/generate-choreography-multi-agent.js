@@ -888,32 +888,7 @@ export async function generateChoreographyMultiAgent(prompt, metadata, descripti
     );
     console.log(chalk.gray(`  💾 Saved: ${agentOutputDir}/02-templates-parsed.json`));
 
-    // ========================================================================
-    // AGENT 2.5: Image Search and Download (DISABLED - BROKEN IMPLEMENTATION)
-    // ========================================================================
-    // TODO: CRITICAL - This implementation is fundamentally broken
-    //
-    // PROBLEM: Asking an LLM to "find images" returns TEXT DESCRIPTIONS,
-    //          not actual image URLs. The regex will match ZERO URLs in
-    //          typical LLM responses like "Here are some ocean images..."
-    //
-    // REQUIRED FIX - Replace with real image search API:
-    //   Option 1: Tavily web search with `include_images: true`
-    //   Option 2: Unsplash API (requires UNSPLASH_ACCESS_KEY)
-    //   Option 3: Pexels API (requires PEXELS_API_KEY)
-    //
-    // Example using Unsplash:
-    //   const response = await fetch(
-    //     `https://api.unsplash.com/search/photos?query=${query}&per_page=5`,
-    //     { headers: { 'Authorization': `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` } }
-    //   );
-    //   const data = await response.json();
-    //   const imageUrls = data.results.map(r => r.urls.regular);
-    //
-    // See code review report (adcb3dd) for full implementation details.
-    //
-    console.log(chalk.gray('  ⏭️  Agent 2.5 (Image Search): DISABLED - requires API integration'));
-    console.log(chalk.gray('     (Background events will use audio-reactive, static, or content modes)'));
+    // Image search disabled - requires API integration (Tavily, Unsplash, or Pexels)
     const downloadedImages = [];
 
     // ========================================================================

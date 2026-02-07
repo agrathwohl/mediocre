@@ -150,8 +150,7 @@ program
           customSystemPrompt = fs.readFileSync(options.systemPrompt, 'utf8');
           console.log(`Loaded custom system prompt from ${options.systemPrompt}`);
         } catch (error) {
-          console.error(`Error loading system prompt: ${error.message}`);
-          process.exit(1);
+          throw new Error(`Failed to load system prompt: ${error.message}`);
         }
       }
       
@@ -160,8 +159,7 @@ program
           customUserPrompt = fs.readFileSync(options.userPrompt, 'utf8');
           console.log(`Loaded custom user prompt from ${options.userPrompt}`);
         } catch (error) {
-          console.error(`Error loading user prompt: ${error.message}`);
-          process.exit(1);
+          throw new Error(`Failed to load user prompt: ${error.message}`);
         }
       }
       
@@ -549,14 +547,12 @@ program
           instructions = fs.readFileSync(options.instructionsFile, 'utf8');
           console.log(`Loaded modification instructions from ${options.instructionsFile}`);
         } catch (error) {
-          console.error(`Error loading instructions file: ${error.message}`);
-          process.exit(1);
+          throw new Error(`Failed to load instructions file: ${error.message}`);
         }
       }
 
       if (!instructions) {
-        console.error('Instructions are required. Use --instructions or --instructions-file.');
-        process.exit(1);
+        throw new Error('Instructions are required. Use --instructions or --instructions-file.');
       }
 
       const modifiedFile = await modifyComposition({
@@ -778,15 +774,11 @@ program
       } else if (options.abc) {
         await generateAsciiArt(options);
       } else {
-        console.error('Please specify --abc, --list, or --export');
-        console.log('Usage:');
-        console.log('  mediocre generate-ascii-art --abc <file.abc> [--count 8] [--style "retro"]');
-        console.log('  mediocre generate-ascii-art --list');
-        console.log('  mediocre generate-ascii-art --export <basename>');
-        process.exit(1);
+        throw new Error('Please specify --abc, --list, or --export.\n\nUsage:\n  mediocre generate-ascii-art --abc <file.abc> [--count 8] [--style "retro"]\n  mediocre generate-ascii-art --list\n  mediocre generate-ascii-art --export <basename>');
       }
     } catch (error) {
       console.error('Error with ASCII art command:', error);
+      throw error;
     }
   });
 
@@ -799,14 +791,9 @@ program
   .option('-o, --output <path>', 'Output directory', './output')
   .option('--sequential', 'Use iterative expansion to reach target density (0.18 events/s, 0.80 actions/s)')
   .option('-v, --verbose', 'Show detailed progress')
-  .action(async (options) => {
-    try {
+    .action(async (options) => {
       await generateChoreographyNew(options);
-    } catch (error) {
-      console.error('Error generating choreography:', error);
-      process.exit(1);
-    }
-  });
+    });
 
 // Hidden alias for generate-choreography-new (undocumented)
 program
@@ -819,12 +806,7 @@ program
   .option('--sequential', 'Use iterative expansion to reach target density (0.18 events/s, 0.80 actions/s)')
   .option('-v, --verbose', 'Show detailed progress')
   .action(async (options) => {
-    try {
-      await generateChoreographyNew(options);
-    } catch (error) {
-      console.error('Error generating choreography:', error);
-      process.exit(1);
-    }
+    await generateChoreographyNew(options);
   });
 
 program
@@ -832,12 +814,7 @@ program
   .description('Extract and save onset timing data from audio file')
   .option('-a, --abc <path>', 'Path to ABC notation file')
   .action(async (options) => {
-    try {
-      await generateOnsets(options);
-    } catch (error) {
-      console.error('Error generating onsets:', error);
-      process.exit(1);
-    }
+    await generateOnsets(options);
   });
 
 program
@@ -850,19 +827,14 @@ program
   .option('--no-descript', 'Skip subtitle/descript text overlay')
   .option('--record', 'Record screen to video file using gpu-screen-recorder')
   .action(async (audio, choreography, options) => {
-    try {
-      await playChoreography({
-        audio,
-        choreography,
-        osd: options.osd,
-        noTitle: options.noTitle,
-        noDescript: options.noDescript,
-        record: options.record
-      });
-    } catch (error) {
-      console.error('Error playing choreography:', error);
-      process.exit(1);
-    }
+    await playChoreography({
+      audio,
+      choreography,
+      osd: options.osd,
+      noTitle: options.noTitle,
+      noDescript: options.noDescript,
+      record: options.record
+    });
   });
 
 program

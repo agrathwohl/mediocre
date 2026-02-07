@@ -26,7 +26,6 @@ export { ChoreographyManager, DEFAULT_MAX_OBJECTS } from './choreography-manager
 export {
   TemplateResolver,
   DEFAULT_TEMPLATE,
-  SCREEN_RESOLUTION,
   SHAPE_MAP
 } from './template-resolver.js';
 

@@ -20,20 +20,13 @@
  * executor.executeMove(action, objectPool, activeObjects);
  */
 
-import { SCREEN_RESOLUTION } from './template-resolver.js';
-import chalk from 'chalk';
-import fs from 'fs';
+import { SCREEN_RESOLUTION } from '../../utils/constants.js';
 
 /**
  * Default screen resolution for coordinate scaling
  * @type {Object}
  */
 const DEFAULT_RESOLUTION = SCREEN_RESOLUTION || { width: 1920, height: 1080 };
-
-/**
- * Debug log file path
- */
-const DEBUG_LOG_FILE = '/tmp/play-choreography-debug.log';
 
 /**
  * ActionExecutor class for executing choreography actions
@@ -47,27 +40,6 @@ export class ActionExecutor {
   constructor(templateResolver, renderManager = null) {
     this.templateResolver = templateResolver;
     this.renderManager = renderManager;
-    this.debugLogged = false;
-    
-    // Clear debug log
-    try {
-      fs.writeFileSync(DEBUG_LOG_FILE, `Debug log started at ${new Date().toISOString()}\n\n`);
-    } catch (e) {
-      // Ignore write errors
-    }
-    
-    // Cache terminal dimensions
-    this.termCols = process.stdout.columns || 80;
-    this.termRows = process.stdout.rows || 24;
-  }
-
-  /**
-   * Updates cached terminal dimensions
-   * Call when terminal is resized
-   */
-  updateTerminalDimensions() {
-    this.termCols = process.stdout.columns || 80;
-    this.termRows = process.stdout.rows || 24;
   }
 
   /**
@@ -170,15 +142,6 @@ export class ActionExecutor {
         const centroidScaledX = (this.templateResolver.centroid.x / DEFAULT_RESOLUTION.width) * termCols;
         const offsetX = termCenterX - centroidScaledX;
         x = scaledX + offsetX;
-        
-        // Debug: Log first spawn calculation to file
-        if (!this.debugLogged) {
-          const debugInfo = `DEBUG: position.x=${action.position.x}, scaledX=${scaledX.toFixed(2)}, centroid.x=${this.templateResolver.centroid.x}, centroidScaledX=${centroidScaledX.toFixed(2)}, termCenterX=${termCenterX}, offsetX=${offsetX.toFixed(2)}, finalX=${x.toFixed(2)}\n`;
-          try {
-            fs.appendFileSync(DEBUG_LOG_FILE, debugInfo);
-          } catch (e) {}
-          this.debugLogged = true;
-        }
       } else {
         x = action.position.x;
       }
