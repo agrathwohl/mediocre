@@ -9,6 +9,7 @@ import { program } from 'commander';
 import { config } from './utils/config.js';
 import { parseGenreList, generateMultipleHybridGenres } from './utils/genre-generator.js';
 import { generateAbc } from './commands/generate-abc.js';
+import { generateMxml } from './commands/generate-mxml.js';
 import { convertToMidi } from './commands/convert-midi.js';
 import { convertToPdf } from './commands/convert-pdf.js';
 import { convertToWav } from './commands/convert-wav.js';
@@ -16,6 +17,7 @@ import { processEffects } from './commands/process-effects.js';
 import { buildDataset } from './commands/build-dataset.js';
 import { listCompositions, displayCompositionInfo, createMoreLikeThis } from './commands/manage-dataset.js';
 import { modifyComposition } from './commands/modify-composition.js';
+import { modifyMxmlComposition } from './commands/modify-mxml-composition.js';
 import { combineCompositions } from './commands/combine-compositions.js';
 import { generateLyrics } from './commands/generate-lyrics.js';
 import { mixAndMatch } from './commands/mix-and-match.js';
@@ -25,7 +27,7 @@ import { generateChoreographyNew } from './commands/generate-choreography-new.js
 import { generateOnsets } from './commands/generate-onsets.js';
 import { playChoreography } from './commands/play-choreography.js';
 import { createDatasetBrowser } from './ui/index.js';
-import { validateAbcNotation, cleanAbcNotation, evaluateCompositionCompleteness, validateWithAbc2Midi } from './utils/claude.js';
+import { validateAbcNotation, cleanAbcNotation, evaluateCompositionCompleteness, validateWithAbc2Midi, modifyMusicXmlComposition, evaluateMusicXmlCompleteness, validateWithMusicXmlParser } from './utils/claude.js';
 import { extractMidiStems } from './utils/stem-extractor.js';
 
 // ES module path resolution
@@ -419,6 +421,286 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
   });
 
 program
+  .command('generate-mxml')
+  .description('Generate MusicXML notation files using Claude Sonnet 4.5')
+  .option('-c, --count <number>', 'Number of compositions to generate', '1')
+  .option('-g, --genre <value>', 'Music genre or hybrid genre (format: classical_x_modern)')
+  .option('-s, --style <value>', 'Music style')
+  .option('-C, --classical <genres>', 'Comma-separated list of classical/traditional genres for hybrid generation')
+  .option('-M, --modern <genres>', 'Comma-separated list of modern genres for hybrid generation')
+  .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
+  .option('--system-prompt <file>', 'Path to a file containing a custom system prompt for Claude')
+  .option('--user-prompt <file>', 'Path to a file containing a custom user prompt for Claude')
+  .option('--creative-names', '[EXPERIMENTAL] Generate creative genre names instead of standard hybrid format (may produce unpredictable results)', false)
+  .option('--solo', 'Include a musical solo section for the lead instrument')
+  .option('--record-label <name>', 'Make it sound like it was released on the given record label')
+  .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
+  .option('--instruments <list>', 'Comma-separated list of instruments the output MusicXML must include')
+  .option('--sequential', 'Use sequential LLM expansion to create longer, more developed compositions through chained modifications')
+  .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
+  .action(async (options) => {
+    try {
+      let genres = [];
+
+      // If classical and modern genres are provided, generate hybrid genres
+      if (options.classical || options.modern) {
+        const classicalGenres = parseGenreList(options.classical);
+        const modernGenres = parseGenreList(options.modern);
+        const count = parseInt(options.count || '1', 10);
+
+        // Generate enough hybrid genres for the requested composition count
+        genres = generateMultipleHybridGenres(classicalGenres, modernGenres, count);
+
+        console.log('\nGenerated Hybrid Genres for Composition:\n');
+        genres.forEach((genre, index) => {
+          console.log(`${index + 1}. ${genre.name}`);
+        });
+      } else if (options.genre) {
+        // Use a single specified genre for all compositions
+        for (let i = 0; i < parseInt(options.count || '1', 10); i++) {
+          genres.push({ name: options.genre });
+        }
+      } else {
+        // Generate a single random hybrid genre
+        genres = generateMultipleHybridGenres([], [], parseInt(options.count || '1', 10));
+
+        console.log('\nGenerated Random Hybrid Genres for Composition:\n');
+        genres.forEach((genre, index) => {
+          console.log(`${index + 1}. ${genre.name}`);
+        });
+      }
+
+      // Load custom prompts if provided
+      let customSystemPrompt = null;
+      let customUserPrompt = null;
+
+      if (options.systemPrompt) {
+        try {
+          customSystemPrompt = fs.readFileSync(options.systemPrompt, 'utf8');
+          console.log(`Loaded custom system prompt from ${options.systemPrompt}`);
+        } catch (error) {
+          throw new Error(`Failed to load system prompt: ${error.message}`);
+        }
+      }
+
+      if (options.userPrompt) {
+        try {
+          customUserPrompt = fs.readFileSync(options.userPrompt, 'utf8');
+          console.log(`Loaded custom user prompt from ${options.userPrompt}`);
+        } catch (error) {
+          throw new Error(`Failed to load user prompt: ${error.message}`);
+        }
+      }
+
+      // Generate MusicXML notation for each genre
+      const allFiles = [];
+
+      for (const genre of genres) {
+        const genreOptions = {
+          genre: genre.name,
+          style: options.style || 'standard',
+          count: 1, // Generate one composition per genre
+          output: options.output,
+          systemPrompt: customSystemPrompt,
+          userPrompt: customUserPrompt,
+          creativeNames: options.creativeNames === true,
+          solo: options.solo || false,
+          recordLabel: options.recordLabel || '',
+          producer: options.producer || '',
+          instruments: options.instruments || '',
+          sequentialMode: options.sequential || false,
+          useStreaming: options.streamText || false
+        };
+
+        const files = await generateMxml(genreOptions);
+
+        // If sequential mode is enabled, let the LLM decide when the composition is complete
+        if (options.sequential && files.length > 0) {
+          console.log('\n🔗 Sequential expansion mode enabled - LLM will evaluate and expand until complete...\n');
+
+          const MAX_PASSES = 10; // Safety limit to prevent infinite loops
+
+          for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+            let currentFile = files[fileIndex];
+            let currentMxml = fs.readFileSync(currentFile, 'utf8');
+            console.log(`\n📝 Evaluating composition ${fileIndex + 1}/${files.length}: ${currentFile}`);
+
+            // Validate initial generation with MusicXML parser
+            console.log(`  🔧 Validating initial generation with MusicXML parser...`);
+            let initialValidation = await validateWithMusicXmlParser(currentFile);
+
+            if (!initialValidation.valid) {
+              console.warn(`  ⚠️ Initial generation failed MusicXML validation: ${initialValidation.error}`);
+              console.log(`  🔧 Attempting to fix initial MusicXML notation...`);
+
+              const fixedMxml = await modifyMusicXmlComposition({
+                musicXml: currentMxml,
+                instructions: `FIX THIS MUSICXML NOTATION - IT FAILED VALIDATION WITH ERROR: "${initialValidation.error}".
+DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE MUSICXML NOTATION.
+Return the FIXED MusicXML notation that will pass validation without errors.`,
+                solo: options.solo || false,
+                recordLabel: options.recordLabel || '',
+                producer: options.producer || '',
+                instruments: options.instruments || '',
+                useStreaming: options.streamText || false
+              });
+
+              // Save the fixed version
+              fs.writeFileSync(currentFile, fixedMxml);
+              currentMxml = fixedMxml;
+
+              initialValidation = await validateWithMusicXmlParser(currentFile);
+              if (!initialValidation.valid) {
+                console.error(`  ❌ FATAL: Cannot fix initial generation. Skipping this composition.`);
+                continue;
+              }
+
+              console.log(`  ✅ Initial MusicXML notation fixed!`);
+            } else {
+              console.log(`  ✅ Initial generation passes MusicXML validation`);
+            }
+
+            // Extract genre info from filename for evaluation
+            const baseFilename = path.basename(currentFile, '.musicxml');
+            let genre = 'Classical_x_Contemporary';
+            let classicalGenre = 'Classical';
+            let modernGenre = 'Contemporary';
+
+            if (baseFilename.includes('_x_')) {
+              genre = baseFilename.split('-score')[0];
+              const parts = genre.split('_x_');
+              if (parts.length === 2) {
+                classicalGenre = parts[0];
+                modernGenre = parts[1];
+              }
+            }
+
+            let passNumber = 0;
+            let needsExpansion = true;
+
+            while (needsExpansion && passNumber < MAX_PASSES) {
+              passNumber++;
+              console.log(`\n  🔍 Pass ${passNumber}: Evaluating composition completeness...`);
+
+              try {
+                // Ask the LLM to evaluate if the composition needs more work
+                const evaluation = await evaluateMusicXmlCompleteness({
+                  musicXml: currentMxml,
+                  genre,
+                  classicalGenre,
+                  modernGenre,
+                  currentPass: passNumber
+                });
+
+                console.log(`  📊 Evaluation: ${evaluation.reasoning}`);
+
+                if (!evaluation.needsExpansion) {
+                  console.log(`  ✅ Composition is complete!`);
+                  needsExpansion = false;
+                  break;
+                }
+
+                console.log(`  📝 Expanding: ${evaluation.instructions.substring(0, 100)}...`);
+
+                // Apply the LLM-suggested modifications
+                const modifiedMxml = await modifyMusicXmlComposition({
+                  musicXml: currentMxml,
+                  instructions: evaluation.instructions,
+                  genre,
+                  classicalGenre,
+                  modernGenre,
+                  solo: options.solo || false,
+                  recordLabel: options.recordLabel || '',
+                  producer: options.producer || '',
+                  instruments: options.instruments || '',
+                  useStreaming: options.streamText || false
+                });
+
+                // Create a new file for this iteration
+                const timestamp = Date.now();
+                const modifiedFilename = `${genre}-modified-${timestamp}.musicxml`;
+                const modifiedFilePath = path.join(path.dirname(currentFile), modifiedFilename);
+                fs.writeFileSync(modifiedFilePath, modifiedMxml);
+
+                // VALIDATE with MusicXML parser after each expansion
+                console.log(`  🔧 Validating with MusicXML parser...`);
+                let validation = await validateWithMusicXmlParser(modifiedFilePath);
+
+                if (!validation.valid) {
+                  console.warn(`  ⚠️ MusicXML validation failed: ${validation.error}`);
+                  console.log(`  🔧 Attempting to fix the MusicXML notation...`);
+
+                  const fixedMxml = await modifyMusicXmlComposition({
+                    musicXml: modifiedMxml,
+                    instructions: `FIX THIS MUSICXML NOTATION - IT FAILED VALIDATION WITH ERROR: "${validation.error}".
+
+DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE MUSICXML NOTATION.
+Return the FIXED MusicXML notation that will pass validation without errors.`,
+                    solo: options.solo || false,
+                    recordLabel: options.recordLabel || '',
+                    producer: options.producer || '',
+                    instruments: options.instruments || '',
+                    useStreaming: options.streamText || false
+                  });
+
+                  fs.writeFileSync(modifiedFilePath, fixedMxml);
+                  validation = await validateWithMusicXmlParser(modifiedFilePath);
+
+                  if (!validation.valid) {
+                    console.error(`  ❌ FATAL: Fix attempt also failed MusicXML validation: ${validation.error}`);
+                    console.error(`  ❌ STOPPING GENERATION - MusicXML notation is unfixable`);
+                    needsExpansion = false;
+                    break;
+                  }
+
+                  console.log(`  ✅ MusicXML notation fixed successfully!`);
+                  currentFile = modifiedFilePath;
+                  currentMxml = fixedMxml;
+                } else {
+                  console.log(`  ✅ MusicXML validation passed`);
+                  currentFile = modifiedFilePath;
+                  currentMxml = modifiedMxml;
+                }
+
+                console.log(`  ✅ Pass ${passNumber} complete: ${currentFile}`);
+
+              } catch (passError) {
+                console.error(`  ❌ Error in pass ${passNumber}:`, passError.message);
+                // Break on error to avoid infinite error loops
+                break;
+              }
+            }
+
+            if (passNumber >= MAX_PASSES) {
+              console.log(`  ⚠️ Reached maximum ${MAX_PASSES} passes - stopping expansion`);
+            }
+
+            // Rename the final file to indicate it's the completed sequential output
+            const finalFilename = currentFile.replace(/-modified-(\d+)\.musicxml$/, '-modified-final-$1.musicxml');
+            if (finalFilename !== currentFile && fs.existsSync(currentFile)) {
+              fs.renameSync(currentFile, finalFilename);
+              console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
+              currentFile = finalFilename;
+            }
+
+            // Replace the original file reference with the final expanded version
+            files[fileIndex] = currentFile;
+            console.log(`\n  🎵 Final composition after ${passNumber} passes: ${currentFile}`);
+          }
+
+          console.log('\n🎵 Sequential expansion complete!\n');
+        }
+
+        allFiles.push(...files);
+      }
+
+      console.log(`\nGenerated ${allFiles.length} MusicXML composition(s) total`);
+    } catch (error) {
+      console.error('Error generating MusicXML compositions:', error);
+    }
+  });
+
+program
   .command('convert')
   .description('Convert ABC files to MIDI, PDF, and WAV')
   .option('-i, --input <file>', 'Input ABC file')
@@ -632,6 +914,49 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
       }
     } catch (error) {
       console.error('Error modifying composition:', error);
+    }
+  });
+
+program
+  .command('modify-mxml')
+  .description('Modify an existing MusicXML composition according to instructions')
+  .argument('<mxmlFile>', 'Direct file path to MusicXML notation file to modify')
+  .option('-i, --instructions <text>', 'Instructions for modifying the composition')
+  .option('-f, --instructions-file <file>', 'File containing instructions for modifying the composition')
+  .option('-o, --output <directory>', 'Output directory for the modified composition')
+  .option('--solo', 'Include a musical solo section for the lead instrument')
+  .option('--record-label <name>', 'Make it sound like it was released on the given record label')
+  .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
+  .option('--instruments <list>', 'Comma-separated list of instruments the output MusicXML must include')
+  .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
+  .action(async (mxmlFile, options) => {
+    try {
+      let instructions = options.instructions;
+
+      // If instructions file is provided, read from it
+      if (options.instructionsFile && !instructions) {
+        try {
+          instructions = fs.readFileSync(options.instructionsFile, 'utf8');
+          console.log(`Loaded modification instructions from ${options.instructionsFile}`);
+        } catch (error) {
+          throw new Error(`Failed to load instructions file: ${error.message}`);
+        }
+      }
+
+      if (!instructions) {
+        throw new Error('Instructions are required. Use --instructions or --instructions-file.');
+      }
+
+      const modifiedFile = await modifyMxmlComposition({
+        ...options,
+        mxmlFile,
+        instructions,
+        useStreaming: options.streamText || false
+      });
+
+      console.log(`Modified MusicXML composition saved to: ${modifiedFile}`);
+    } catch (error) {
+      console.error('Error modifying MusicXML composition:', error);
     }
   });
 
@@ -946,13 +1271,15 @@ if (process.argv.length === 2) {
   Commands:
     genres         Generate hybrid genre names by combining classical and modern genres
     generate       Generate ABC notation files using Claude (default)
+    generate-mxml  Generate MusicXML notation files using Claude Sonnet 4.5
     convert        Convert ABC files to MIDI, PDF, and WAV
     process        Apply audio effects to WAV files
     dataset        Build dataset from generated files
     list           List and sort compositions in the output directory
     info           Display detailed information about a composition
     more-like-this Generate more compositions similar to the specified one
-    modify         Modify an existing composition according to instructions
+    modify         Modify an existing ABC composition according to instructions
+    modify-mxml    Modify an existing MusicXML composition according to instructions
     combine        Find short compositions and combine them into new pieces
     mix-and-match  Create a new composition by mixing and matching segments from multiple ABC files
     lyrics         Add lyrics to an existing composition using Claude
@@ -968,6 +1295,8 @@ if (process.argv.length === 2) {
     mediocre -g "baroque_x_jazz"                          # Defaults to generate command
     mediocre genres -c "baroque,classical,romantic" -m "techno,ambient,glitch" -n 5
     mediocre generate -C "baroque,classical" -M "techno,ambient" -c 3
+    mediocre generate-mxml -g "baroque_x_jazz" --sequential --stream-text
+    mediocre modify-mxml "/path/to/composition.musicxml" -i "Add a dramatic climax section" --stream-text
     mediocre generate -g "baroque_x_jazz" --system-prompt my-prompt.txt --solo
     mediocre generate -g "baroque_x_jazz" --record-label "Merge Records"
     mediocre generate -g "baroque_x_jazz" --producer "Phil Spector"

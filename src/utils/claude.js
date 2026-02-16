@@ -11,9 +11,69 @@ import {
   getSoundFontsForGenre,
   BANNED_SOUNDFONTS,
 } from "./soundfont-tools.js";
+import { parse as parseMusicXml } from "musicxml-io";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Soundfont palette information for LLM prompts
+ * Based on timidity-sanitized.cfg layered soundfont stack
+ */
+const SOUNDFONT_PALETTE_INFO = `AVAILABLE SOUNDFONT PALETTE - Your compositions will be rendered with this layered soundfont stack:
+   The soundfonts are LAYERED - later soundfonts override earlier ones for the same MIDI programs.
+   This gives you a rich, hybrid sonic palette perfect for genre fusion.
+
+   **BASE LAYER - Full GM/GS/GM2/XG Coverage**:
+   - GeneralUser GS, FluidR3 GM+GS, Phoenix GS/XG, Yamaha S-YXG50, SGM-128
+   - Comprehensive General MIDI foundation with extended banks
+
+   **SYNTHS & ELECTRONIC** (Great for: Synthwave, Electronic, Ambient, Industrial):
+   - FM Synthesis, OPL-3 FM, RetroHybrid, FatBoy
+   - 80s/90s synth sounds, FM timbres, analog-style synthesis
+
+   **DRUMS - Extensive Coverage** (Jazz/Rock/Electronic/Industrial/XG):
+   - Slingerland (jazz), Linndrum (80s electronic), Tama RockSTAR (rock/metal)
+   - Giant Drumkit GM-GS & XG extensions
+   - Multiple drum kits available via MIDI program selection
+
+   **GUITARS & BASS** (Rock, Metal, Jazz, Funk):
+   - Electric guitars (JN v4.4, GM, Metal-specific)
+   - Ibanez picked bass (articulate, modern sound)
+
+   **ETHNIC & WORLD INSTRUMENTS**:
+   - Asia/Ethnic soundfont (8850+ Asian and world instruments)
+   - Expand your palette beyond Western instruments
+
+   **CHIPTUNE & RETRO** (8-bit, NES, Game Boy aesthetics):
+   - Chiptune Soundfont 3.0
+   - Perfect for retro gaming fusion genres
+
+   **ORCHESTRAL - High Quality** (Classical, Cinematic, Film):
+   - Timbres of Heaven GM/GS/XG/SFX v3.4 & XGM 4.0
+   - HQ Orchestral Collection v3.0
+   - Rich, expressive classical instrument samples
+
+   **HARDWARE EMULATION** (Authentic vintage sound):
+   - Roland SC-55/SC-88 (iconic 90s GM sound)
+   - Roland JV-1010, Edirol SD-20 (contemporary professional)
+
+   **PREMIUM PIANO**:
+   - Z-Doc Soundfont IV (concert grand quality)
+
+   **PREMIUM GM BANKS** (Final override layer):
+   - Airfont 380, SGMv2 (Yamaha Grand, Guitar, Bass)
+   - Concert GM, HedsoundGMT, TrianGMGS, Compifont
+   - Orpheus, Crisis GM 3.01 (comprehensive, high-quality)
+
+   USE THIS KNOWLEDGE: When fusing genres, leverage the appropriate soundfonts:
+   - "Baroque x Synthwave" → Combine orchestral instruments with FM synths and electronic drums
+   - "Jazz x Chiptune" → Jazz drums/bass with chiptune leads and arpeggios
+   - "Romantic x Industrial" → Orchestral strings/piano with distorted guitars and industrial drums
+   - "Gamelan x Techno" → Ethnic percussion with electronic synth pads and bass
+
+   The layered soundfont stack means standard GM program numbers will sound RICH and HYBRID.
+   Don't be afraid to use conventional MIDI programs - they'll have character from the layering.`;
 
 /**
  * Load existing composition titles from docs/data/compositions.json
@@ -213,10 +273,7 @@ Select the optimal soundfont combination. Return ONLY the JSON response.`;
     });
 
     // Parse the JSON response
-    let jsonStr = text.trim();
-    if (jsonStr.startsWith("```")) {
-      jsonStr = jsonStr.replace(/```json?\n?/g, "").replace(/```\n?/g, "");
-    }
+    const jsonStr = stripMarkdownCodeFences(text);
 
     const result = JSON.parse(jsonStr);
 
@@ -556,6 +613,19 @@ export async function validateWithAbc2Midi(abcFilePath) {
 }
 
 /**
+ * Strip markdown code fences from LLM output
+ * @param {string} text - Text that may contain markdown code fences
+ * @returns {string} Text with code fences removed
+ */
+function stripMarkdownCodeFences(text) {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("```")) {
+    return trimmed.replace(/^```[a-z]*\n?/g, "").replace(/\n?```$/g, "");
+  }
+  return trimmed;
+}
+
+/**
  * Creates a custom Anthropic instance with the provided API key
  * @returns {object} The Anthropic provider instance
  */
@@ -703,6 +773,8 @@ ABC2MIDI EXTENSIONS REFERENCE - Use these freely:
     71 (Short Whistle - B4), 72 (Long Whistle - C5), 73 (Short Guiro - C#5), 74 (Long Guiro - D5),
     78 (Mute Cuica - F#5), 79 (Open Cuica - G5)
     These percussion sounds are annoying novelty effects.
+
+${SOUNDFONT_PALETTE_INFO}
 
 3. DYNAMICS & EXPRESSION:
    - Standard dynamics: !ppp! !pp! !p! !mp! !mf! !f! !ff! !fff!
@@ -1360,4 +1432,583 @@ Your result should be a singable composition with lyrics that fit both the music
   });
 
   return cleanAbcNotation(text);
+}
+
+/**
+ * Generate MusicXML notation using Claude Sonnet 4.5
+ * @param {Object} options - Generation options
+ * @param {string} options.genre - Music genre (hybrid format preferred: Classical_x_Modern)
+ * @param {string} options.classicalGenre - Classical component
+ * @param {string} options.modernGenre - Modern component
+ * @param {string} [options.style='standard'] - Music style
+ * @param {number} [options.temperature=0.7] - Generation temperature
+ * @param {string} [options.customSystemPrompt] - Custom system prompt
+ * @param {string} [options.customUserPrompt] - Custom user prompt
+ * @param {boolean} [options.solo=false] - Include a musical solo section
+ * @param {string} [options.recordLabel] - Record label aesthetic
+ * @param {string} [options.producer] - Producer aesthetic
+ * @param {string} [options.instruments] - Comma-separated list of required instruments
+ * @param {boolean} [options.sequentialMode=false] - Focus on quality over completeness
+ * @param {boolean} [options.useStreaming=false] - Use streaming mode
+ * @returns {Promise<string>} Generated MusicXML notation
+ */
+export async function generateMusicXmlWithClaude(options) {
+  const myAnthropic = getAnthropic();
+  const genre = options.genre || "Classical_x_Contemporary";
+  const classicalGenre = options.classicalGenre || "Classical";
+  const modernGenre = options.modernGenre || "Contemporary";
+  const style = options.style || "standard";
+  const includeSolo = options.solo || false;
+  const recordLabel = options.recordLabel || "";
+  const producer = options.producer || "";
+  const requestedInstruments = options.instruments || "";
+  const sequentialMode = options.sequentialMode || false;
+
+  // ALWAYS use Claude Sonnet 4.5 for MusicXML generation
+  const model = myAnthropic("claude-sonnet-4-5-20250929");
+
+  // Use custom system prompt if provided, otherwise use the default
+  const systemPrompt =
+    options.customSystemPrompt ||
+    `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
+Your task is to create a composition that authentically blends elements of both ${classicalGenre} and ${modernGenre} musical traditions.
+
+⚠️ CRITICAL OUTPUT FORMAT INSTRUCTIONS ⚠️
+DO NOT wrap your output in markdown code fences (\`\`\`xml or \`\`\` blocks).
+DO NOT include ANY explanatory text before or after the MusicXML.
+Your response must start IMMEDIATELY with: <?xml version="1.0" encoding="UTF-8"?>
+Your response must end IMMEDIATELY with: </score-partwise>
+NO markdown formatting. NO code fences. PURE XML ONLY.
+Failure to follow this will result in completely unplayable music files.
+
+Return ONLY the raw MusicXML notation, starting with the XML declaration and ending with the closing score-partwise tag.
+
+Guidelines for the ${genre} fusion:
+
+1. From ${classicalGenre}, incorporate:
+   - Appropriate harmonic structures
+   - Melodic patterns and motifs
+   - Formal structures
+   - Typical instrumentation choices
+
+2. From ${modernGenre}, incorporate:
+   - Rhythmic elements
+   - Textural approaches
+   - Production aesthetics
+   - Distinctive sounds or techniques
+
+3. Technical guidelines:
+${
+  sequentialMode
+    ? `
+   You are NOT LIKELY to be the only agent working on this piece. If you are beginning a new piece from scratch you are only the first agent in a chain of agents. Another AI agent may expand and develop your work based upon the findings of the "Composition Completion" agent once your work has finished. So, DO NOT worry about:
+   - Making the piece long enough
+   - Creating a complete structure with full development and conclusion
+   - Filling out all sections
+
+   INSTEAD, focus ALL your energy on:
+   - Creating EXCEPTIONAL thematic material that is worth developing
+   - Establishing compelling melodic motifs and harmonic progressions
+   - Writing music that is genuinely interesting and innovative
+   - Setting up ideas that have potential for expansion
+   - Making every measure COUNT - quality over quantity
+
+   Create a strong FOUNDATION with brilliant ideas or expanding upon the brilliant ideas of the agents that came before you. The next agent, if the composition completion agent decides it is necessary, will expand it to get closer to completion.`
+    : `   - Create a composition that is 64 or more measures long`
+}
+   - Use appropriate time signatures, key signatures, and tempos that bridge both genres
+   - Include appropriate articulations, dynamics, and other musical notations
+   ${includeSolo ? "- Include a dedicated solo section for the lead instrument, clearly marked in the notation" : ""}
+   ${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ""}
+   ${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ""}
+   ${requestedInstruments ? `- Your composition MUST include at minimum these instruments: ${requestedInstruments}. Use proper MusicXML instrument definitions for each. You are encouraged to add additional instruments that complement these and that are authentic to the ${classicalGenre} and ${modernGenre} traditions being fused.` : ""}
+   - Ensure the MusicXML notation is properly formatted and valid
+   - Use full MusicXML 3.1+ specification features for rich, dynamic compositions
+   - Include proper part-list with instrument names and MIDI program numbers
+   - Use measure numbers, rehearsal marks, and tempo markings
+   - Include dynamics (pp, p, mp, mf, f, ff), articulations (staccato, accent, tenuto), and expressive markings
+
+${SOUNDFONT_PALETTE_INFO}
+
+MUSICXML STRUCTURE REQUIREMENTS:
+- Start with proper XML declaration: <?xml version="1.0" encoding="UTF-8"?>
+- Include DOCTYPE: <!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+- Root element: <score-partwise version="3.1">
+- Include work title and composer in <identification> section
+- Define all parts in <part-list> with instrument names and MIDI programs
+- Use <part id="P1">, <part id="P2">, etc. for each instrument
+- Each measure must have proper <attributes> including time signature, key signature, and clef
+- Use <sound tempo="120"/> for tempo markings
+- Include <direction> elements for dynamics and expressive text
+- Use <barline> elements for structural markers
+
+The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. We do not need a bunch of music that sounds like stuff already out there. We want to see what YOU, the artificial intelligence, think is most interesting about these genre hybrids.`;
+
+  // Use custom user prompt if provided, otherwise use the default
+  const userPrompt =
+    options.customUserPrompt ||
+    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? " Include a dedicated solo section for the lead instrument." : ""}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? ` Your composition MUST include at minimum these instruments: ${requestedInstruments}. Use proper MusicXML instrument definitions for each. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""}${sequentialMode ? ` IMPORTANT: Focus on QUALITY over length. Create exceptional thematic material in 16-32 measures. Another agent will expand your work - your job is to create brilliant foundational ideas worth developing.` : ` The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`}
+
+Return valid MusicXML 3.1 notation with all proper structure and elements.`;
+
+  // Generate the MusicXML notation
+  const messages = [
+    {
+      role: "system",
+      content: systemPrompt,
+      experimental_providerMetadata: {
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
+    },
+    { role: "user", content: userPrompt },
+  ];
+
+  // Use streaming if requested - helps avoid timeout errors on large generations
+  if (options.useStreaming) {
+    console.log("Using streaming mode for generation...");
+    const result = await streamText({
+      model,
+      messages,
+      temperature: options.temperature || 0.7,
+      maxTokens: 40000,
+    });
+
+    // Collect the full response from the stream
+    let text = "";
+    for await (const chunk of result.textStream) {
+      text += chunk;
+      // Show progress indicator
+      if (text.length % 1000 === 0) {
+        process.stdout.write(".");
+      }
+    }
+    console.log("\nStreaming complete.");
+    return stripMarkdownCodeFences(text);
+  }
+
+  // Non-streaming mode
+  const { text } = await generateText({
+    model,
+    messages,
+    temperature: options.temperature || 0.7,
+    maxTokens: 40000,
+  });
+
+  return stripMarkdownCodeFences(text);
+}
+
+/**
+ * Validate MusicXML notation
+ * @param {string} musicXml - MusicXML content to validate
+ * @returns {Object} Validation result with isValid boolean and issues array
+ */
+export function validateMusicXml(musicXml) {
+  const issues = [];
+  let isValid = true;
+
+  try {
+    // Use musicxml-io to parse and validate the MusicXML
+    const parsed = parseMusicXml(musicXml);
+
+    // Check if parsing was successful and structure is valid
+    if (!parsed) {
+      issues.push("Failed to parse MusicXML");
+      isValid = false;
+      return { isValid, issues };
+    }
+
+    // Validate basic structure requirements
+    if (!parsed.partList || parsed.partList.length === 0) {
+      issues.push("No parts defined in part-list");
+      isValid = false;
+    }
+
+    if (!parsed.parts || Object.keys(parsed.parts).length === 0) {
+      issues.push("No part content found");
+      isValid = false;
+    }
+
+    // Check that each part has measures
+    for (const partId in parsed.parts) {
+      const measures = parsed.parts[partId];
+      if (!measures || measures.length === 0) {
+        issues.push(`Part ${partId} has no measures`);
+        isValid = false;
+      }
+    }
+
+    // If we got here with no issues, validation passed
+    if (issues.length === 0) {
+      console.log(`  ✓ MusicXML parsed successfully with ${Object.keys(parsed.parts).length} part(s)`);
+    }
+
+  } catch (error) {
+    // musicxml-io threw an error during parsing
+    issues.push(`MusicXML parsing error: ${error.message}`);
+    isValid = false;
+  }
+
+  return {
+    isValid,
+    issues,
+  };
+}
+
+/**
+ * Generate a description for a MusicXML composition
+ * @param {Object} options - Description options
+ * @param {string} options.musicXml - MusicXML notation
+ * @param {string} options.genre - Genre of the composition
+ * @param {string} options.classicalGenre - Classical component
+ * @param {string} options.modernGenre - Modern component
+ * @param {string} options.style - Music style
+ * @returns {Promise<Object>} Description object with analysis and metadata
+ */
+export async function generateMusicXmlDescription(options) {
+  const myAnthropic = getAnthropic();
+  const musicXml = options.musicXml;
+  const genre = options.genre || "Classical_x_Contemporary";
+  const classicalGenre = options.classicalGenre || "Classical";
+  const modernGenre = options.modernGenre || "Contemporary";
+  const style = options.style || "standard";
+
+  // ALWAYS use Claude Sonnet 4.5 for MusicXML description
+  const model = myAnthropic("claude-sonnet-4-5-20250929");
+
+  const systemPrompt = `You are a music critic and analyst specializing in hybrid genre compositions.
+Analyze the provided MusicXML notation and create a detailed description of the composition.
+Focus on how it blends ${classicalGenre} and ${modernGenre} elements.
+
+You MUST respond in this EXACT JSON format:
+{
+  "title": "Extracted or inferred title",
+  "genre": "${genre}",
+  "classicalGenre": "${classicalGenre}",
+  "modernGenre": "${modernGenre}",
+  "style": "${style}",
+  "instruments": ["instrument1", "instrument2", ...],
+  "tempo": "tempo marking if present",
+  "timeSignature": "time signature",
+  "keySignature": "key signature",
+  "measures": number of measures,
+  "analysis": "Multi-paragraph analysis of the composition, discussing how it fuses ${classicalGenre} and ${modernGenre} elements, its structure, thematic material, harmonic language, and overall artistic merit."
+}`;
+
+  const userPrompt = `Analyze this ${genre} composition in MusicXML format and provide a detailed description:
+
+${musicXml.length > 10000 ? musicXml.substring(0, 10000) + "\n...(truncated for analysis)" : musicXml}
+
+Provide your analysis in the specified JSON format.`;
+
+  const { text } = await generateText({
+    model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.5,
+    maxTokens: 2000,
+  });
+
+  // Parse the JSON response
+  const jsonStr = stripMarkdownCodeFences(text);
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch (error) {
+    console.warn("Failed to parse description JSON, using fallback");
+    return {
+      title: "Untitled",
+      genre,
+      classicalGenre,
+      modernGenre,
+      style,
+      instruments: [],
+      tempo: "Unknown",
+      timeSignature: "Unknown",
+      keySignature: "Unknown",
+      measures: 0,
+      analysis: text,
+    };
+  }
+}
+
+/**
+ * Modify an existing MusicXML composition based on user instructions
+ * @param {Object} options - Modification options
+ * @param {string} options.musicXml - Original MusicXML notation to modify
+ * @param {string} options.instructions - User instructions for the modification
+ * @param {string} [options.genre] - Hybrid genre name
+ * @param {string} [options.classicalGenre] - Classical component
+ * @param {string} [options.modernGenre] - Modern component
+ * @param {boolean} [options.solo] - Include solo section
+ * @param {string} [options.recordLabel] - Record label aesthetic
+ * @param {string} [options.producer] - Producer aesthetic
+ * @param {string} [options.instruments] - Required instruments
+ * @param {number} [options.temperature=0.7] - Temperature for generation
+ * @param {boolean} [options.useStreaming=false] - Use streaming mode
+ * @returns {Promise<string>} Modified MusicXML notation
+ */
+export async function modifyMusicXmlComposition(options) {
+  const myAnthropic = getAnthropic();
+  const model = myAnthropic("claude-sonnet-4-5-20250929");
+
+  const musicXml = options.musicXml;
+  const instructions = options.instructions;
+
+  // Detect if this is a FIX operation vs MODIFY operation
+  const isFixOperation =
+    instructions.includes("FIX") &&
+    (instructions.includes("VALIDATION") || instructions.includes("validation"));
+
+  if (isFixOperation) {
+    // MINIMAL prompt for fixing MusicXML syntax errors
+    const fixSystemPrompt = `You are a MusicXML syntax expert. Your ONLY job is to fix MusicXML notation errors.
+
+Given MusicXML notation that failed validation, fix the SYNTAX ERRORS ONLY.
+Do NOT change the music, do NOT add or remove notes, do NOT change instruments.
+ONLY fix technical syntax issues that prevent the MusicXML from being valid.
+
+⚠️ CRITICAL OUTPUT FORMAT ⚠️
+DO NOT wrap your output in markdown code fences (\`\`\`xml or \`\`\` blocks).
+Your response must start with: <?xml version="1.0" encoding="UTF-8"?>
+Your response must end with: </score-partwise>
+NO markdown. NO code fences. PURE XML ONLY.
+
+Return ONLY the fixed MusicXML notation, nothing else.`;
+
+    const fixUserPrompt = `${instructions}
+
+MUSICXML NOTATION TO FIX:
+${musicXml}`;
+
+    const { text } = await generateText({
+      model,
+      messages: [
+        { role: "system", content: fixSystemPrompt },
+        { role: "user", content: fixUserPrompt },
+      ],
+      temperature: 0.2,
+      maxTokens: 32000,
+    });
+
+    return stripMarkdownCodeFences(text);
+  }
+
+  // Regular MODIFY operation - use full prompt
+  const genre = options.genre || "Classical_x_Contemporary";
+  const classicalGenre = options.classicalGenre || "Classical";
+  const modernGenre = options.modernGenre || "Contemporary";
+  const includeSolo = options.solo || false;
+  const recordLabel = options.recordLabel || "";
+  const producer = options.producer || "";
+  const requestedInstruments = options.instruments || "";
+
+  const systemPrompt = `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
+Your task is to modify an existing MusicXML composition according to specific instructions.
+
+⚠️ CRITICAL OUTPUT FORMAT ⚠️
+DO NOT wrap your output in markdown code fences (\`\`\`xml or \`\`\` blocks).
+Your response must start with: <?xml version="1.0" encoding="UTF-8"?>
+Your response must end with: </score-partwise>
+NO markdown. NO code fences. PURE XML ONLY.
+
+Return ONLY the complete modified MusicXML notation, with no explanation or additional text.
+
+Guidelines for modifying the composition:
+
+1. Maintain the original character and style of the piece while implementing the requested changes.
+2. Preserve the header information unless explicitly told to change it.
+3. When adding new sections or extending the piece, match the harmonic language and style of the original.
+4. Ensure all modifications result in musically coherent and playable content.
+5. Preserve and extend any instrument definitions in a consistent manner.
+
+Technical guidelines:
+- Ensure the MusicXML notation remains properly formatted and valid
+${includeSolo ? "- Include a dedicated solo section for the lead instrument, clearly marked in the notation" : ""}
+${recordLabel ? `- Style the composition to sound like it was released on the record label "${recordLabel}"` : ""}
+${producer ? `- Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work` : ""}
+${requestedInstruments ? `- Your composition MUST include at minimum these instruments: ${requestedInstruments}. Use proper MusicXML instrument definitions for each. You are encouraged to add additional instruments that complement these and that are authentic to the ${classicalGenre} and ${modernGenre} traditions being fused.` : ""}
+
+Your modifications should respect both the user's instructions and the musical integrity of the original piece.`;
+
+  const userPrompt = `Here is the original composition in MusicXML notation:\n\n${musicXml.length > 5000 ? musicXml.substring(0, 5000) + "\n...(truncated for modification)" : musicXml}\n\nModify this composition according to these instructions:\n${instructions}${includeSolo ? "\n\nInclude a dedicated solo section for the lead instrument." : ""}${recordLabel ? `\n\nStyle the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? `\n\nStyle the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? `\n\nYour composition MUST include at minimum these instruments: ${requestedInstruments}. Use proper MusicXML instrument definitions for each.` : ""}\n\nReturn the complete modified MusicXML notation.`;
+
+  const messages = [
+    {
+      role: "system",
+      content: systemPrompt,
+      experimental_providerMetadata: {
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
+    },
+    { role: "user", content: userPrompt },
+  ];
+
+  if (options.useStreaming) {
+    console.log("Using streaming mode for modification...");
+    const result = await streamText({
+      model,
+      messages,
+      temperature: options.temperature || 0.7,
+      maxTokens: 40000,
+    });
+
+    let text = "";
+    for await (const chunk of result.textStream) {
+      text += chunk;
+      if (text.length % 1000 === 0) {
+        process.stdout.write(".");
+      }
+    }
+    console.log("\nStreaming complete.");
+    return stripMarkdownCodeFences(text);
+  }
+
+  const { text } = await generateText({
+    model,
+    messages,
+    temperature: options.temperature || 0.7,
+    maxTokens: 40000,
+  });
+
+  return stripMarkdownCodeFences(text);
+}
+
+/**
+ * Evaluate if a MusicXML composition needs further development
+ * @param {Object} options - Evaluation options
+ * @param {string} options.musicXml - MusicXML notation to evaluate
+ * @param {string} [options.genre] - Hybrid genre name
+ * @param {string} [options.classicalGenre] - Classical component
+ * @param {string} [options.modernGenre] - Modern component
+ * @param {number} [options.currentPass] - Current expansion pass number
+ * @returns {Promise<{needsExpansion: boolean, instructions: string, reasoning: string}>}
+ */
+export async function evaluateMusicXmlCompleteness(options) {
+  const myAnthropic = getAnthropic();
+  const model = myAnthropic("claude-sonnet-4-5-20250929");
+
+  const musicXml = options.musicXml;
+  const genre = options.genre || "Classical_x_Contemporary";
+  const classicalGenre = options.classicalGenre || "Classical";
+  const modernGenre = options.modernGenre || "Contemporary";
+  const currentPass = options.currentPass || 0;
+
+  const systemPrompt = `You are a DEMANDING music critic and composition advisor with deep knowledge of musical traditions.
+
+Your task: Evaluate if this ${classicalGenre} x ${modernGenre} fusion composition would be considered a SERIOUS, SUBSTANTIAL work by experts in BOTH traditions.
+
+CRITICAL: You must use your knowledge of these SPECIFIC genres:
+
+**${classicalGenre} tradition**: What do serious works in this tradition look like? How long are they typically? What level of thematic development is expected? What structural complexity is standard?
+
+**${modernGenre} tradition**: What do respected releases in this genre look like? What is the typical track length? What level of production complexity and arrangement depth is expected?
+
+A fusion of these traditions should meet the expectations of BOTH. If either tradition typically produces extended, complex works, this fusion should reflect that.
+
+BE EXTREMELY DEMANDING. Do NOT say a piece is complete just because it has basic structure. Ask yourself:
+- Would a serious ${classicalGenre} composer consider this developed enough?
+- Would a respected ${modernGenre} producer consider this a full, complete track?
+- Does this feel like a DEMO or a FINISHED WORK?
+
+If this is pass 1-3, you should almost ALWAYS demand more development unless the piece is already exceptionally long and complex.
+
+You MUST respond in this EXACT JSON format with no other text:
+{
+  "needsExpansion": true/false,
+  "reasoning": "Explain based on what ${classicalGenre} and ${modernGenre} traditions would expect. Be specific about genre expectations.",
+  "instructions": "If needsExpansion is true, give SPECIFIC instructions. Tell the agent to DOUBLE the length, add specific sections, etc. Be aggressive. If false, leave empty."
+}
+
+Current expansion pass: ${currentPass}
+After pass 6, be slightly more lenient but still maintain high standards.`;
+
+  const userPrompt = `Evaluate this ${genre} composition.
+
+This fuses ${classicalGenre} (consider: what length, complexity, and development do serious works in this tradition have?) with ${modernGenre} (consider: what track length and production depth do respected releases have?).
+
+Does this composition meet the standards of BOTH traditions? Would experts in either tradition consider this a complete, serious work or just a sketch/demo?
+
+Current expansion pass: ${currentPass}
+
+MusicXML Notation (first 5000 chars):
+${musicXml.substring(0, 5000)}${musicXml.length > 5000 ? "\n...(truncated for evaluation)" : ""}
+
+Respond with JSON only. Be DEMANDING.`;
+
+  const { text } = await generateText({
+    model,
+    messages: [
+      {
+        role: "system",
+        content: systemPrompt,
+        experimental_providerMetadata: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.3,
+    maxTokens: 1500,
+  });
+
+  try {
+    let jsonStr = text.trim();
+    if (jsonStr.startsWith("```")) {
+      jsonStr = jsonStr.replace(/```json?\n?/g, "").replace(/```\n?/g, "");
+    }
+
+    const result = JSON.parse(jsonStr);
+    return {
+      needsExpansion: result.needsExpansion === true,
+      instructions: result.instructions || "",
+      reasoning: result.reasoning || "",
+    };
+  } catch (parseError) {
+    console.warn(
+      "Failed to parse evaluation response, assuming needs expansion:",
+      parseError.message,
+    );
+    return {
+      needsExpansion: currentPass < 4,
+      instructions: `DOUBLE the length of this composition. Add substantial new sections that would satisfy both ${classicalGenre} and ${modernGenre} traditions. This is not yet a complete work.`,
+      reasoning:
+        "Could not parse LLM response, defaulting to aggressive expansion request.",
+    };
+  }
+}
+
+/**
+ * Validate MusicXML notation by parsing it with musicxml-io
+ * @param {string} mxmlFilePath - Path to the MusicXML file to validate
+ * @returns {Promise<{valid: boolean, error: string|null, warning: string|null}>} Validation result
+ */
+export async function validateWithMusicXmlParser(mxmlFilePath) {
+  try {
+    if (!fs.existsSync(mxmlFilePath)) {
+      return { valid: false, error: "MusicXML file not found", warning: null };
+    }
+
+    const musicXmlContent = fs.readFileSync(mxmlFilePath, "utf8");
+
+    // Use the existing validateMusicXml function
+    const validation = validateMusicXml(musicXmlContent);
+
+    if (validation.isValid) {
+      return { valid: true, error: null, warning: null };
+    } else {
+      return {
+        valid: false,
+        error: validation.issues.join("; "),
+        warning: null,
+      };
+    }
+  } catch (error) {
+    return {
+      valid: false,
+      error: `MusicXML validation error: ${error.message}`,
+      warning: null,
+    };
+  }
 }

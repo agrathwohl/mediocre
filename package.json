@@ -39,6 +39,7 @@
   "license": "MIT",
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.11",
+    "abcjs": "^6.6.1",
     "ai": "^6.0.29",
     "chalk": "^5.3.0",
     "commander": "^11.1.0",
@@ -46,6 +47,7 @@
     "dotenv": "^16.4.7",
     "execa": "^8.0.1",
     "glob": "^13.0.0",
+    "musicxml-io": "^0.1.0",
     "neo-blessed": "^0.2.0",
     "node-mpv": "^1.5.0",
     "soundfont2": "^0.5.0",
