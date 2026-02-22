@@ -40,13 +40,13 @@ export class AudioAnalyzer {
   async _loadCache() {
     try {
       const cachePath = this._getCachePath();
-      if (fs.existsSync(cachePath)) {
-        const cached = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-        console.log(`✅ Loaded cached analysis (${cached.samples.length} samples)`);
-        return cached.samples;
-      }
+      const cached = JSON.parse(await fs.promises.readFile(cachePath, 'utf8'));
+      console.log(`✅ Loaded cached analysis (${cached.samples.length} samples)`);
+      return cached.samples;
     } catch (error) {
-      console.log(`Cache load failed: ${error.message}`);
+      if (error.code !== 'ENOENT') {
+        console.log(`Cache load failed: ${error.message}`);
+      }
     }
     return null;
   }
@@ -58,20 +58,14 @@ export class AudioAnalyzer {
   async _saveCache(samples) {
     try {
       const cachePath = this._getCachePath();
-
-      // Create cache directory if it doesn't exist
-      if (!fs.existsSync(this.cacheDir)) {
-        fs.mkdirSync(this.cacheDir, { recursive: true });
-      }
-
-      fs.writeFileSync(cachePath, JSON.stringify({
+      await fs.promises.mkdir(this.cacheDir, { recursive: true });
+      await fs.promises.writeFile(cachePath, JSON.stringify({
         audioFile: this.audioFile,
         sampleRate: this.sampleRate,
         method: this.method,
         samples: samples,
         timestamp: Date.now()
       }));
-
       console.log(`💾 Cached analysis to ${cachePath}`);
     } catch (error) {
       console.log(`Cache save failed: ${error.message}`);
@@ -142,10 +136,7 @@ export class AudioAnalyzer {
    * @private
    */
   async _extractWithAudiowaveform() {
-    // Ensure cache directory exists BEFORE audiowaveform tries to write
-    if (!fs.existsSync(this.cacheDir)) {
-      fs.mkdirSync(this.cacheDir, { recursive: true });
-    }
+    await fs.promises.mkdir(this.cacheDir, { recursive: true });
 
     const tempJsonPath = path.join(this.cacheDir || '/tmp', `waveform-${Date.now()}.json`);
 
@@ -156,13 +147,13 @@ export class AudioAnalyzer {
         `audiowaveform -i "${this.audioFile}" -o "${tempJsonPath}" --pixels-per-second ${this.sampleRate} --bits 8`
       );
 
-      const waveformData = JSON.parse(fs.readFileSync(tempJsonPath, 'utf8'));
+      const waveformData = JSON.parse(await fs.promises.readFile(tempJsonPath, 'utf8'));
 
       // audiowaveform data format: alternating [min, max] pairs
       // e.g., [-36, 35, -47, 55, ...] where each pair is [min, max] for that sample window
       // We want peak amplitude: max(abs(min), abs(max)) for each sample
       const amplitudes = [];
-      for (let i = 0; i < waveformData.data.length; i += 2) {
+      for (let i = 0; i + 1 < waveformData.data.length; i += 2) {
         const min = waveformData.data[i];
         const max = waveformData.data[i + 1];
         // Peak is the larger absolute value
@@ -172,14 +163,12 @@ export class AudioAnalyzer {
       }
 
       // Clean up temp file
-      fs.unlinkSync(tempJsonPath);
+      await fs.promises.unlink(tempJsonPath);
 
       return amplitudes;
     } catch (error) {
       // Clean up temp file if it exists
-      if (fs.existsSync(tempJsonPath)) {
-        fs.unlinkSync(tempJsonPath);
-      }
+      await fs.promises.unlink(tempJsonPath).catch(() => {});
       throw error;
     }
   }

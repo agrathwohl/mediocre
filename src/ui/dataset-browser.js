@@ -627,7 +627,13 @@ export async function createDatasetBrowser(options = {}) {
       }
 
       // Read description directly
-      const desc = JSON.parse(fs.readFileSync(descPath, 'utf8'));
+      let desc;
+      try {
+        desc = JSON.parse(fs.readFileSync(descPath, 'utf8'));
+      } catch (e) {
+        consoleOutput.pushLine(`{red-fg}Error reading description: ${e.message}{/red-fg}`);
+        return;
+      }
 
       // Display title based on genre
       const genre = desc.genre || baseWithoutExt; // Already case-insensitive via file filtering
@@ -997,13 +1003,18 @@ export async function createDatasetBrowser(options = {}) {
       const descFile = `${baseWithoutExt}_description.json`;
       const descPath = path.join(directory, descFile);
 
-      /*if (!fs.existsSync(descPath)) {
+      if (!fs.existsSync(descPath)) {
         consoleOutput.pushLine(`No description file found: ${descFile}`);
         return;
-      }*/
-
+      }
       // Read description directly
-      const desc = JSON.parse(fs.readFileSync(descPath, 'utf8'));
+      let desc;
+      try {
+        desc = JSON.parse(fs.readFileSync(descPath, 'utf8'));
+      } catch (e) {
+        consoleOutput.pushLine(`{red-fg}Error reading description: ${e.message}{/red-fg}`);
+        return;
+      }
 
       // Display title with highlighting
       const title = desc.genre || baseWithoutExt;

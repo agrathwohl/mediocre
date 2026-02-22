@@ -39,6 +39,18 @@ function parseHybridGenre(genreName) {
 }
 
 /**
+ * Sanitize a string for safe use in filenames.
+ * @param {string} str - String to sanitize
+ * @returns {string} Filename-safe string
+ */
+function sanitizeForFilename(str) {
+  return str
+    .replace(/[^a-zA-Z0-9_\-. ]/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/_{2,}/g, '_');
+}
+
+/**
  * Generate MusicXML notation files using Claude
  * @param {Object} options - Command options
  * @param {string} [options.genre] - Music genre (hybrid format preferred: Classical_x_Modern)
@@ -51,7 +63,6 @@ function parseHybridGenre(genreName) {
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @param {string} [options.instruments] - Comma-separated list of instruments the output MusicXML must include
- * @param {boolean} [options.sequentialMode] - If true, focus on quality over completeness (another agent will expand)
  * @returns {Promise<string[]>} Array of generated file paths
  */
 export async function generateMxml(options) {
@@ -66,14 +77,19 @@ export async function generateMxml(options) {
   const recordLabel = options.recordLabel || '';
   const producer = options.producer || '';
   const requestedInstruments = options.instruments || '';
-  const sequentialMode = options.sequentialMode || false;
-
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
 
   // Ensure the output directory exists
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Verify the output directory is writable
+  try {
+    fs.accessSync(outputDir, fs.constants.W_OK);
+  } catch {
+    throw new Error(`Output directory is not writable: ${outputDir}`);
   }
 
   const generatedFiles = [];
@@ -109,7 +125,7 @@ export async function generateMxml(options) {
       }
 
       // Generate a filename based on genre and style
-      const filename = `${displayGenre}-score${i+1}-${timestamp}`;
+      const filename = `${sanitizeForFilename(displayGenre)}-score${i+1}-${timestamp}`;
 
       // Generate the MusicXML notation
       console.log(`Generating ${displayGenre} composition in ${style} style...`);
@@ -132,7 +148,6 @@ export async function generateMxml(options) {
         recordLabel: recordLabel,
         producer: producer,
         instruments: requestedInstruments,
-        sequentialMode: sequentialMode,
         useStreaming: options.useStreaming || false
       });
 

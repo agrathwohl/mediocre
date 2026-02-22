@@ -13,7 +13,6 @@ dotenv.config();
 
 /**
  * @typedef {Object} ConfigSchema
- * @property {string} anthropicApiKey - Anthropic API key
  * @property {string} outputDir - Directory for output files
  * @property {string} tempDir - Directory for temporary files
  * @property {string} datasetDir - Directory for the final dataset
@@ -27,10 +26,8 @@ dotenv.config();
 export const config = new Conf({
   projectName: 'mediocre',
   schema: {
-    anthropicApiKey: {
-      type: 'string',
-      default: process.env.ANTHROPIC_API_KEY || ''
-    },
+    // NOTE: API key intentionally NOT stored in config (security risk).
+    // Always read from process.env.ANTHROPIC_API_KEY at runtime.
     outputDir: {
       type: 'string',
       default: process.env.OUTPUT_DIR || path.join(projectRoot, 'output')

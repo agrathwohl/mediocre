@@ -21,21 +21,21 @@ function calculateAbcDuration(abcContent) {
     return null; // No tempo = can't calculate duration
   }
 
-  const tempoNoteNum = tempoMatch[1] ? parseInt(tempoMatch[1]) : 1;
-  const tempoNoteDenom = tempoMatch[2] ? parseInt(tempoMatch[2]) : 4;
-  const bpm = parseInt(tempoMatch[3]);
+  const tempoNoteNum = tempoMatch[1] ? parseInt(tempoMatch[1], 10) : 1;
+  const tempoNoteDenom = tempoMatch[2] ? parseInt(tempoMatch[2], 10) : 4;
+  const bpm = parseInt(tempoMatch[3], 10);
 
   if (!bpm || bpm <= 0) return null;
 
   // Parse M: field (meter) - e.g., "M:4/4", "M:3/4", "M:6/8"
   const meterMatch = abcContent.match(/^M:\s*(\d+)\/(\d+)/m);
-  const beatsPerMeasure = meterMatch ? parseInt(meterMatch[1]) : 4;
-  const beatUnit = meterMatch ? parseInt(meterMatch[2]) : 4;
+  const beatsPerMeasure = meterMatch ? parseInt(meterMatch[1], 10) : 4;
+  const beatUnit = meterMatch ? parseInt(meterMatch[2], 10) : 4;
 
   // Parse L: field (default note length) - e.g., "L:1/8"
   const lengthMatch = abcContent.match(/^L:\s*(\d+)\/(\d+)/m);
-  const defaultNoteNum = lengthMatch ? parseInt(lengthMatch[1]) : 1;
-  const defaultNoteDenom = lengthMatch ? parseInt(lengthMatch[2]) : 8;
+  const defaultNoteNum = lengthMatch ? parseInt(lengthMatch[1], 10) : 1;
+  const defaultNoteDenom = lengthMatch ? parseInt(lengthMatch[2], 10) : 8;
 
   // Count measures by counting bar lines (|)
   // Remove header section first (everything before first voice or first measure)
@@ -59,7 +59,7 @@ function calculateAbcDuration(abcContent) {
     const noteMatches = musicSection.match(/[a-gA-G][',]*\d*\/?(?:\d+)?/g);
     if (noteMatches && noteMatches.length > 0) {
       // Rough estimate: assume notes fill measures proportionally
-      const notesPerMeasure = beatsPerMeasure * (beatUnit / defaultNoteDenom);
+      const notesPerMeasure = beatsPerMeasure * (beatUnit / (defaultNoteDenom || 8));
       const estimatedMeasures = Math.ceil(noteMatches.length / notesPerMeasure);
       if (estimatedMeasures > 0) {
         // Calculate duration based on estimated measures

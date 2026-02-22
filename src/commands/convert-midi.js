@@ -87,19 +87,20 @@ async function convertFile(inputPath, outputPath) {
       const fixedContent = validation.fixedNotation;
       const tempPath = inputPath + '.fixed.abc';
       fs.writeFileSync(tempPath, fixedContent);
-      
-      // Convert the fixed file
-      await execa('abc2midi', [tempPath, '-o', outputPath, '-silent']);
-      
-      // Optionally clean up the temp file
-      fs.unlinkSync(tempPath);
-      
-      console.log(`Converted fixed version of ${inputPath} to ${outputPath}`);
+
+      try {
+        // reject:false — abc2midi exits non-zero on warnings even when it produced valid MIDI
+        await execa('abc2midi', [tempPath, '-o', outputPath], { reject: false });
+        console.log(`Converted fixed version of ${inputPath} to ${outputPath}`);
+      } finally {
+        // Always clean up temp file regardless of conversion result
+        try { fs.unlinkSync(tempPath); } catch (_) {}
+      }
       return;
     }
     
     // If no issues, convert the original file
-    await execa('abc2midi', [inputPath, '-o', outputPath, '-silent']);
+    await execa('abc2midi', [inputPath, '-o', outputPath], { reject: false });
     
     console.log(`Converted ${inputPath} to ${outputPath}`);
   } catch (error) {

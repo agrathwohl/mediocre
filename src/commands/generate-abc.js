@@ -11,6 +11,13 @@ import {
 } from '../utils/claude.js';
 import { generateCreativeGenreName } from '../utils/genre-generator.js';
 import { config } from '../utils/config.js';
+import { isAgentEnabled } from '../utils/feature-flags.js';
+import { generateMusicWithAgent } from '../agents/composition/index.js';
+import { researchGenresForComposition } from '../agents/genre-research/index.js';
+import { ensureUniqueTitleWithAgent } from '../agents/title/index.js';
+import { loadCompositionContext } from '../utils/orchestrator-context.js';
+import { orchestratePostProcessing } from '../agents/orchestrator/index.js';
+import { arrangeSoundfontsAndGenerateConfig } from '../agents/timidity-config/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -113,6 +120,18 @@ function parseHybridGenre(genreName) {
 }
 
 /**
+ * Sanitize a string for safe use in filenames.
+ * @param {string} str - String to sanitize
+ * @returns {string} Filename-safe string
+ */
+function sanitizeForFilename(str) {
+  return str
+    .replace(/[^a-zA-Z0-9_\-. ]/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/_{2,}/g, '_');
+}
+
+/**
  * Generate ABC notation files using Claude
  * @param {Object} options - Command options
  * @param {string} [options.genre] - Music genre (hybrid format preferred: Classical_x_Modern)
@@ -125,7 +144,8 @@ function parseHybridGenre(genreName) {
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
- * @param {boolean} [options.sequentialMode] - If true, focus on quality over completeness (another agent will expand)
+ * @param {boolean} [options.sequentialMode] - If true, generate foundation then run orchestrated enhancement loop
+ * @param {number} [options.maxIterations=5] - Max orchestration iterations when sequentialMode is true
  * @param {boolean} [options.soundfonts] - If true, use LLM to select custom soundfonts and generate per-composition TiMidity config
  * @returns {Promise<string[]>} Array of generated file paths
  */
@@ -151,13 +171,24 @@ export async function generateAbc(options) {
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
+
+  // Verify the output directory is writable
+  try {
+    fs.accessSync(outputDir, fs.constants.W_OK);
+  } catch {
+    throw new Error(`Output directory is not writable: ${outputDir}`);
+  }
   
   const generatedFiles = [];
   
   for (let i = 0; i < count; i++) {
     // Generate a timestamp
     const timestamp = Date.now();
-    
+
+    // Hoist process log state so catch block can always finalize it
+    let processLog = null;
+    let saveProcessLog = null;
+
     try {
       // Generate a creative genre name if requested
       let displayGenre = genre;
@@ -185,12 +216,34 @@ export async function generateAbc(options) {
       }
       
       // Generate a filename based on genre and style
-      const filename = `${displayGenre}-score${i+1}-${timestamp}`;
-      
+      const filename = `${sanitizeForFilename(displayGenre)}-score${i+1}-${timestamp}`;
+
+      // Initialize process log — written immediately so there's always a record even on crash
+      const processLogPath = path.join(outputDir, `${filename}_process.json`);
+      processLog = {
+        filename,
+        genre: displayGenre,
+        classicalGenre: genreComponents.classical,
+        modernGenre: genreComponents.modern,
+        style,
+        startedAt: new Date().toISOString(),
+        steps: [],
+        status: 'in_progress',
+      };
+      fs.mkdirSync(outputDir, { recursive: true });
+      saveProcessLog = () => fs.writeFileSync(processLogPath, JSON.stringify(processLog, null, 2));
+      saveProcessLog();
+
+      const logStep = (step, data = {}) => {
+        processLog.steps.push({ step, timestamp: new Date().toISOString(), ...data });
+        saveProcessLog();
+      };
+
       // Generate the ABC notation with special attention to genre fusion
       console.log(`Generating ${displayGenre} composition in ${style} style...`);
       console.log(`Fusing ${genreComponents.classical} with ${genreComponents.modern}...`);
-      
+      logStep('generation_start', { classical: genreComponents.classical, modern: genreComponents.modern });
+
       // Log if using a custom system prompt
       if (customSystemPrompt) {
         console.log('Using custom system prompt...');
@@ -215,7 +268,6 @@ export async function generateAbc(options) {
           recordLabel: recordLabel,
           producer: producer,
           instruments: requestedInstruments,
-          sequentialMode: sequentialMode,
           useStreaming: options.useStreaming || false
         });
 
@@ -234,22 +286,90 @@ export async function generateAbc(options) {
         });
         console.log(`Saved TiMidity config: ${timidityConfigPath}`);
       } else {
-        // Default: Generate music without custom soundfont selection (use sanitized config)
-        abcNotation = await generateMusicWithClaude({
-          genre: creativeGenreName || genre,
-          classicalGenre: genreComponents.classical,
-          modernGenre: genreComponents.modern,
-          style,
-          temperature: 0.7,
-          customSystemPrompt,
-          customUserPrompt,
-          solo: includeSolo,
-          recordLabel: recordLabel,
-          producer: producer,
-          instruments: requestedInstruments,
-          sequentialMode: sequentialMode,
-          useStreaming: options.useStreaming || false
-        });
+        // Check if agent-based generation is enabled
+        if (isAgentEnabled('composition')) {
+          console.log('🤖 Using agent-based generation...');
+
+          // Research genres before generation so the composition agent knows
+          // exactly what each genre requires (instruments, tempo, essential elements).
+          // Also assesses whether the CLI flags complement or clash with the genres.
+          const genreResearch = await researchGenresForComposition(
+            genreComponents.classical,
+            genreComponents.modern,
+            {
+              solo: includeSolo,
+              recordLabel,
+              producer,
+              instruments: requestedInstruments,
+              style,
+            }
+          );
+
+          const agentArgs = {
+            genre: creativeGenreName || genre,
+            classicalGenre: genreComponents.classical,
+            modernGenre: genreComponents.modern,
+            style,
+            objectMode: options.objectMode || false,
+            solo: includeSolo,
+            recordLabel: recordLabel,
+            producer: producer,
+            instruments: requestedInstruments,
+            genreResearch,
+          };
+          // Retry once on SIGSEGV — a fresh generation often avoids whatever caused the crash
+          try {
+            abcNotation = await generateMusicWithAgent(agentArgs);
+            logStep('generation_complete', { mode: 'agent' });
+          } catch (firstErr) {
+            if (firstErr.message.includes('SIGSEGV') || firstErr.message.includes('SIGABRT') || firstErr.message.includes('crashed')) {
+              const partialAbc = firstErr.abcNotation || null;
+              logStep('generation_crash_retry', { attempt: 1, error: firstErr.message });
+              console.warn('⚠️ SIGSEGV on first attempt — retrying generation from scratch...');
+              try {
+                abcNotation = await generateMusicWithAgent(agentArgs);
+                logStep('generation_complete', { mode: 'agent', attempt: 2 });
+              } catch (retryErr) {
+                // Both attempts crashed — if we have partial ABC, fall through to outer validation
+                // which will clean it and revalidate. If the cleaned version passes, enhancement runs.
+                const crashAbc = retryErr.abcNotation || partialAbc;
+                logStep('generation_crash_both', { attempt: 2, error: retryErr.message, hadPartialAbc: !!crashAbc });
+                if (crashAbc) {
+                  console.warn(`⚠️ Both attempts crashed — attempting to continue with cleaned notation...`);
+                  abcNotation = crashAbc;
+                  // fall through — outer validation will clean and revalidate
+                } else {
+                  // Truly nothing to work with
+                  processLog.status = 'crashed';
+                  saveProcessLog();
+                  throw retryErr;
+                }
+              }
+            } else {
+              logStep('generation_error', { error: firstErr.message });
+              processLog.status = 'error';
+              saveProcessLog();
+              throw firstErr;
+            }
+          }
+        } else {
+          // Default: Generate music without custom soundfont selection (use sanitized config)
+          console.log('📝 Using traditional generation...');
+          abcNotation = await generateMusicWithClaude({
+            genre: creativeGenreName || genre,
+            classicalGenre: genreComponents.classical,
+            modernGenre: genreComponents.modern,
+            style,
+            temperature: 0.7,
+            customSystemPrompt,
+            customUserPrompt,
+            solo: includeSolo,
+            recordLabel: recordLabel,
+            producer: producer,
+            instruments: requestedInstruments,
+            useStreaming: options.useStreaming || false
+          });
+        }
       }
 
       // Extract the instruments used in the composition
@@ -262,27 +382,40 @@ export async function generateAbc(options) {
       
       // First pass: clean the notation
       let cleanedAbcNotation = cleanAbcNotation(abcNotation);
-      
+
       // Validate the ABC notation
-      const validation = validateAbcNotation(cleanedAbcNotation);
-      
-      // If there are issues, log and use the fixed version
+      let validation = validateAbcNotation(cleanedAbcNotation);
+
+      // If there are issues, apply fix and revalidate — never gate on the pre-fix result
       if (!validation.isValid) {
         console.warn(`⚠️ WARNING: ABC notation validation issues found for ${filename}.abc:`);
         validation.issues.forEach(issue => console.warn(`  - ${issue}`));
         console.warn(`Auto-fixing ${validation.issues.length} issues...`);
+        logStep('validation_fix', { issues: validation.issues });
         cleanedAbcNotation = validation.fixedNotation;
+        // Revalidate the fixed version — this is what actually decides whether we can proceed
+        validation = validateAbcNotation(cleanedAbcNotation);
+        if (!validation.isValid) {
+          console.warn(`⚠️ Fixed version still has ${validation.issues.length} issue(s)`);
+          logStep('validation_fix_result', { status: 'still_invalid', issues: validation.issues });
+        } else {
+          console.log(`✅ Fixed version passes validation`);
+          logStep('validation_fix_result', { status: 'ok' });
+        }
       } else {
         console.log(`✅ ABC notation validation passed for ${filename}.abc`);
+        logStep('validation', { status: 'ok' });
       }
-      
+
       // Save the cleaned and validated ABC notation to a file
       const abcFilePath = path.join(outputDir, `${filename}.abc`);
       fs.writeFileSync(abcFilePath, cleanedAbcNotation);
       generatedFiles.push(abcFilePath);
-      
-      // Only generate description documents if ABC validation passed
-      if (validation.isValid) {
+      logStep('abc_written', { path: abcFilePath });
+
+      // Only skip if abc2midi crashed (segfault/fatal) — non-fatal errors still produce usable MIDI
+      const abcCrashed = validation.issues.some(i => i.includes('crashed'));
+      if (!abcCrashed) {
         // Generate and save the description
         console.log('Generating description document...');
         const description = await generateDescription({
@@ -296,6 +429,26 @@ export async function generateAbc(options) {
         // Add creative genre name to the description if one was generated
         if (creativeGenreName) {
           description.creativeGenreName = creativeGenreName;
+        }
+
+        // Use timidity config agent to select soundfonts when agents enabled but --soundfonts not used
+        if (isAgentEnabled('timidityConfig') && !selectedSoundfonts) {
+          console.log('🎛️ Using timidity config agent for soundfont selection...');
+          try {
+            const configResult = await arrangeSoundfontsAndGenerateConfig({
+              abcNotation: cleanedAbcNotation,
+              genre: creativeGenreName || genre,
+              classicalGenre: genreComponents.classical,
+              modernGenre: genreComponents.modern,
+              outputDir,
+              baseFilename: filename,
+            });
+            selectedSoundfonts = configResult.soundfonts;
+            soundfontReasoning = configResult.layeringStrategy;
+            console.log(`🎛️ Timidity config saved: ${configResult.configPath}`);
+          } catch (cfgErr) {
+            console.error('⚠️ Timidity config agent failed, skipping config:', cfgErr.message);
+          }
         }
 
         // Add soundfont selection info to description (only if --soundfonts was used)
@@ -339,16 +492,67 @@ ${abcNotation}
 ${description.analysis}`;
         const mdFilePath = path.join(outputDir, `${filename}.md`);
         fs.writeFileSync(mdFilePath, mdContent);
+
+        // Sequential mode: foundation generated, now feed to orchestrated enhancement loop
+        if (sequentialMode) {
+          console.log('\n🔄 Sequential mode: foundation complete, starting orchestrated enhancement...');
+          try {
+            const context = await loadCompositionContext(abcFilePath);
+
+            const enhancementResult = await orchestratePostProcessing({
+              abcFilePath,
+              musicalContext: context,
+              genres: {
+                classical: context.metadata.classicalGenre || '',
+                modern: context.metadata.modernGenre || '',
+                hybrid: context.metadata.genre || '',
+              },
+              maxIterations: options.maxIterations || 10,
+              selectedSoundfonts: selectedSoundfonts || null,
+            });
+
+            // Remove the foundation .abc from generatedFiles — it's an intermediate artifact.
+            // Iteration checkpoints (_iter*.abc) are also just artifacts, not final output.
+            const foundationIdx = generatedFiles.indexOf(abcFilePath);
+            if (foundationIdx !== -1) generatedFiles.splice(foundationIdx, 1);
+
+            // Write the final result as the next clean versioned file (_1.abc, _2.abc, ...)
+            const baseNoExt = abcFilePath.replace(/\.abc$/, '');
+            let version = 1;
+            let finalPath = `${baseNoExt}_${version}.abc`;
+            while (fs.existsSync(finalPath)) {
+              version++;
+              finalPath = `${baseNoExt}_${version}.abc`;
+            }
+            fs.writeFileSync(finalPath, enhancementResult.enhancedAbc);
+            generatedFiles.push(finalPath);
+            console.log(`✅ Sequential enhancement complete (${enhancementResult.iterations} iteration(s)) → ${path.basename(finalPath)}`);
+          } catch (enhanceError) {
+            console.error('⚠️ Sequential enhancement failed, keeping foundation:', enhanceError.message);
+          }
+        }
       } else {
-        console.log('⚠️ Skipping description document generation - ABC validation failed');
+        console.log('⚠️ Skipping enhancement - abc2midi crashed on this notation (segfault/fatal)');
+        logStep('enhancement_skipped', { reason: 'crash' });
       }
-      
+
+      processLog.status = 'complete';
+      processLog.completedAt = new Date().toISOString();
+      saveProcessLog();
       console.log(`Generated ${abcFilePath}`);
     } catch (error) {
-      console.error(`Error generating composition ${i+1}:`, error);
+      console.error(`Error generating composition ${i+1}:`, error.message || error);
+      if (saveProcessLog && processLog) {
+        try {
+          processLog.status = 'failed';
+          processLog.error = error.message;
+          processLog.failedAt = new Date().toISOString();
+          saveProcessLog();
+        } catch (_) {}
+      }
     }
   }
-  
+
   return generatedFiles;
 }
 

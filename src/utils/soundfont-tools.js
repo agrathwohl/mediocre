@@ -511,30 +511,12 @@ dir ${SOUNDFONT_DIR}
     }
   }
 
-  // Add banned drum note remapping (same as sanitized config)
-  config += `
-# ================================================================================
-# BANNED DRUM NOTE REMAPPING
-# Remap annoying percussion sounds to safe alternatives
-# ================================================================================
-
-drumset 0
-  71 %font "GeneralUser GS v1.471.sf2" 128 0 42
-  72 %font "GeneralUser GS v1.471.sf2" 128 0 46
-  73 %font "GeneralUser GS v1.471.sf2" 128 0 37
-  74 %font "GeneralUser GS v1.471.sf2" 128 0 56
-  78 %font "GeneralUser GS v1.471.sf2" 128 0 38
-  79 %font "GeneralUser GS v1.471.sf2" 128 0 40
-
-`;
-
   // Add quality settings
   config += `# ================================================================================
 # QUALITY SETTINGS
 # ================================================================================
 opt -s 48000
 opt -a
-opt -U
 opt -EFchorus=2
 opt -EFreverb=2
 opt -EFresamp=g
@@ -577,7 +559,8 @@ export function exploreSoundFontsForComposition(params) {
   const categoryResults = {
     drums: getSoundFontsByCategory('drums', { limit: 5 }),
     bass: getSoundFontsByCategory('bass', { limit: 5 }),
-    strings: getSoundFontsByCategory('strings', { limit: 5 })
+    strings: getSoundFontsByCategory('strings', { limit: 5 }),
+    synth: getSoundFontsByCategory('synth', { limit: 5 })
   };
 
   return {

@@ -95,14 +95,15 @@ async function processFile(inputPath, outputPath, effect) {
         // Apply all effects in sequence using a temporary file
         const tempPath1 = path.join(config.get('tempDir'), `${path.basename(inputPath, '.wav')}-temp1.wav`);
         const tempPath2 = path.join(config.get('tempDir'), `${path.basename(inputPath, '.wav')}-temp2.wav`);
-        
-        await applyReverb(inputPath, tempPath1);
-        await applyDelay(tempPath1, tempPath2);
-        await applyDistortion(tempPath2, outputPath);
-        
-        // Clean up temporary files
-        fs.unlinkSync(tempPath1);
-        fs.unlinkSync(tempPath2);
+        try {
+          await applyReverb(inputPath, tempPath1);
+          await applyDelay(tempPath1, tempPath2);
+          await applyDistortion(tempPath2, outputPath);
+        } finally {
+          // Clean up temporary files even if effects throw
+          try { fs.unlinkSync(tempPath1); } catch (_) {}
+          try { fs.unlinkSync(tempPath2); } catch (_) {}
+        }
         break;
     }
     

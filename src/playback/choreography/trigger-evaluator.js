@@ -107,8 +107,8 @@ export class TriggerEvaluator {
    * @returns {boolean} True if beat time reached
    */
   evaluateBeatTrigger(trigger, currentTime) {
-    const measure = trigger.measure || 1;
-    const beat = trigger.beat || 1;
+    const measure = Math.max(1, trigger.measure || 1);
+    const beat = Math.max(1, trigger.beat || 1);
 
     // Calculate time for this beat
     // Time = (measures before * beats per measure + beats before) / beats per second
@@ -153,6 +153,7 @@ export class TriggerEvaluator {
       case '<=':
         return paramValue <= value;
       case '==':
+        if (Number.isNaN(paramValue) || Number.isNaN(value)) return false;
         return Math.abs(paramValue - value) < 0.01;
       case 'spike':
         // Spike: high velocity and moderate amplitude

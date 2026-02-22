@@ -42,9 +42,9 @@ function parseColor(colorStr) {
     const match = colorStr.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
     if (match) {
       return {
-        r: parseInt(match[1]),
-        g: parseInt(match[2]),
-        b: parseInt(match[3])
+        r: parseInt(match[1], 10),
+        g: parseInt(match[2], 10),
+        b: parseInt(match[3], 10)
       };
     }
   }

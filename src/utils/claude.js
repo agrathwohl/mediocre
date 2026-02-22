@@ -4,6 +4,7 @@ import { config } from "./config.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { execaSync } from "execa";
 import {
   exploreSoundFontsForComposition,
   generateTimidityConfig,
@@ -147,7 +148,7 @@ async function ensureUniqueTitle(abcNotation, genre) {
     );
 
     const myAnthropic = getAnthropic();
-    const model = myAnthropic("claude-4-5-haiku-20241022"); // Use Haiku for this tiny task
+    const model = myAnthropic("claude-3-5-haiku-20241022"); // Use Haiku for this tiny task
 
     const { text } = await generateText({
       model,
@@ -191,6 +192,44 @@ async function ensureUniqueTitle(abcNotation, genre) {
  * @returns {Promise<{soundfonts: Array<string>, reasoning: string}>} Selected soundfonts and reasoning
  */
 export async function selectSoundfontsWithClaude(options) {
+  // Check if soundfont agent is enabled
+  const { isAgentEnabled } = await import('./feature-flags.js');
+  if (isAgentEnabled('soundfont')) {
+    console.log('🤖 Using soundfont agent for selection...');
+    const { selectSoundfontsWithAgent } = await import('../agents/soundfont/index.js');
+    const agentResult = await selectSoundfontsWithAgent(options);
+
+    // Validate and filter soundfonts (same as traditional path)
+    let validatedSoundfonts = agentResult.soundfonts.map((sf) => {
+      if (!sf.endsWith('.sf2')) {
+        return sf + '.sf2';
+      }
+      return sf;
+    });
+
+    // Filter out banned soundfonts that crash TiMidity
+    const bannedFound = validatedSoundfonts.filter((sf) =>
+      BANNED_SOUNDFONTS.includes(sf),
+    );
+    if (bannedFound.length > 0) {
+      console.warn(
+        `⚠️ Filtering out banned soundfonts that crash TiMidity: ${bannedFound.join(', ')}`,
+      );
+      validatedSoundfonts = validatedSoundfonts.filter(
+        (sf) => !BANNED_SOUNDFONTS.includes(sf),
+      );
+    }
+
+    // Convert agent's structured output to the format expected by the caller
+    return {
+      soundfonts: validatedSoundfonts,
+      reasoning: agentResult.reasoning,
+      categories: agentResult.categories,
+      coverage: agentResult.coverage,
+    };
+  }
+
+  console.log('📝 Using traditional soundfont selection...');
   const myAnthropic = getAnthropic();
   const model = myAnthropic("claude-3-5-haiku-20241022"); // Use Haiku for this quick selection task
 
@@ -354,7 +393,7 @@ export function saveCustomTimidityConfig(options) {
 }
 
 /**
- * Validates ABC notation for formatting issues that would cause playback problems
+ * Validates ABC notation by actually running abc2midi -c
  * @param {string} abcNotation - ABC notation to validate
  * @returns {Object} Validation results with issues array and isValid flag
  */
@@ -363,81 +402,52 @@ export function validateAbcNotation(abcNotation) {
   const result = {
     isValid: true,
     issues: [],
+    warnings: [],
     lineIssues: [],
     fixedNotation: null,
   };
 
-  // Split the notation into lines for analysis
-  const lines = abcNotation.split("\n");
+  // Write ABC to temp file
+  const tempFile = path.join('/tmp', `validate-${Date.now()}.abc`);
+  fs.writeFileSync(tempFile, abcNotation);
 
-  // Check for basic header fields
-  const requiredHeaders = ["X:", "T:", "M:", "K:"];
-  const foundHeaders = [];
+  try {
+    // Run abc2midi -c (check only mode) - errors on both stdout and stderr
+    const { stdout, stderr, signal, exitCode } = execaSync('abc2midi', [tempFile, '-c'], { reject: false });
 
-  // Detect pattern issues
-  let inVoiceSection = false;
-  let prevLine = "";
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lineNum = i + 1;
-
-    // Check for blank lines (completely empty or just whitespace)
-    if (line.trim() === "") {
-      result.issues.push(
-        `Line ${lineNum}: Blank line detected - will cause ABC parsing errors`,
-      );
-      result.lineIssues.push(lineNum);
+    // Detect segfault/crash before checking output text
+    const crashed = signal === 'SIGSEGV' || signal === 'SIGABRT' || (exitCode !== null && exitCode > 128);
+    if (crashed) {
       result.isValid = false;
-    }
+      result.issues = [`abc2midi crashed (${signal || 'exit ' + exitCode}) - ABC notation caused a fatal error`];
+    } else {
+      // Combine stdout and stderr - abc2midi outputs errors to stdout
+      const combined = `${stdout || ''}\n${stderr || ''}`;
+      const lines = combined.split('\n');
+      // Only actual "Error" lines are fatal; "Warning" lines are non-fatal
+      const errorLines = lines.filter(line => line.includes('Error'));
+      const warningLines = lines.filter(line => line.includes('Warning'));
 
-    // Check for indentation (line starts with whitespace)
-    if ((line !== "" && line.startsWith(" ")) || line.startsWith("\t")) {
-      result.issues.push(
-        `Line ${lineNum}: Line starts with whitespace - may cause ABC parsing errors`,
-      );
-      result.lineIssues.push(lineNum);
-      result.isValid = false;
-    }
-
-    // Check for voice declarations not at start of line
-    if (line.match(/\s+\[?V:/)) {
-      result.issues.push(
-        `Line ${lineNum}: Voice declaration not at start of line`,
-      );
-      result.lineIssues.push(lineNum);
-      result.isValid = false;
-    }
-
-    // Check for required headers
-    for (const header of requiredHeaders) {
-      if (line.startsWith(header)) {
-        foundHeaders.push(header);
-      }
-    }
-
-    // Check for lyrics lines not following melody lines
-    if (line.startsWith("w:") && !prevLine.match(/^\[?V:/)) {
-      // This is a heuristic - not 100% reliable but catches obvious issues
-      const prevLineHasNotes = prevLine.match(/[A-Ga-g]/) !== null;
-      if (!prevLineHasNotes) {
-        result.issues.push(
-          `Line ${lineNum}: Lyrics line (w:) not immediately following a melody line`,
-        );
-        result.lineIssues.push(lineNum);
+      result.warnings = warningLines;
+      if (errorLines.length > 0) {
         result.isValid = false;
+        result.issues = errorLines;
       }
     }
-
-    // Store current line for next iteration
-    prevLine = line;
-  }
-
-  // Check for missing required headers
-  for (const header of requiredHeaders) {
-    if (!foundHeaders.includes(header)) {
-      result.issues.push(`Missing required header: ${header}`);
-      result.isValid = false;
+  } catch (error) {
+    result.isValid = false;
+    const combined = `${error.stdout || ''}\n${error.stderr || ''}`;
+    const lines = combined.split('\n');
+    const errorLines = lines.filter(line => line.includes('Error'));
+    const warningLines = lines.filter(line => line.includes('Warning'));
+    result.warnings = warningLines;
+    result.issues = errorLines.length > 0 ? errorLines : [error.message];
+  } finally {
+    // Clean up temp file
+    try {
+      fs.unlinkSync(tempFile);
+    } catch (e) {
+      // Ignore cleanup errors
     }
   }
 
@@ -527,6 +537,27 @@ export function cleanAbcNotation(abcNotation) {
     // === TRAILING WHITESPACE ===
     .trim();
 
+  // === SEGFAULT PREVENTION: Validate %%MIDI drum directives ===
+  // abc2midi segfaults when programs/velocities count doesn't match 'd' count in pattern
+  cleanedText = cleanedText.split('\n').map(line => {
+    const drumMatch = line.match(/^(%%MIDI\s+drum\s+)(\S+)(\s+.+)$/);
+    if (!drumMatch) return line;
+    const pattern = drumMatch[2];
+    const rest = drumMatch[3].trim().split(/\s+/).map(Number);
+    const dCount = (pattern.match(/d/g) || []).length;
+    if (dCount === 0) return ''; // No hits at all — strip it
+    // rest = programs (dCount values) + velocities (dCount values)
+    if (rest.length !== dCount * 2) {
+      // Truncate or pad to exact expected count
+      const programs = rest.slice(0, dCount).map(n => isNaN(n) ? 36 : n);
+      const velocities = rest.slice(dCount, dCount * 2).map(n => isNaN(n) ? 90 : n);
+      while (programs.length < dCount) programs.push(36);
+      while (velocities.length < dCount) velocities.push(90);
+      return `%%MIDI drum ${pattern} ${programs.join(' ')} ${velocities.join(' ')}`;
+    }
+    return line;
+  }).join('\n');
+
   // Ensure the file ends with a single newline (required by abc2midi)
   return cleanedText + "\n";
 }
@@ -543,10 +574,11 @@ export async function validateWithAbc2Midi(abcFilePath) {
   const tempMidiPath = abcFilePath.replace(".abc", "_validation_temp.mid");
 
   try {
-    // Run abc2midi and capture output
-    execSync(`abc2midi "${abcFilePath}" -o "${tempMidiPath}" 2>&1`, {
-      timeout: 30000, // 30 second timeout
-      encoding: "utf8",
+    // Run abc2midi and capture output (array args to prevent shell injection)
+    const { execa } = await import('execa');
+    const result = await execa('abc2midi', [abcFilePath, '-o', tempMidiPath], {
+      timeout: 30000,
+      reject: false,
     });
 
     // Check if MIDI file was created
@@ -630,11 +662,10 @@ function stripMarkdownCodeFences(text) {
  * @returns {object} The Anthropic provider instance
  */
 export function getAnthropic() {
-  const apiKey = config.get("anthropicApiKey");
-
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "Anthropic API key not found. Please set ANTHROPIC_API_KEY in your environment variables or configuration.",
+      "Anthropic API key not found. Set ANTHROPIC_API_KEY in your environment variables.",
     );
   }
 
@@ -654,7 +685,6 @@ export function getAnthropic() {
  * @param {string} [options.recordLabel] - Make it sound like it was released on this record label
  * @param {string} [options.producer] - Make it sound as if it was produced by this record producer
  * @param {string} [options.instruments] - Comma-separated list of instruments the output ABC notations must include
- * @param {boolean} [options.sequentialMode] - If true, focus on quality over completeness (another agent will expand)
  * @param {number} [options.temperature=0.7] - Temperature for generation
  * @param {string} [options.customSystemPrompt] - Custom system prompt override
  * @returns {Promise<string>} Generated ABC notation
@@ -669,12 +699,8 @@ export async function generateMusicWithClaude(options) {
   const recordLabel = options.recordLabel || "";
   const producer = options.producer || "";
   const requestedInstruments = options.instruments || "";
-  const sequentialMode = options.sequentialMode || false;
 
-  // Use Claude Sonnet 3.7 for best music generation capabilities
-  // const model = myAnthropic("claude-3-7-sonnet-20250219");
-  const model = myAnthropic("claude-sonnet-4-20250514");
-  // const model = myAnthropic("claude-haiku-4-5-20251001");
+  const model = myAnthropic("claude-sonnet-4-6");
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt =
@@ -704,24 +730,6 @@ Guidelines for the ${genre} fusion:
    - Distinctive sounds or techniques
 
 3. Technical guidelines:
-${
-  sequentialMode
-    ? `
-   You are NOT LIKELY to be the only agent working on this piece. If you are beginning a new piece from scratch you are only the first agent in a chain of agents. Another AI agent may expand and develop your work based upon the findings of the "Composition Completion" agent once your work has finished. So, DO NOT worry about:
-   - Making the piece long enough
-   - Creating a complete structure with full development and conclusion
-   - Filling out all sections
-
-   INSTEAD, focus ALL your energy on:
-   - Creating EXCEPTIONAL thematic material that is worth developing
-   - Establishing compelling melodic motifs and harmonic progressions
-   - Writing music that is genuinely interesting and innovative
-   - Setting up ideas that have potential for expansion
-   - Making every measure COUNT - quality over quantity
-
-   Create a strong FOUNDATION with brilliant ideas or expanding upon the brilliant ideas of the agents that came before you. The next agent, if the composition completion agent decides it is necessary, will expand it to get closer to completion.`
-    : `   - Create a composition that is 64 or more measures long`
-}
    - Use appropriate time signatures, key signatures, and tempos that bridge both genres
    - Include appropriate articulations, dynamics, and other musical notations
    ${includeSolo ? "- Include a dedicated solo section for the lead instrument, clearly marked in the notation" : ""}
@@ -822,7 +830,7 @@ The composition should be a genuine artistic fusion that respects and represents
   // Use custom user prompt if provided, otherwise use the default
   const userPrompt =
     options.customUserPrompt ||
-    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? " Include a dedicated solo section for the lead instrument." : ""}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? ` Your composition MUST include at minimum these instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""}${sequentialMode ? ` IMPORTANT: Focus on QUALITY over length. Create exceptional thematic material in 16-32 measures. Another agent will expand your work - your job is to create brilliant foundational ideas worth developing.` : ` Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`}`;
+    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? " Include a dedicated solo section for the lead instrument." : ""}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? ` Your composition MUST include at minimum these instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors.`;
 
   // Generate the ABC notation
   const messages = [
@@ -948,7 +956,7 @@ ${options.solo ? "Include a dedicated solo section for the lead instrument." : "
 ${options.recordLabel ? `Style the composition to sound like it was released on the record label "${options.recordLabel}".` : ""}
 ${options.producer ? `Style the composition to sound as if it was produced by ${options.producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}
 ${options.instruments ? `Your composition MUST include at minimum these instruments: ${options.instruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""}
-${options.sequentialMode ? "IMPORTANT: Focus on QUALITY over length. Create exceptional thematic material in 16-32 measures. Another agent will expand your work - your job is to create brilliant foundational ideas worth developing." : "Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors. The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest."}`,
+Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors.`,
   });
 
   return {
@@ -975,9 +983,7 @@ ${options.sequentialMode ? "IMPORTANT: Focus on QUALITY over length. Create exce
  */
 export async function modifyCompositionWithClaude(options) {
   const myAnthropic = getAnthropic();
-  // const model = myAnthropic("claude-sonnet-4-20250514");
-  const model = myAnthropic("claude-sonnet-4-20250514");
-  // const model = myAnthropic("claude-haiku-4-5-20251001");
+  const model = myAnthropic("claude-sonnet-4-6");
 
   const abcNotation = options.abcNotation;
   const instructions = options.instructions;
@@ -1171,8 +1177,8 @@ Your modifications should respect both the user's instructions and the musical i
  */
 export async function generateDescription(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-sonnet-4-20250514");
-  // const model = myAnthropic("claude-3-7-sonnet-20250219");
+  const model = myAnthropic("claude-sonnet-4-6");
+  // const model = myAnthropic("claude-sonnet-4-6");
   const abcNotation = options.abcNotation;
   const genre = options.genre || "Classical_x_Contemporary";
   const classicalGenre = options.classicalGenre || "Classical";
@@ -1247,7 +1253,7 @@ Organize your analysis into these sections:
  */
 export async function evaluateCompositionCompleteness(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-sonnet-4-20250514");
+  const model = myAnthropic("claude-sonnet-4-6");
 
   const abcNotation = options.abcNotation;
   const genre = options.genre || "Classical_x_Contemporary";
@@ -1356,7 +1362,7 @@ Respond with JSON only. Be DEMANDING.`;
  */
 export async function addLyricsWithClaude(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-3-7-sonnet-20250219");
+  const model = myAnthropic("claude-sonnet-4-6");
 
   const abcNotation = options.abcNotation;
   const lyricsPrompt = options.lyricsPrompt;
@@ -1448,7 +1454,6 @@ Your result should be a singable composition with lyrics that fit both the music
  * @param {string} [options.recordLabel] - Record label aesthetic
  * @param {string} [options.producer] - Producer aesthetic
  * @param {string} [options.instruments] - Comma-separated list of required instruments
- * @param {boolean} [options.sequentialMode=false] - Focus on quality over completeness
  * @param {boolean} [options.useStreaming=false] - Use streaming mode
  * @returns {Promise<string>} Generated MusicXML notation
  */
@@ -1462,10 +1467,9 @@ export async function generateMusicXmlWithClaude(options) {
   const recordLabel = options.recordLabel || "";
   const producer = options.producer || "";
   const requestedInstruments = options.instruments || "";
-  const sequentialMode = options.sequentialMode || false;
 
   // ALWAYS use Claude Sonnet 4.5 for MusicXML generation
-  const model = myAnthropic("claude-sonnet-4-5-20250929");
+  const model = myAnthropic("claude-sonnet-4-6");
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt =
@@ -1498,24 +1502,6 @@ Guidelines for the ${genre} fusion:
    - Distinctive sounds or techniques
 
 3. Technical guidelines:
-${
-  sequentialMode
-    ? `
-   You are NOT LIKELY to be the only agent working on this piece. If you are beginning a new piece from scratch you are only the first agent in a chain of agents. Another AI agent may expand and develop your work based upon the findings of the "Composition Completion" agent once your work has finished. So, DO NOT worry about:
-   - Making the piece long enough
-   - Creating a complete structure with full development and conclusion
-   - Filling out all sections
-
-   INSTEAD, focus ALL your energy on:
-   - Creating EXCEPTIONAL thematic material that is worth developing
-   - Establishing compelling melodic motifs and harmonic progressions
-   - Writing music that is genuinely interesting and innovative
-   - Setting up ideas that have potential for expansion
-   - Making every measure COUNT - quality over quantity
-
-   Create a strong FOUNDATION with brilliant ideas or expanding upon the brilliant ideas of the agents that came before you. The next agent, if the composition completion agent decides it is necessary, will expand it to get closer to completion.`
-    : `   - Create a composition that is 64 or more measures long`
-}
    - Use appropriate time signatures, key signatures, and tempos that bridge both genres
    - Include appropriate articulations, dynamics, and other musical notations
    ${includeSolo ? "- Include a dedicated solo section for the lead instrument, clearly marked in the notation" : ""}
@@ -1547,8 +1533,7 @@ The composition should be a genuine artistic fusion that respects and represents
   // Use custom user prompt if provided, otherwise use the default
   const userPrompt =
     options.customUserPrompt ||
-    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? " Include a dedicated solo section for the lead instrument." : ""}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? ` Your composition MUST include at minimum these instruments: ${requestedInstruments}. Use proper MusicXML instrument definitions for each. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""}${sequentialMode ? ` IMPORTANT: Focus on QUALITY over length. Create exceptional thematic material in 16-32 measures. Another agent will expand your work - your job is to create brilliant foundational ideas worth developing.` : ` The piece must last at least 2 minutes and 30 seconds in length, or at least 64 measures. Whichever is longest.`}
-
+    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? " Include a dedicated solo section for the lead instrument." : ""}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? ` Your composition MUST include at minimum these instruments: ${requestedInstruments}. Use proper MusicXML instrument definitions for each. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""}
 Return valid MusicXML 3.1 notation with all proper structure and elements.`;
 
   // Generate the MusicXML notation
@@ -1673,7 +1658,7 @@ export async function generateMusicXmlDescription(options) {
   const style = options.style || "standard";
 
   // ALWAYS use Claude Sonnet 4.5 for MusicXML description
-  const model = myAnthropic("claude-sonnet-4-5-20250929");
+  const model = myAnthropic("claude-sonnet-4-6");
 
   const systemPrompt = `You are a music critic and analyst specializing in hybrid genre compositions.
 Analyze the provided MusicXML notation and create a detailed description of the composition.
@@ -1751,7 +1736,7 @@ Provide your analysis in the specified JSON format.`;
  */
 export async function modifyMusicXmlComposition(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-sonnet-4-5-20250929");
+  const model = myAnthropic("claude-sonnet-4-6");
 
   const musicXml = options.musicXml;
   const instructions = options.instructions;
@@ -1887,7 +1872,7 @@ Your modifications should respect both the user's instructions and the musical i
  */
 export async function evaluateMusicXmlCompleteness(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-sonnet-4-5-20250929");
+  const model = myAnthropic("claude-sonnet-4-6");
 
   const musicXml = options.musicXml;
   const genre = options.genre || "Classical_x_Contemporary";

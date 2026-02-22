@@ -26,47 +26,22 @@ import { generateAsciiArt, listAsciiArt, exportAsciiArt } from './commands/gener
 import { generateChoreographyNew } from './commands/generate-choreography-new.js';
 import { generateOnsets } from './commands/generate-onsets.js';
 import { playChoreography } from './commands/play-choreography.js';
+import { enhanceComposition } from './commands/enhance-composition.js';
+import { complainCommand } from './commands/complain.js';
+import { generateTimidityConfig } from './commands/generate-timidity-config.js';
 import { createDatasetBrowser } from './ui/index.js';
-import { validateAbcNotation, cleanAbcNotation, evaluateCompositionCompleteness, validateWithAbc2Midi, modifyMusicXmlComposition, evaluateMusicXmlCompleteness, validateWithMusicXmlParser } from './utils/claude.js';
+import { validateAbcNotation, cleanAbcNotation, validateWithAbc2Midi, modifyMusicXmlComposition, evaluateMusicXmlCompleteness, validateWithMusicXmlParser } from './utils/claude.js';
 import { extractMidiStems } from './utils/stem-extractor.js';
 
 // ES module path resolution
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const INVALID_DRUM_PROGRAMS = new Set([
-  67, 68, 69, 70, 71, 72, 73, 74, 75,
-  78, 79,
-  81, 82, 83, 84,
-  86, 87, 88, 89, 90, 91, 92, 93, 94,
-  97, 98,
-  111, 112, 113, 114, 115, 116, 117,
-  119, 120, 121, 122, 123, 124
-]);
-
-/**
- * Detect invalid drum program numbers in ABC notation
- * @param {string} abcContent - ABC notation content
- * @returns {number[]} Array of invalid drum program numbers found
- */
-function detectInvalidDrumPrograms(abcContent) {
-  const invalidFound = [];
-  const drumProgramRegex = /%%MIDI\s+(?:program\s+10|channel\s+10\s+program|drum(?:map)?)\s+(\d+)/gi;
-  let match;
-  while ((match = drumProgramRegex.exec(abcContent)) !== null) {
-    const progNum = parseInt(match[1], 10);
-    if (INVALID_DRUM_PROGRAMS.has(progNum)) {
-      invalidFound.push(progNum);
-    }
-  }
-  return [...new Set(invalidFound)];
-}
-
 // Set up the CLI program
 program
   .name('mediocre')
   .description('CLI tool for generating synthetic music compositions for AI training datasets')
-  .version('0.1.0');
+  .version('0.1.2');
 
 // Add commands
 program
@@ -107,7 +82,9 @@ program
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .option('--soundfonts', '[EXPERIMENTAL] Use LLM to select custom soundfonts and generate per-composition TiMidity config')
-  .option('--sequential', 'Use sequential LLM expansion to create longer, more developed compositions through chained modifications')
+  .option('--sequential', 'Generate foundation then use orchestrated enhancement loop (requires agents enabled)')
+  .option('--max-iterations <n>', 'Max enhancement iterations for sequential mode', '10')
+  .option('--object', 'Use structured object output mode for agent generation (default: text mode)')
   .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
   .option('--midi', 'Run abc2midi on generated ABC files (enabled by default)', true)
   .option('--no-midi', 'Skip abc2midi conversion')
@@ -182,215 +159,13 @@ program
           producer: options.producer || '',
           instruments: options.instruments || '',
           soundfonts: options.soundfonts || false,
-          sequentialMode: options.sequential || false, // Tell initial generation to focus on quality, not completeness
-          useStreaming: options.streamText || false // Use streaming mode to avoid timeout errors
+          sequentialMode: options.sequential || false,
+          maxIterations: parseInt(options.maxIterations || '5', 10),
+          objectMode: options.object || false,
+          useStreaming: options.streamText || false
         };
 
         const files = await generateAbc(genreOptions);
-
-        // If sequential mode is enabled, let the LLM decide when the composition is complete
-        if (options.sequential && files.length > 0) {
-          console.log('\n🔗 Sequential expansion mode enabled - LLM will evaluate and expand until complete...\n');
-
-          const MAX_PASSES = 10; // Safety limit to prevent infinite loops
-
-          for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
-            let currentFile = files[fileIndex];
-            let currentAbc = fs.readFileSync(currentFile, 'utf8');
-            console.log(`\n📝 Evaluating composition ${fileIndex + 1}/${files.length}: ${currentFile}`);
-
-            // Validate initial generation with abc2midi
-            console.log(`  🔧 Validating initial generation with abc2midi...`);
-            let initialValidation = await validateWithAbc2Midi(currentFile);
-
-            // Check for warning (abc2midi not installed)
-            if (initialValidation.warning) {
-              console.log(chalk.yellow(`  ⚠️  ${initialValidation.warning}`));
-            }
-
-            if (!initialValidation.valid) {
-              console.warn(`  ⚠️ Initial generation failed abc2midi: ${initialValidation.error}`);
-              console.log(`  🔧 Attempting to fix initial ABC notation...`);
-
-              const fixedFile = await modifyComposition({
-                abcFile: currentFile,
-                instructions: `FIX THIS ABC NOTATION - IT FAILED abc2midi VALIDATION WITH ERROR: "${initialValidation.error}".
-DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE ABC NOTATION.
-Return the FIXED ABC notation that will pass abc2midi without errors.`,
-                output: options.output,
-                solo: options.solo || false,
-                recordLabel: options.recordLabel || '',
-                producer: options.producer || '',
-                instruments: options.instruments || '',
-                useStreaming: options.streamText || false
-              });
-
-              initialValidation = await validateWithAbc2Midi(fixedFile);
-              if (!initialValidation.valid) {
-                console.error(`  ❌ FATAL: Cannot fix initial generation. Skipping this composition.`);
-                continue;
-              }
-
-              console.log(`  ✅ Initial ABC notation fixed!`);
-              currentFile = fixedFile;
-              currentAbc = fs.readFileSync(currentFile, 'utf8');
-            } else {
-              console.log(`  ✅ Initial generation passes abc2midi validation`);
-            }
-
-            // Extract genre info from filename for evaluation
-            const baseFilename = path.basename(currentFile, '.abc');
-            let genre = 'Classical_x_Contemporary';
-            let classicalGenre = 'Classical';
-            let modernGenre = 'Contemporary';
-
-            if (baseFilename.includes('_x_')) {
-              genre = baseFilename.split('-score')[0];
-              const parts = genre.split('_x_');
-              if (parts.length === 2) {
-                classicalGenre = parts[0];
-                modernGenre = parts[1];
-              }
-            }
-
-            let passNumber = 0;
-            let needsExpansion = true;
-
-            while (needsExpansion && passNumber < MAX_PASSES) {
-              passNumber++;
-              console.log(`\n  🔍 Pass ${passNumber}: Evaluating composition completeness...`);
-
-              try {
-                // Ask the LLM to evaluate if the composition needs more work
-                const evaluation = await evaluateCompositionCompleteness({
-                  abcNotation: currentAbc,
-                  genre,
-                  classicalGenre,
-                  modernGenre,
-                  currentPass: passNumber
-                });
-
-                console.log(`  📊 Evaluation: ${evaluation.reasoning}`);
-
-                if (!evaluation.needsExpansion) {
-                  console.log(`  ✅ Composition is complete!`);
-                  needsExpansion = false;
-                  break;
-                }
-
-                console.log(`  📝 Expanding: ${evaluation.instructions.substring(0, 100)}...`);
-
-                // Check for invalid drum programs and warn if found
-                const invalidDrums = detectInvalidDrumPrograms(currentAbc);
-                let finalInstructions = evaluation.instructions;
-                if (invalidDrums.length > 0) {
-                  console.warn(`  ⚠️ INVALID DRUM PROGRAMS DETECTED: ${invalidDrums.join(', ')}`);
-                  finalInstructions = `🚨 CRITICAL WARNING: The current ABC contains INVALID drum program numbers that DO NOT EXIST in any soundfont: ${invalidDrums.join(', ')}
-
-YOU MUST FIX THESE IMMEDIATELY. Replace them with VALID drum programs ONLY:
-Valid: 0-66, 76-77, 80, 85, 95-96, 99-110, 118, 125-127
-INVALID (DO NOT USE): 67-75, 78-79, 81-84, 86-94, 97-98, 111-117, 119-124
-
-Standard GM drum kits: 0=Standard, 8=Room, 16=Power, 24=Electronic, 25=TR-808, 32=Jazz, 40=Brush, 48=Orchestra, 56=SFX
-
-${evaluation.instructions}`;
-                }
-
-                // Apply the LLM-suggested modifications
-                const modifiedFile = await modifyComposition({
-                  abcFile: currentFile,
-                  instructions: finalInstructions,
-                  output: options.output,
-                  solo: options.solo || false,
-                  recordLabel: options.recordLabel || '',
-                  producer: options.producer || '',
-                  instruments: options.instruments || '',
-                  useStreaming: options.streamText || false
-                });
-
-                // VALIDATE with abc2midi after each expansion
-                console.log(`  🔧 Validating with abc2midi...`);
-                let validation = await validateWithAbc2Midi(modifiedFile);
-
-                // Check for warning (abc2midi not installed)
-                if (validation.warning) {
-                  console.log(chalk.yellow(`  ⚠️  ${validation.warning}`));
-                }
-
-                if (!validation.valid) {
-                  console.warn(`  ⚠️ abc2midi validation failed: ${validation.error}`);
-                  console.log(`  🔧 Attempting to fix the ABC notation...`);
-
-                  // Try to fix the ABC notation
-                  const fixedFile = await modifyComposition({
-                    abcFile: modifiedFile,
-                    instructions: `FIX THIS ABC NOTATION - IT FAILED abc2midi VALIDATION WITH ERROR: "${validation.error}".
-
-DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE ABC NOTATION.
-Common issues to check and fix:
-- Blank lines between voice sections (REMOVE them)
-- Malformed MIDI directives
-- Unbalanced bar lines
-- Invalid note durations or time signatures
-- Missing or malformed headers
-
-Return the FIXED ABC notation that will pass abc2midi without errors.`,
-                    output: options.output,
-                    solo: options.solo || false,
-                    recordLabel: options.recordLabel || '',
-                    producer: options.producer || '',
-                    instruments: options.instruments || '',
-                    useStreaming: options.streamText || false
-                  });
-
-                  // Validate the fix
-                  validation = await validateWithAbc2Midi(fixedFile);
-
-                  if (!validation.valid) {
-                    console.error(`  ❌ FATAL: Fix attempt also failed abc2midi: ${validation.error}`);
-                    console.error(`  ❌ STOPPING GENERATION - ABC notation is unfixable`);
-                    needsExpansion = false;
-                    currentFile = modifiedFile; // Keep the last valid-ish file
-                    break;
-                  }
-
-                  console.log(`  ✅ ABC notation fixed successfully!`);
-                  currentFile = fixedFile;
-                  currentAbc = fs.readFileSync(currentFile, 'utf8');
-                } else {
-                  console.log(`  ✅ abc2midi validation passed`);
-                  currentFile = modifiedFile;
-                  currentAbc = fs.readFileSync(currentFile, 'utf8');
-                }
-
-                console.log(`  ✅ Pass ${passNumber} complete: ${currentFile}`);
-
-              } catch (passError) {
-                console.error(`  ❌ Error in pass ${passNumber}:`, passError.message);
-                // Break on error to avoid infinite error loops
-                break;
-              }
-            }
-
-            if (passNumber >= MAX_PASSES) {
-              console.log(`  ⚠️ Reached maximum ${MAX_PASSES} passes - stopping expansion`);
-            }
-
-            // Rename the final file to indicate it's the completed sequential output
-            const finalFilename = currentFile.replace(/-modified-(\d+)\.abc$/, '-modified-final-$1.abc');
-            if (finalFilename !== currentFile && fs.existsSync(currentFile)) {
-              fs.renameSync(currentFile, finalFilename);
-              console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
-              currentFile = finalFilename;
-            }
-
-            // Replace the original file reference with the final expanded version
-            files[fileIndex] = currentFile;
-            console.log(`\n  🎵 Final composition after ${passNumber} passes: ${currentFile}`);
-          }
-
-          console.log('\n🎵 Sequential expansion complete!\n');
-        }
 
         allFiles.push(...files);
       }
@@ -918,6 +693,66 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
   });
 
 program
+  .command('enhance')
+  .description('Enhance a composition using orchestrated post-processing (ornamentation + MIDI expression)')
+  .argument('<abcFile>', 'Direct file path to ABC notation file to enhance')
+  .option('-o, --output <file>', 'Output path for enhanced composition (default: <input>-enhanced.abc)')
+  .option('--max-iterations <number>', 'Maximum orchestration iterations', '10')
+  .action(async (abcFile, options) => {
+    try {
+      await enhanceComposition({
+        input: abcFile,
+        output: options.output,
+        maxIterations: parseInt(options.maxIterations, 10),
+      });
+    } catch (error) {
+      console.error('Error enhancing composition:', error);
+    }
+  });
+
+program
+  .command('complain')
+  .description('Yell at the orchestrator about a prior session and force it to fix the problem')
+  .argument('<sessionFile>', 'Path to _session.json from a prior run')
+  .argument('<complaint>', 'Your complaint about what the orchestrator got wrong')
+  .option('--max-iterations <number>', 'Maximum revision iterations', '5')
+  .option('-o, --output <file>', 'Override output path for revision file')
+  .action(async (sessionFile, complaint, options) => {
+    try {
+      await complainCommand({
+        sessionFile,
+        complaint,
+        maxIterations: parseInt(options.maxIterations, 10),
+        output: options.output,
+      });
+    } catch (error) {
+      console.error('Error running complaint:', error);
+    }
+  });
+
+program
+  .command('timidity-config')
+  .description('Generate TiMidity config for an existing ABC file')
+  .argument('<abcFile>', 'Path to ABC notation file')
+  .option('-g, --genre <name>', 'Genre name (e.g., "baroque_x_synthwave")')
+  .option('-c, --classical-genre <name>', 'Classical genre component')
+  .option('-m, --modern-genre <name>', 'Modern genre component')
+  .option('-o, --output <dir>', 'Output directory for config file')
+  .action(async (abcFile, options) => {
+    try {
+      await generateTimidityConfig(abcFile, {
+        genre: options.genre,
+        classicalGenre: options.classicalGenre,
+        modernGenre: options.modernGenre,
+        output: options.output,
+      });
+    } catch (error) {
+      console.error('Error generating TiMidity config:', error);
+      process.exit(1);
+    }
+  });
+
+program
   .command('modify-mxml')
   .description('Modify an existing MusicXML composition according to instructions')
   .argument('<mxmlFile>', 'Direct file path to MusicXML notation file to modify')
@@ -1117,7 +952,12 @@ program
   .option('--sequential', 'Use iterative expansion to reach target density (0.18 events/s, 0.80 actions/s)')
   .option('-v, --verbose', 'Show detailed progress')
     .action(async (options) => {
-      await generateChoreographyNew(options);
+      try {
+        await generateChoreographyNew(options);
+      } catch (error) {
+        console.error(`Error generating choreography: ${error.message}`);
+        process.exitCode = 1;
+      }
     });
 
 // Hidden alias for generate-choreography-new (undocumented)
@@ -1139,7 +979,12 @@ program
   .description('Extract and save onset timing data from audio file')
   .option('-a, --abc <path>', 'Path to ABC notation file')
   .action(async (options) => {
-    await generateOnsets(options);
+    try {
+      await generateOnsets(options);
+    } catch (error) {
+      console.error(`Error generating onsets: ${error.message}`);
+      process.exitCode = 1;
+    }
   });
 
 program
@@ -1290,6 +1135,9 @@ if (process.argv.length === 2) {
     play-choreography      Play audio with choreographed ASCII art visualization
     generate-onsets        Extract and save onset timing data from audio file
     validate-abc   Validate and fix formatting issues in ABC notation files
+    enhance        Enhance a composition using orchestrated post-processing (ornamentation + MIDI expression)
+    complain       Yell at the orchestrator about a prior session and force it to fix the problem
+    timidity-config Generate TiMidity config for an existing ABC file
 
   Examples:
     mediocre -g "baroque_x_jazz"                          # Defaults to generate command
@@ -1307,6 +1155,8 @@ if (process.argv.length === 2) {
     mediocre info "/path/to/baroque_x_grunge-score1-1744572129572.abc"
     mediocre more-like-this "/path/to/baroque_x_grunge-score1-1744572129572.abc" -c 2 -s "minimalist" --record-label "Warp Records" --solo --instruments "Cello,Synthesizer"
     mediocre modify "/home/user/music/baroque_x_grunge-score1-1744572129572.abc" -i "Make it longer with a breakdown section" --solo --instruments "Guitar,Drums,Bass"
+    mediocre enhance "/path/to/baroque_x_synthwave-score1.abc"  # Orchestrated post-processing with ornamentation + MIDI expression
+    mediocre timidity-config "/path/to/baroque_x_synthwave-score1.abc"  # Generate TiMidity config with soundfont selection
     mediocre combine --duration-limit 45 --genres "baroque,romantic" --record-label "Raster Noton" --instruments "Synthesizer,Piano,Violin"
     mediocre mix-and-match -f "/home/user/music/fugue.abc" "/home/user/music/serialism.abc" --instruments "Piano,Violin,Synthesizer"
     mediocre lyrics -m "/path/to/baroque_x_jazz-score1.mid" -a "/path/to/baroque_x_jazz-score1.abc" -p "A song about the beauty of nature" --solo --instruments "Piano,Vocals"

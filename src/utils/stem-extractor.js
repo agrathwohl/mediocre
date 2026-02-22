@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execa } from 'execa';
 import abcjs from 'abcjs';
 
 /**
@@ -43,9 +43,9 @@ export async function extractMidiStems(abcFilePath, outputDir = null) {
       fs.writeFileSync(voiceAbcPath, voiceAbc);
 
       try {
-        execSync(`abc2midi "${voiceAbcPath}" -o "${voiceMidiPath}" 2>&1`, {
+        const result = await execa('abc2midi', [voiceAbcPath, '-o', voiceMidiPath], {
           timeout: 30000,
-          encoding: 'utf8',
+          reject: false,
         });
 
         if (fs.existsSync(voiceMidiPath)) {
@@ -122,7 +122,7 @@ function parseAbcVoicesWithTimeline(abcContent) {
     if (line.staff && line.staff.length > 0) {
       // Count measures in first staff (all staffs in a section have same measure count)
       const staff = line.staff[0];
-      if (staff.voices && staff.voices.length > 0) {
+      if (staff && staff.voices && staff.voices.length > 0) {
         const voice = staff.voices[0];
         const barCount = voice.filter(el => el.el_type === 'bar').length;
         totalMeasures += barCount;

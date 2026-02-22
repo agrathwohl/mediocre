@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from './config.js';
-import { execaCommand } from 'execa';
+import { execa } from 'execa';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,9 +52,10 @@ export async function sortByLength(directory = config.get('outputDir'), extensio
     files.map(async (filePath) => {
       try {
         // Use ffprobe (if available) to get duration
-        const { stdout } = await execaCommand(
-          `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`
-        );
+        const { stdout } = await execa('ffprobe', [
+          '-v', 'error', '-show_entries', 'format=duration',
+          '-of', 'default=noprint_wrappers=1:nokey=1', filePath
+        ]);
         const duration = parseFloat(stdout.trim());
         console.log('DURATION!', duration)
         const stats = getFileStats(filePath);
