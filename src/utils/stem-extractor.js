@@ -88,7 +88,8 @@ function getRestForTimeSignature(timeSignature, defaultLength = '1/8') {
  */
 function parseAbcVoicesWithTimeline(abcContent) {
   // Parse with abcjs
-  const parsed = abcjs.parseOnly(abcContent);
+  const cleanedForParsing = abcContent.split('\n').filter(l => !l.trim().startsWith('%%MIDI')).join('\n');
+  const parsed = abcjs.parseOnly(cleanedForParsing);
   if (!parsed || parsed.length === 0) {
     throw new Error('Failed to parse ABC notation');
   }

@@ -167,14 +167,10 @@ export async function generateAbc(options) {
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
   
-  // Ensure the output directory exists
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
-  // Verify the output directory is writable
+  // Ensure the output directory exists and is writable
+  await fs.promises.mkdir(outputDir, { recursive: true });
   try {
-    fs.accessSync(outputDir, fs.constants.W_OK);
+    await fs.promises.access(outputDir, fs.constants.W_OK);
   } catch {
     throw new Error(`Output directory is not writable: ${outputDir}`);
   }
@@ -230,19 +226,19 @@ export async function generateAbc(options) {
         steps: [],
         status: 'in_progress',
       };
-      fs.mkdirSync(outputDir, { recursive: true });
-      saveProcessLog = () => fs.writeFileSync(processLogPath, JSON.stringify(processLog, null, 2));
-      saveProcessLog();
+      await fs.promises.mkdir(outputDir, { recursive: true });
+      saveProcessLog = () => fs.promises.writeFile(processLogPath, JSON.stringify(processLog, null, 2));
+      await saveProcessLog();
 
-      const logStep = (step, data = {}) => {
+      const logStep = async (step, data = {}) => {
         processLog.steps.push({ step, timestamp: new Date().toISOString(), ...data });
-        saveProcessLog();
+        await saveProcessLog();
       };
 
       // Generate the ABC notation with special attention to genre fusion
       console.log(`Generating ${displayGenre} composition in ${style} style...`);
       console.log(`Fusing ${genreComponents.classical} with ${genreComponents.modern}...`);
-      logStep('generation_start', { classical: genreComponents.classical, modern: genreComponents.modern });
+      await logStep('generation_start', { classical: genreComponents.classical, modern: genreComponents.modern });
 
       // Log if using a custom system prompt
       if (customSystemPrompt) {
@@ -320,20 +316,20 @@ export async function generateAbc(options) {
           // Retry once on SIGSEGV — a fresh generation often avoids whatever caused the crash
           try {
             abcNotation = await generateMusicWithAgent(agentArgs);
-            logStep('generation_complete', { mode: 'agent' });
+            await logStep('generation_complete', { mode: 'agent' });
           } catch (firstErr) {
             if (firstErr.message.includes('SIGSEGV') || firstErr.message.includes('SIGABRT') || firstErr.message.includes('crashed')) {
               const partialAbc = firstErr.abcNotation || null;
-              logStep('generation_crash_retry', { attempt: 1, error: firstErr.message });
+              await logStep('generation_crash_retry', { attempt: 1, error: firstErr.message });
               console.warn('⚠️ SIGSEGV on first attempt — retrying generation from scratch...');
               try {
                 abcNotation = await generateMusicWithAgent(agentArgs);
-                logStep('generation_complete', { mode: 'agent', attempt: 2 });
+                await logStep('generation_complete', { mode: 'agent', attempt: 2 });
               } catch (retryErr) {
                 // Both attempts crashed — if we have partial ABC, fall through to outer validation
                 // which will clean it and revalidate. If the cleaned version passes, enhancement runs.
                 const crashAbc = retryErr.abcNotation || partialAbc;
-                logStep('generation_crash_both', { attempt: 2, error: retryErr.message, hadPartialAbc: !!crashAbc });
+                await logStep('generation_crash_both', { attempt: 2, error: retryErr.message, hadPartialAbc: !!crashAbc });
                 if (crashAbc) {
                   console.warn(`⚠️ Both attempts crashed — attempting to continue with cleaned notation...`);
                   abcNotation = crashAbc;
@@ -341,14 +337,14 @@ export async function generateAbc(options) {
                 } else {
                   // Truly nothing to work with
                   processLog.status = 'crashed';
-                  saveProcessLog();
+                  await saveProcessLog();
                   throw retryErr;
                 }
               }
             } else {
-              logStep('generation_error', { error: firstErr.message });
+              await logStep('generation_error', { error: firstErr.message });
               processLog.status = 'error';
-              saveProcessLog();
+              await saveProcessLog();
               throw firstErr;
             }
           }
@@ -391,27 +387,27 @@ export async function generateAbc(options) {
         console.warn(`⚠️ WARNING: ABC notation validation issues found for ${filename}.abc:`);
         validation.issues.forEach(issue => console.warn(`  - ${issue}`));
         console.warn(`Auto-fixing ${validation.issues.length} issues...`);
-        logStep('validation_fix', { issues: validation.issues });
+        await logStep('validation_fix', { issues: validation.issues });
         cleanedAbcNotation = validation.fixedNotation;
         // Revalidate the fixed version — this is what actually decides whether we can proceed
         validation = validateAbcNotation(cleanedAbcNotation);
         if (!validation.isValid) {
           console.warn(`⚠️ Fixed version still has ${validation.issues.length} issue(s)`);
-          logStep('validation_fix_result', { status: 'still_invalid', issues: validation.issues });
+          await logStep('validation_fix_result', { status: 'still_invalid', issues: validation.issues });
         } else {
           console.log(`✅ Fixed version passes validation`);
-          logStep('validation_fix_result', { status: 'ok' });
+          await logStep('validation_fix_result', { status: 'ok' });
         }
       } else {
         console.log(`✅ ABC notation validation passed for ${filename}.abc`);
-        logStep('validation', { status: 'ok' });
+        await logStep('validation', { status: 'ok' });
       }
 
       // Save the cleaned and validated ABC notation to a file
       const abcFilePath = path.join(outputDir, `${filename}.abc`);
-      fs.writeFileSync(abcFilePath, cleanedAbcNotation);
+      await fs.promises.writeFile(abcFilePath, cleanedAbcNotation);
       generatedFiles.push(abcFilePath);
-      logStep('abc_written', { path: abcFilePath });
+      await logStep('abc_written', { path: abcFilePath });
 
       // Only skip if abc2midi crashed (segfault/fatal) — non-fatal errors still produce usable MIDI
       const abcCrashed = validation.issues.some(i => i.includes('crashed'));
@@ -460,7 +456,7 @@ export async function generateAbc(options) {
 
         // Save the description as JSON
         const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
-        fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
+        await fs.promises.writeFile(descriptionFilePath, JSON.stringify(description, null, 2));
 
         // Create a markdown file with both the ABC notation and description
         const soundfontSection = selectedSoundfonts ? `
@@ -491,7 +487,7 @@ ${abcNotation}
 
 ${description.analysis}`;
         const mdFilePath = path.join(outputDir, `${filename}.md`);
-        fs.writeFileSync(mdFilePath, mdContent);
+        await fs.promises.writeFile(mdFilePath, mdContent);
 
         // Sequential mode: foundation generated, now feed to orchestrated enhancement loop
         if (sequentialMode) {
@@ -520,11 +516,12 @@ ${description.analysis}`;
             const baseNoExt = abcFilePath.replace(/\.abc$/, '');
             let version = 1;
             let finalPath = `${baseNoExt}_${version}.abc`;
-            while (fs.existsSync(finalPath)) {
+            while (true) {
+              try { await fs.promises.access(finalPath); } catch { break; }
               version++;
               finalPath = `${baseNoExt}_${version}.abc`;
             }
-            fs.writeFileSync(finalPath, enhancementResult.enhancedAbc);
+            await fs.promises.writeFile(finalPath, enhancementResult.enhancedAbc);
             generatedFiles.push(finalPath);
             console.log(`✅ Sequential enhancement complete (${enhancementResult.iterations} iteration(s)) → ${path.basename(finalPath)}`);
           } catch (enhanceError) {
@@ -533,12 +530,12 @@ ${description.analysis}`;
         }
       } else {
         console.log('⚠️ Skipping enhancement - abc2midi crashed on this notation (segfault/fatal)');
-        logStep('enhancement_skipped', { reason: 'crash' });
+        await logStep('enhancement_skipped', { reason: 'crash' });
       }
 
       processLog.status = 'complete';
       processLog.completedAt = new Date().toISOString();
-      saveProcessLog();
+      await saveProcessLog();
       console.log(`Generated ${abcFilePath}`);
     } catch (error) {
       console.error(`Error generating composition ${i+1}:`, error.message || error);
@@ -547,7 +544,7 @@ ${description.analysis}`;
           processLog.status = 'failed';
           processLog.error = error.message;
           processLog.failedAt = new Date().toISOString();
-          saveProcessLog();
+          await saveProcessLog();
         } catch (_) {}
       }
     }

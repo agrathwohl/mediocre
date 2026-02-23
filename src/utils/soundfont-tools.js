@@ -511,6 +511,18 @@ dir ${SOUNDFONT_DIR}
     }
   }
 
+
+  // Always silence annoying GM percussion whistle sounds
+  config += `
+# ================================================================================
+# PERCUSSION FIXES - Silence annoying whistle sounds
+# GM Drum Map: 71 = Short Whistle, 72 = Long Whistle
+# ================================================================================
+drumset 0
+  71 amp=0  # Short Whistle - silenced
+  72 amp=0  # Long Whistle - silenced
+`;
+
   // Add quality settings
   config += `# ================================================================================
 # QUALITY SETTINGS
