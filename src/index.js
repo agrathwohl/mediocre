@@ -86,6 +86,7 @@ program
   .option('--max-iterations <n>', 'Max enhancement iterations for sequential mode', '10')
   .option('--object', 'Use structured object output mode for agent generation (default: text mode)')
   .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
+  .option('--interactive', 'Enable human-in-the-loop interactive mode for sequential enhancement')
   .option('--midi', 'Run abc2midi on generated ABC files (enabled by default)', true)
   .option('--no-midi', 'Skip abc2midi conversion')
   .action(async (options) => {
@@ -162,7 +163,8 @@ program
           sequentialMode: options.sequential || false,
           maxIterations: parseInt(options.maxIterations || '5', 10),
           objectMode: options.object || false,
-          useStreaming: options.streamText || false
+          useStreaming: options.streamText || false,
+          interactive: options.interactive || false
         };
 
         const files = await generateAbc(genreOptions);
@@ -707,12 +709,14 @@ program
   .argument('<abcFile>', 'Direct file path to ABC notation file to enhance')
   .option('-o, --output <file>', 'Output path for enhanced composition (default: <input>-enhanced.abc)')
   .option('--max-iterations <number>', 'Maximum orchestration iterations', '10')
+  .option('--interactive', 'Enable human-in-the-loop interactive mode')
   .action(async (abcFile, options) => {
     try {
       await enhanceComposition({
         input: abcFile,
         output: options.output,
         maxIterations: parseInt(options.maxIterations, 10),
+        interactive: options.interactive || false,
       });
     } catch (error) {
       console.error('Error enhancing composition:', error);

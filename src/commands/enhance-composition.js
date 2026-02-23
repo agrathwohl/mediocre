@@ -12,6 +12,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { loadCompositionContext } from '../utils/orchestrator-context.js';
 import { orchestratePostProcessing } from '../agents/orchestrator/index.js';
+import { GateController } from '../control/gate-controller.js';
 
 /**
  * Enhance a composition using orchestrated post-processing
@@ -22,7 +23,7 @@ import { orchestratePostProcessing } from '../agents/orchestrator/index.js';
  * @returns {Promise<Object>} Enhancement result with paths and stats
  */
 export async function enhanceComposition(options) {
-  const { input, output, maxIterations = 10 } = options;
+  const { input, output, maxIterations = 10, interactive = false } = options;
 
   if (!input) {
     throw new Error('Input ABC file path required');
@@ -46,17 +47,25 @@ export async function enhanceComposition(options) {
   console.log(`   Classical: ${context.metadata.classicalGenre}`);
   console.log(`   Modern: ${context.metadata.modernGenre}`);
 
+  // Create gate controller for interactive mode
+  const gateController = interactive ? new GateController() : null;
   // Run orchestrated post-processing
-  const result = await orchestratePostProcessing({
-    abcFilePath: input,
-    musicalContext: context,
-    genres: {
-      classical: context.metadata.classicalGenre || '',
-      modern: context.metadata.modernGenre || '',
-      hybrid: context.metadata.genre || '',
-    },
-    maxIterations,
-  });
+  let result;
+  try {
+    result = await orchestratePostProcessing({
+      abcFilePath: input,
+      musicalContext: context,
+      genres: {
+        classical: context.metadata.classicalGenre || '',
+        modern: context.metadata.modernGenre || '',
+        hybrid: context.metadata.genre || '',
+      },
+      maxIterations,
+      gateController,
+    });
+  } finally {
+    if (gateController) gateController.close();
+  }
 
   // Determine output path
   const outputPath = output || input.replace('.abc', '-enhanced.abc');

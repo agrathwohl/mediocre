@@ -306,11 +306,15 @@ export async function orchestratePostProcessing(options) {
     abcFilePath,
     musicalContext,
     genres,
-    maxIterations = 10,
+    maxIterations: configMaxIterations = 10,
     selectedSoundfonts = null,
-    userComplaint = null,
+    userComplaint: initialUserComplaint = null,
     priorSession = null,
+    gateController = null,
   } = options;
+
+  let maxIterations = configMaxIterations;
+  let userComplaint = initialUserComplaint;
 
   const originalAbc = await fs.readFile(abcFilePath, 'utf-8');
   const baseNoExt = abcFilePath.replace(/\.abc$/, '');
@@ -323,134 +327,190 @@ export async function orchestratePostProcessing(options) {
   let lastAbc2midiErrors = [];
   let iteration = 0;
   const writtenPaths = [];
+  let stopped = false;
 
   console.log('\n🎼 Starting Orchestrated Post-Processing');
   console.log(`   Genre: ${genres.hybrid}`);
-  console.log(`   Max Iterations: ${maxIterations}\n`);
+  console.log(`   Max Iterations: ${maxIterations}`);
+  if (gateController) console.log('   Mode: Interactive (human-in-the-loop)');
+  console.log('');
 
-  while (iteration < maxIterations) {
-    // Orchestrator decides what to do
-    const decision = await orchestratorAgent({
-      currentAbc,
-      originalAbc,
-      musicalContext,
-      genres,
-      workHistory,
-      qaFeedback: lastQaResult?.recommendations || null,
-      iteration,
-      maxIterations,
-      selectedSoundfonts,
-      userComplaint,
-      priorSession,
-      abc2midiWarnings: lastAbc2midiWarnings,
-      abc2midiErrors: lastAbc2midiErrors,
-    });
-
-    // Check if orchestrator is done
-    if (decision.action === 'done') {
-      console.log('\n✅ Orchestrator satisfied with composition');
-      break;
-    }
-
-    // Invoke the agent orchestrator selected
-    let newAbc;
-
-    if (decision.agent === 'composition') {
-      newAbc = await modifyMusicWithAgent({
+  while (!stopped) {
+    while (iteration < maxIterations && !stopped) {
+      const decision = await orchestratorAgent({
         currentAbc,
-        modificationDirective: decision.directive,
-        qaFeedback: lastQaResult,
+        originalAbc,
+        musicalContext,
+        genres,
+        workHistory,
+        qaFeedback: lastQaResult?.recommendations || null,
+        iteration,
+        maxIterations,
+        selectedSoundfonts,
+        userComplaint,
+        priorSession,
+        abc2midiWarnings: lastAbc2midiWarnings,
+        abc2midiErrors: lastAbc2midiErrors,
+      });
+
+      // Clear userComplaint after it's been consumed by the orchestrator
+      userComplaint = null;
+
+      // ── GATE 1: Orchestrator made a decision ──
+      if (gateController) {
+        const gate = await gateController.onDecision(decision, {
+          iteration, maxIterations, workHistory, currentAbc, lastQaResult,
+        });
+        if (gate.action === 'quit') { stopped = true; break; }
+        if (gate.action === 'direct') {
+          userComplaint = gate.directive;
+          continue;
+        }
+        if (gate.extend) maxIterations += gate.extend;
+      }
+
+      // ── GATE 2: Orchestrator says "done" ──
+      if (decision.action === 'done') {
+        if (gateController) {
+          const gate = await gateController.onDone(currentAbc, lastQaResult, iteration);
+          if (gate.action === 'reject') {
+            userComplaint = 'Not satisfied yet, keep improving';
+            continue;
+          }
+          if (gate.action === 'direct') {
+            userComplaint = gate.directive;
+            continue;
+          }
+        }
+        console.log('\n✅ Orchestrator satisfied with composition');
+        stopped = true;
+        break;
+      }
+
+      // Invoke the agent orchestrator selected
+      let newAbc;
+
+      if (decision.agent === 'composition') {
+        newAbc = await modifyMusicWithAgent({
+          currentAbc,
+          modificationDirective: decision.directive,
+          qaFeedback: lastQaResult,
+          genre: genres.hybrid,
+          classicalGenre: genres.classical,
+          modernGenre: genres.modern,
+        });
+      } else if (decision.agent === 'ornamentation') {
+        newAbc = await addOrnamentation({
+          abc: currentAbc,
+          directive: decision.directive,
+        });
+      } else if (decision.agent === 'midi-expression') {
+        newAbc = await addMidiExpression({
+          abc: currentAbc,
+          directive: decision.directive,
+        });
+      }
+
+      // Write this iteration to disk immediately as an intermediate checkpoint
+      const iterPath = `${baseNoExt}_iter${iteration + 1}.abc`;
+      await fs.writeFile(iterPath, newAbc);
+      writtenPaths.push(iterPath);
+      console.log(`💾 Iteration written: ${path.basename(iterPath)}`);
+
+      // Run abc2midi validation to capture errors and warnings for next orchestrator decision
+      const iterValidation = await validateAbcNotation(newAbc);
+      lastAbc2midiWarnings = iterValidation.warnings || [];
+      lastAbc2midiErrors = iterValidation.issues || [];
+      if (lastAbc2midiErrors.length > 0) {
+        console.warn(`   🚨 ${lastAbc2midiErrors.length} abc2midi error(s) persist — feeding to orchestrator`);
+      }
+      if (lastAbc2midiWarnings.length > 0) {
+        console.warn(`   ⚠️ ${lastAbc2midiWarnings.length} abc2midi timing warning(s) — feeding to orchestrator`);
+      }
+
+      // QA evaluates the result
+      console.log('\n🔍 Running QA evaluation...');
+
+      const qaResult = await reviewCompositionWithAgent({
+        abcFilePath: iterPath,
         genre: genres.hybrid,
         classicalGenre: genres.classical,
         modernGenre: genres.modern,
       });
-    } else if (decision.agent === 'ornamentation') {
-      newAbc = await addOrnamentation({
-        abc: currentAbc,
-        directive: decision.directive,
-      });
-    } else if (decision.agent === 'midi-expression') {
-      newAbc = await addMidiExpression({
-        abc: currentAbc,
-        directive: decision.directive,
-      });
-    }
 
-    // Write this iteration to disk immediately as an intermediate checkpoint
-    const iterPath = `${baseNoExt}_iter${iteration + 1}.abc`;
-    await fs.writeFile(iterPath, newAbc);
-    writtenPaths.push(iterPath);
-    console.log(`💾 Iteration written: ${path.basename(iterPath)}`);
+      // Calculate average score
+      const scoreValues = Object.values(qaResult.scores);
+      const avgScore = scoreValues.reduce((sum, s) => sum + s, 0) / scoreValues.length;
 
-    // Run abc2midi validation to capture errors and warnings for next orchestrator decision
-    const iterValidation = await validateAbcNotation(newAbc);
-    lastAbc2midiWarnings = iterValidation.warnings || [];
-    lastAbc2midiErrors = iterValidation.issues || [];
-    if (lastAbc2midiErrors.length > 0) {
-      console.warn(`   🚨 ${lastAbc2midiErrors.length} abc2midi error(s) persist — feeding to orchestrator`);
-    }
-    if (lastAbc2midiWarnings.length > 0) {
-      console.warn(`   ⚠️ ${lastAbc2midiWarnings.length} abc2midi timing warning(s) — feeding to orchestrator`);
-    }
+      // ── GATE 3: Agent produced output, QA scored it ──
+      if (gateController) {
+        const gate = await gateController.onAgentOutput(newAbc, qaResult, iteration, {
+          decision, workHistory, maxIterations,
+        });
+        if (gate.action === 'quit') { stopped = true; break; }
+        if (gate.action === 'reject') continue;
+        if (gate.action === 'direct') userComplaint = gate.directive;
+        if (gate.extend) maxIterations += gate.extend;
+      }
 
-    // QA evaluates the result
-    console.log('\n🔍 Running QA evaluation...');
+      // Update state for next iteration
+      currentAbc = newAbc;
+      lastQaResult = qaResult;
 
-    const qaResult = await reviewCompositionWithAgent({
-      abcFilePath: iterPath,
-      genre: genres.hybrid,
-      classicalGenre: genres.classical,
-      modernGenre: genres.modern,
-    });
+      const iterRecord = {
+        iteration: iteration + 1,
+        orchestrator: {
+          action: decision.action,
+          agent: decision.agent,
+          directive: decision.directive,
+          expectedImprovement: decision.expectedImprovement,
+          reasoning: decision.reasoning,
+        },
+        abc2midiErrorCount: lastAbc2midiErrors.length,
+        abc2midiErrorSample: lastAbc2midiErrors.slice(0, 10),
+        abc2midiWarningCount: lastAbc2midiWarnings.length,
+        abc2midiWarningSample: lastAbc2midiWarnings.slice(0, 10),
+        qa: {
+          verdict: qaResult.verdict,
+          avgScore,
+          scores: qaResult.scores,
+          issues: qaResult.issues,
+          strengths: qaResult.strengths,
+          recommendations: qaResult.recommendations,
+          summary: qaResult.summary,
+        },
+      };
 
-    // Calculate average score
-    const scoreValues = Object.values(qaResult.scores);
-    const avgScore = scoreValues.reduce((sum, s) => sum + s, 0) / scoreValues.length;
-
-    // Update state for next iteration
-    currentAbc = newAbc;
-    lastQaResult = qaResult;
-
-    const iterRecord = {
-      iteration: iteration + 1,
-      orchestrator: {
-        action: decision.action,
+      workHistory.push({
+        iteration: iteration + 1,
         agent: decision.agent,
         directive: decision.directive,
         expectedImprovement: decision.expectedImprovement,
-        reasoning: decision.reasoning,
-      },
-      abc2midiErrorCount: lastAbc2midiErrors.length,
-      abc2midiErrorSample: lastAbc2midiErrors.slice(0, 10),
-      abc2midiWarningCount: lastAbc2midiWarnings.length,
-      abc2midiWarningSample: lastAbc2midiWarnings.slice(0, 10),
-      qa: {
-        verdict: qaResult.verdict,
-        avgScore,
-        scores: qaResult.scores,
-        issues: qaResult.issues,
-        strengths: qaResult.strengths,
-        recommendations: qaResult.recommendations,
-        summary: qaResult.summary,
-      },
-    };
+        qaScore: avgScore,
+        qaVerdict: qaResult.verdict,
+        qaFeedback: qaResult.recommendations,
+      });
+      sessionLog.push(iterRecord);
 
-    workHistory.push({
-      iteration: iteration + 1,
-      agent: decision.agent,
-      directive: decision.directive,
-      expectedImprovement: decision.expectedImprovement,
-      qaScore: avgScore,
-      qaVerdict: qaResult.verdict,
-      qaFeedback: qaResult.recommendations,
-    });
-    sessionLog.push(iterRecord);
+      iteration++;
 
-    iteration++;
+      // QA feedback goes back to orchestrator in next iteration
+      console.log(`\n📊 Iteration ${iteration} complete - QA score: ${avgScore.toFixed(1)}/10`);
+    }
 
-    // QA feedback goes back to orchestrator in next iteration
-    console.log(`\n📊 Iteration ${iteration} complete - QA score: ${avgScore.toFixed(1)}/10`);
+    // ── GATE 4: Max iterations reached ──
+    if (!stopped && iteration >= maxIterations && gateController) {
+      const gate = await gateController.onMaxIterations(currentAbc, lastQaResult, iteration);
+      if (gate.extend && gate.extend > 0) {
+        maxIterations += gate.extend;
+        if (gate.action === 'direct') userComplaint = gate.directive;
+        continue;
+      }
+    }
+    break;
   }
+
+  if (gateController) gateController.close();
 
   // Write session log to disk
   const sessionLogPath = `${baseNoExt}_session.json`;

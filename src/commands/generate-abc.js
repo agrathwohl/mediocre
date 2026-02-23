@@ -18,6 +18,7 @@ import { ensureUniqueTitleWithAgent } from '../agents/title/index.js';
 import { loadCompositionContext } from '../utils/orchestrator-context.js';
 import { orchestratePostProcessing } from '../agents/orchestrator/index.js';
 import { arrangeSoundfontsAndGenerateConfig } from '../agents/timidity-config/index.js';
+import { GateController } from '../control/gate-controller.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -496,6 +497,8 @@ ${description.analysis}`;
           try {
             const context = await loadCompositionContext(abcFilePath);
 
+            // Create gate controller for interactive mode in sequential
+            const gateController = options.interactive ? new GateController() : null;
             const enhancementResult = await orchestratePostProcessing({
               abcFilePath,
               musicalContext: context,
@@ -506,7 +509,10 @@ ${description.analysis}`;
               },
               maxIterations: options.maxIterations || 10,
               selectedSoundfonts: selectedSoundfonts || null,
+              gateController,
             });
+
+            if (gateController) gateController.close();
 
             // Remove the foundation .abc from generatedFiles — it's an intermediate artifact.
             // Iteration checkpoints (_iter*.abc) are also just artifacts, not final output.
