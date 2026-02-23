@@ -19,7 +19,7 @@
  * controller.playNext();
  */
 
-import { readFileSync, existsSync } from 'fs';
+import fs from 'fs/promises';
 import { resolve, dirname } from 'path';
 
 /**
@@ -66,13 +66,15 @@ export class PlaylistController {
       return false;
     }
 
-    if (!existsSync(this.playlistPath)) {
+    try {
+      await fs.access(this.playlistPath);
+    } catch {
       console.warn(`Playlist file not found: ${this.playlistPath}`);
       return false;
     }
 
     try {
-      const content = readFileSync(this.playlistPath, 'utf-8');
+      const content = await fs.readFile(this.playlistPath, 'utf-8');
       const playlist = JSON.parse(content);
       
       this.playlistName = playlist.name || 'Untitled Playlist';

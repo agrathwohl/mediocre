@@ -20,33 +20,39 @@ export async function convertToPdf(options) {
   const generatedFiles = [];
   
   // Ensure the output directory exists
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  await fs.promises.mkdir(outputDir, { recursive: true });
   
   // Process a single file if provided
-  if (options.input && fs.existsSync(options.input)) {
-    const outputPath = path.join(outputDir, path.basename(options.input, '.abc') + '.pdf');
-    await convertFile(options.input, outputPath);
-    generatedFiles.push(outputPath);
+  if (options.input) {
+    try {
+      await fs.promises.access(options.input);
+      const outputPath = path.join(outputDir, path.basename(options.input, '.abc') + '.pdf');
+      await convertFile(options.input, outputPath);
+      generatedFiles.push(outputPath);
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
   }
   
   // Process all files in a directory if provided
-  if (options.directory && fs.existsSync(options.directory)) {
-    const files = fs.readdirSync(options.directory);
-    
-    for (const file of files) {
-      if (file.endsWith('.abc')) {
-        const inputPath = path.join(options.directory, file);
-        const outputPath = path.join(outputDir, path.basename(file, '.abc') + '.pdf');
-        
-        try {
-          await convertFile(inputPath, outputPath);
-          generatedFiles.push(outputPath);
-        } catch (error) {
-          console.error(`Error converting ${inputPath}: ${error.message}`);
+  if (options.directory) {
+    try {
+      await fs.promises.access(options.directory);
+      const files = await fs.promises.readdir(options.directory);
+      for (const file of files) {
+        if (file.endsWith('.abc')) {
+          const inputPath = path.join(options.directory, file);
+          const outputPath = path.join(outputDir, path.basename(file, '.abc') + '.pdf');
+          try {
+            await convertFile(inputPath, outputPath);
+            generatedFiles.push(outputPath);
+          } catch (error) {
+            console.error(`Error converting ${inputPath}: ${error.message}`);
+          }
         }
       }
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
     }
   }
   
@@ -87,7 +93,7 @@ async function convertFile(inputPath, outputPath) {
     await execa('ps2pdf', [tempPsFile, outputPath]);
     
     // Clean up the temporary PS file
-    fs.unlinkSync(tempPsFile);
+    await fs.promises.unlink(tempPsFile);
     
     console.log(`Converted ${inputPath} to ${outputPath}`);
   } catch (error) {

@@ -507,7 +507,7 @@ export async function sanitizeDrums(pattern, options = {}) {
   let skipped = 0;
 
   for (const filePath of files) {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = await fs.promises.readFile(filePath, 'utf-8');
 
     if (useLLM) {
       // LLM mode: flag ALL files with drum content for intelligent analysis
@@ -583,12 +583,12 @@ export async function sanitizeDrums(pattern, options = {}) {
             const retryFile = { ...file, content: result.content, banned: stillBanned };
             const retried = await sanitizeWithLLM([retryFile]);
             if (retried.length > 0) {
-              fs.writeFileSync(file.path, retried[0].content);
+              await fs.promises.writeFile(file.path, retried[0].content);
             } else {
-              fs.writeFileSync(file.path, result.content);
+              await fs.promises.writeFile(file.path, result.content);
             }
           } else {
-            fs.writeFileSync(file.path, result.content);
+            await fs.promises.writeFile(file.path, result.content);
           }
           console.log(`  ✅ ${path.basename(file.path)}: Sanitized`);
           fixed++;
@@ -606,7 +606,7 @@ export async function sanitizeDrums(pattern, options = {}) {
       const { content, replacements, skippedVoices } = quickReplaceBannedNotes(file.content);
 
       if (replacements > 0 || skippedVoices.length > 0) {
-        fs.writeFileSync(file.path, content);
+        await fs.promises.writeFile(file.path, content);
         if (replacements > 0) {
           console.log(`  ✅ ${path.basename(file.path)}: Replaced ${replacements} banned note(s)`);
         }

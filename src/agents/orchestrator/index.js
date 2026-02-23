@@ -17,7 +17,7 @@ import { reviewCompositionWithAgent } from '../qa/index.js';
 import { addOrnamentation } from '../workers/ornamentation.js';
 import { addMidiExpression } from '../workers/midi-expression.js';
 import { validateAbcNotation } from '../../utils/claude.js';
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 
 const anthropic = createAnthropic({
@@ -312,7 +312,7 @@ export async function orchestratePostProcessing(options) {
     priorSession = null,
   } = options;
 
-  const originalAbc = fs.readFileSync(abcFilePath, 'utf-8');
+  const originalAbc = await fs.readFile(abcFilePath, 'utf-8');
   const baseNoExt = abcFilePath.replace(/\.abc$/, '');
 
   let currentAbc = originalAbc;
@@ -378,12 +378,12 @@ export async function orchestratePostProcessing(options) {
 
     // Write this iteration to disk immediately as an intermediate checkpoint
     const iterPath = `${baseNoExt}_iter${iteration + 1}.abc`;
-    fs.writeFileSync(iterPath, newAbc);
+    await fs.writeFile(iterPath, newAbc);
     writtenPaths.push(iterPath);
     console.log(`💾 Iteration written: ${path.basename(iterPath)}`);
 
     // Run abc2midi validation to capture errors and warnings for next orchestrator decision
-    const iterValidation = validateAbcNotation(newAbc);
+    const iterValidation = await validateAbcNotation(newAbc);
     lastAbc2midiWarnings = iterValidation.warnings || [];
     lastAbc2midiErrors = iterValidation.issues || [];
     if (lastAbc2midiErrors.length > 0) {
@@ -463,7 +463,7 @@ export async function orchestratePostProcessing(options) {
     finalScores: lastQaResult?.scores || null,
     finalSummary: lastQaResult?.summary || null,
   };
-  fs.writeFileSync(sessionLogPath, JSON.stringify(sessionData, null, 2));
+  await fs.writeFile(sessionLogPath, JSON.stringify(sessionData, null, 2));
   console.log(`\n📋 Session log: ${path.basename(sessionLogPath)}`);
 
   // Return final result

@@ -1083,7 +1083,7 @@ export async function generateChoreographyNew(options) {
 
     // Actually load the ASCII art from manager
     if (options.abc) {
-      asciiShapes = asciiArtManager.getArtForAbc(abcBasename) || [];
+      asciiShapes = (await asciiArtManager.getArtForAbc(abcBasename)) || [];
       if (asciiShapes.length > 0) {
         console.log(chalk.green(`✓ Found ${asciiShapes.length} ASCII art shapes for this composition`));
       } else {

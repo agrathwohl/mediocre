@@ -126,20 +126,22 @@ export async function combineCompositions(options) {
   console.log(`Looking for .abc files in ${directory}...`);
 
   // Get all ABC files and calculate duration from ABC notation (tempo + measure count)
-  let filesWithDuration = fs.readdirSync(directory)
+  const dirEntries = await fs.promises.readdir(directory);
+  const abcFiles = dirEntries
     .filter(file => file.endsWith('.abc'))
-    .map(file => path.join(directory, file))
-    .map((abcFile) => {
-      const abcContent = fs.readFileSync(abcFile, 'utf8');
-      const duration = calculateAbcDuration(abcContent);
-      const stats = fs.statSync(abcFile);
-      return {
-        path: path.resolve(abcFile),
-        duration,
-        created: stats.birthtime,
-        modified: stats.mtime
-      };
+    .map(file => path.join(directory, file));
+  let filesWithDuration = [];
+  for (const abcFile of abcFiles) {
+    const abcContent = await fs.promises.readFile(abcFile, 'utf8');
+    const duration = calculateAbcDuration(abcContent);
+    const stats = await fs.promises.stat(abcFile);
+    filesWithDuration.push({
+      path: path.resolve(abcFile),
+      duration,
+      created: stats.birthtime,
+      modified: stats.mtime
     });
+  }
 
   // Filter out files without calculable duration
   const filesWithValidDuration = filesWithDuration.filter(file => file.duration !== null);
@@ -217,7 +219,7 @@ export async function combineCompositions(options) {
     for (const piece of group) {
       const baseFilename = path.basename(piece.path, '.abc');
       // Read ABC content directly since we're searching ABC files
-      const abcContent = fs.readFileSync(piece.path, 'utf8');
+      const abcContent = await fs.promises.readFile(piece.path, 'utf8');
       abcNotations.push(abcContent);
 
       // Try to get genre from description file or filename
@@ -245,7 +247,7 @@ export async function combineCompositions(options) {
       const filename = `${combinedGenre}-combined-${timestamp}`;
       const abcFilePath = path.join(outputDir, `${filename}.abc`);
 
-      fs.writeFileSync(abcFilePath, newPiece);
+      await fs.promises.writeFile(abcFilePath, newPiece);
       console.log(`Created combined composition: ${abcFilePath}`);
 
       // VALIDATE WITH ABC2MIDI IMMEDIATELY - prevent segfaults
@@ -267,7 +269,7 @@ export async function combineCompositions(options) {
 
         try {
           const fixedAbc = await modifyCompositionWithClaude({
-            abcNotation: fs.readFileSync(abcFilePath, 'utf8'),
+            abcNotation: await fs.promises.readFile(abcFilePath, 'utf8'),
             instructions: `FIX THIS ABC NOTATION - IT FAILED abc2midi VALIDATION WITH ERROR: "${validation.error}".
 
 DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE ABC NOTATION.
@@ -282,7 +284,7 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
             useStreaming
           });
 
-          fs.writeFileSync(abcFilePath, fixedAbc);
+          await fs.promises.writeFile(abcFilePath, fixedAbc);
           validation = await validateWithAbc2Midi(abcFilePath);
 
           if (validation.valid) {
@@ -295,7 +297,7 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
 
       if (!validation.valid) {
         console.error(`  ❌ Could not fix ABC notation after ${MAX_FIX_ATTEMPTS} attempts. Skipping this composition.`);
-        fs.unlinkSync(abcFilePath); // Delete the bad file
+        await fs.promises.unlink(abcFilePath); // Delete the bad file
         continue;
       }
 
@@ -314,7 +316,7 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
       });
 
       const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
-      fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
+      await fs.promises.writeFile(descriptionFilePath, JSON.stringify(description, null, 2));
 
       // Create a markdown file with details about the source pieces
       const sourceDetails = group.map(piece => {
@@ -339,7 +341,7 @@ ${newPiece}
 ${description.analysis}
 `;
       const mdFilePath = path.join(outputDir, `${filename}.md`);
-      fs.writeFileSync(mdFilePath, mdContent);
+      await fs.promises.writeFile(mdFilePath, mdContent);
 
       generatedFiles.push(abcFilePath);
     }
@@ -638,7 +640,7 @@ IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure a
     notation = cleanAbcNotation(notation);
     
     // Validate the ABC notation
-    const validation = validateAbcNotation(notation);
+    const validation = await validateAbcNotation(notation);
     
     // If there are issues, log and use the fixed version
     if (!validation.isValid) {

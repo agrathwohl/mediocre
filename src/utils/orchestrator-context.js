@@ -5,7 +5,7 @@
  * to make intelligent post-processing decisions.
  */
 
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import { glob } from 'glob';
 
@@ -37,10 +37,10 @@ export async function loadCompositionContext(abcFilePath) {
   }
 
   // Read JSON metadata
-  const metadata = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+  const metadata = JSON.parse(await fs.readFile(jsonPath, 'utf-8'));
 
   // Read markdown and strip ABC notation section
-  const markdownContent = fs.readFileSync(mdPath, 'utf-8');
+  const markdownContent = await fs.readFile(mdPath, 'utf-8');
   const analysisOnly = stripAbcNotationFromMarkdown(markdownContent);
 
   return {
@@ -66,8 +66,11 @@ async function findContextFile(dir, basePattern, extension, exactTimestamp) {
   // Try exact match first if we have a timestamp
   if (exactTimestamp) {
     const exactPath = path.join(dir, `${basePattern}-${exactTimestamp}${extension}`);
-    if (fs.existsSync(exactPath)) {
+    try {
+      await fs.access(exactPath);
       return exactPath;
+    } catch {
+      // Not found, continue to glob search
     }
   }
 

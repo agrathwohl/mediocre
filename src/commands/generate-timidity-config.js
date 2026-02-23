@@ -8,12 +8,13 @@ import { arrangeSoundfontsAndGenerateConfig } from '../agents/timidity-config/in
  * @param {Object} options - Command options
  */
 export async function generateTimidityConfig(abcFilePath, options = {}) {
-  if (!fs.existsSync(abcFilePath)) {
+  try {
+    await fs.promises.access(abcFilePath);
+  } catch {
     throw new Error(`ABC file not found: ${abcFilePath}`);
   }
-
   // Read ABC file
-  const abcNotation = fs.readFileSync(abcFilePath, 'utf-8');
+  const abcNotation = await fs.promises.readFile(abcFilePath, 'utf-8');
   const abcDir = path.dirname(abcFilePath);
   const abcBasename = path.basename(abcFilePath, '.abc');
 
@@ -23,9 +24,10 @@ export async function generateTimidityConfig(abcFilePath, options = {}) {
   let classicalGenre = 'Classical';
   let modernGenre = 'Contemporary';
 
-  if (fs.existsSync(jsonPath)) {
+  try {
+    const descriptionRaw = await fs.promises.readFile(jsonPath, 'utf-8');
     try {
-      const description = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+      const description = JSON.parse(descriptionRaw);
       if (description.genre) genre = description.genre;
       if (description.classicalGenre) classicalGenre = description.classicalGenre;
       if (description.modernGenre) modernGenre = description.modernGenre;
@@ -34,8 +36,12 @@ export async function generateTimidityConfig(abcFilePath, options = {}) {
     } catch (err) {
       console.warn(`⚠️ Could not parse JSON file: ${err.message}`);
     }
-  } else {
-    console.log(`ℹ️ No companion JSON found, using defaults`);
+  } catch (readErr) {
+    if (readErr.code === 'ENOENT') {
+      console.log(`ℹ️ No companion JSON found, using defaults`);
+    } else {
+      throw readErr;
+    }
   }
 
   // Override with CLI options if provided

@@ -81,13 +81,11 @@ export async function generateMxml(options) {
   const genreComponents = parseHybridGenre(genre);
 
   // Ensure the output directory exists
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+    await fs.promises.mkdir(outputDir, { recursive: true });
 
   // Verify the output directory is writable
   try {
-    fs.accessSync(outputDir, fs.constants.W_OK);
+    await fs.promises.access(outputDir, fs.constants.W_OK);
   } catch {
     throw new Error(`Output directory is not writable: ${outputDir}`);
   }
@@ -166,7 +164,7 @@ export async function generateMxml(options) {
 
       // Save the MusicXML notation to a file
       const mxmlFilePath = path.join(outputDir, `${filename}.musicxml`);
-      fs.writeFileSync(mxmlFilePath, musicXml);
+      await fs.promises.writeFile(mxmlFilePath, musicXml);
       generatedFiles.push(mxmlFilePath);
 
       // Only generate description documents if MusicXML validation passed
@@ -188,7 +186,7 @@ export async function generateMxml(options) {
 
         // Save the description as JSON
         const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
-        fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
+        await fs.promises.writeFile(descriptionFilePath, JSON.stringify(description, null, 2));
 
         // Create a markdown file with both the MusicXML notation and description
         const instrumentString = description.instruments?.length > 0
@@ -217,7 +215,7 @@ ${instrumentString}
 
 ${description.analysis}`;
         const mdFilePath = path.join(outputDir, `${filename}.md`);
-        fs.writeFileSync(mdFilePath, mdContent);
+        await fs.promises.writeFile(mdFilePath, mdContent);
       } else {
         console.log('⚠️ Skipping description document generation - MusicXML validation failed');
       }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -13,24 +13,37 @@ const __dirname = path.dirname(__filename);
 export class AsciiArtManager {
   constructor() {
     this.libraryPath = path.join(__dirname, '../../ascii-art-library.json');
-    this.library = this.loadLibrary();
+    this.library = null;
+    this._initPromise = null;
+  }
+
+  /**
+   * Ensure the library is loaded (lazy async init)
+   * @returns {Promise<void>}
+   */
+  async init() {
+    if (this.library) return;
+    if (this._initPromise) return this._initPromise;
+    this._initPromise = this._loadLibrary();
+    await this._initPromise;
   }
 
   /**
    * Load the ASCII art library from disk
    * @returns {Object} The library object
    */
-  loadLibrary() {
-    if (fs.existsSync(this.libraryPath)) {
-      try {
-        const data = fs.readFileSync(this.libraryPath, 'utf8');
-        return JSON.parse(data);
-      } catch (error) {
+  async _loadLibrary() {
+    try {
+      const data = await fs.readFile(this.libraryPath, 'utf8');
+      this.library = JSON.parse(data);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        this.library = this.createEmptyLibrary();
+      } else {
         console.error('Error loading ASCII art library:', error);
-        return this.createEmptyLibrary();
+        this.library = this.createEmptyLibrary();
       }
     }
-    return this.createEmptyLibrary();
   }
 
   /**
@@ -49,9 +62,9 @@ export class AsciiArtManager {
   /**
    * Save the library to disk
    */
-  saveLibrary() {
+  async saveLibrary() {
     try {
-      fs.writeFileSync(this.libraryPath, JSON.stringify(this.library, null, 2));
+      await fs.writeFile(this.libraryPath, JSON.stringify(this.library, null, 2));
       console.log(`✅ ASCII art library saved to ${this.libraryPath}`);
     } catch (error) {
       console.error('Error saving ASCII art library:', error);
@@ -65,7 +78,8 @@ export class AsciiArtManager {
    * @param {Array} shapes - Array of shape objects with art and metadata
    * @param {Object} metadata - Additional metadata about the ABC notation
    */
-  addArtForAbc(abcBasename, shapes, metadata = {}) {
+  async addArtForAbc(abcBasename, shapes, metadata = {}) {
+    await this.init();
     if (!this.library.abcNotations[abcBasename]) {
       this.library.abcNotations[abcBasename] = {
         createdAt: new Date().toISOString(),
@@ -73,11 +87,8 @@ export class AsciiArtManager {
         shapes: []
       };
     }
-
     const entry = this.library.abcNotations[abcBasename];
     entry.updatedAt = new Date().toISOString();
-
-    // Add shapes with unique IDs
     shapes.forEach(shape => {
       const shapeWithId = {
         ...shape,
@@ -87,7 +98,7 @@ export class AsciiArtManager {
       entry.shapes.push(shapeWithId);
     });
 
-    this.saveLibrary();
+    await this.saveLibrary();
     return entry;
   }
 
@@ -96,7 +107,8 @@ export class AsciiArtManager {
    * @param {string} abcBasename - Base name of the ABC file
    * @returns {Array} Array of shape objects
    */
-  getArtForAbc(abcBasename) {
+  async getArtForAbc(abcBasename) {
+    await this.init();
     const entry = this.library.abcNotations[abcBasename];
     if (!entry) return [];
     // Clean any markdown code fence markers from shapes
@@ -111,14 +123,13 @@ export class AsciiArtManager {
    * @param {string} wavPath - Path to the WAV file
    * @returns {Object|null} Object with abcBasename and shapes, or null
    */
-  getArtForWav(wavPath) {
+  async getArtForWav(wavPath) {
+    await this.init();
     const basename = path.basename(wavPath, path.extname(wavPath));
-
-    // Check for pattern: {abcBasename}1.mid.wav
     const match = basename.match(/^(.+?)1\.mid$/);
     if (match) {
       const abcBasename = match[1];
-      const shapes = this.getArtForAbc(abcBasename);
+      const shapes = await this.getArtForAbc(abcBasename);
       if (shapes.length > 0) {
         return {
           abcBasename,
@@ -127,7 +138,6 @@ export class AsciiArtManager {
         };
       }
     }
-
     return null;
   }
 
@@ -135,7 +145,8 @@ export class AsciiArtManager {
    * Get all available ABC basenames
    * @returns {Array} Array of ABC basenames
    */
-  getAbcList() {
+  async getAbcList() {
+    await this.init();
     return Object.keys(this.library.abcNotations);
   }
 
@@ -160,7 +171,8 @@ export class AsciiArtManager {
    * Add global shapes available for all visualizations
    * @param {Array} shapes - Array of shape objects
    */
-  addGlobalShapes(shapes) {
+  async addGlobalShapes(shapes) {
+    await this.init();
     shapes.forEach(shape => {
       const shapeWithId = {
         ...shape,
@@ -169,21 +181,21 @@ export class AsciiArtManager {
       };
       this.library.globalShapes.push(shapeWithId);
     });
-    this.saveLibrary();
+    await this.saveLibrary();
   }
 
   /**
    * Get statistics about the library
    * @returns {Object} Library statistics
    */
-  getStats() {
+  async getStats() {
+    await this.init();
     const stats = {
       totalAbcNotations: Object.keys(this.library.abcNotations).length,
       totalShapes: 0,
       globalShapes: this.library.globalShapes.length,
       abcStats: {}
     };
-
     Object.entries(this.library.abcNotations).forEach(([abc, data]) => {
       stats.totalShapes += data.shapes.length;
       stats.abcStats[abc] = {
@@ -192,7 +204,6 @@ export class AsciiArtManager {
         updatedAt: data.updatedAt
       };
     });
-
     return stats;
   }
 }

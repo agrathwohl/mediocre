@@ -22,9 +22,7 @@ export async function processEffects(options) {
   const processedFiles = [];
   
   // Ensure the output directory exists
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  await fs.promises.mkdir(outputDir, { recursive: true });
   
   // Check if SoX is installed
   try {
@@ -34,34 +32,43 @@ export async function processEffects(options) {
   }
   
   // Process a single file if provided
-  if (options.input && fs.existsSync(options.input)) {
-    const outputPath = path.join(
-      outputDir,
-      `${path.basename(options.input, '.wav')}-${effect}.wav`
-    );
-    await processFile(options.input, outputPath, effect);
-    processedFiles.push(outputPath);
+  if (options.input) {
+    try {
+      await fs.promises.access(options.input);
+      const outputPath = path.join(
+        outputDir,
+        `${path.basename(options.input, '.wav')}-${effect}.wav`
+      );
+      await processFile(options.input, outputPath, effect);
+      processedFiles.push(outputPath);
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
   }
   
   // Process all files in a directory if provided
-  if (options.directory && fs.existsSync(options.directory)) {
-    const files = fs.readdirSync(options.directory);
-    
-    for (const file of files) {
-      if (file.endsWith('.wav')) {
-        const inputPath = path.join(options.directory, file);
-        const outputPath = path.join(
-          outputDir,
-          `${path.basename(file, '.wav')}-${effect}.wav`
-        );
-        
-        try {
-          await processFile(inputPath, outputPath, effect);
-          processedFiles.push(outputPath);
-        } catch (error) {
-          console.error(`Error processing ${inputPath}: ${error.message}`);
+  if (options.directory) {
+    try {
+      await fs.promises.access(options.directory);
+      const files = await fs.promises.readdir(options.directory);
+      for (const file of files) {
+        if (file.endsWith('.wav')) {
+          const inputPath = path.join(options.directory, file);
+          const outputPath = path.join(
+            outputDir,
+            `${path.basename(file, '.wav')}-${effect}.wav`
+          );
+          
+          try {
+            await processFile(inputPath, outputPath, effect);
+            processedFiles.push(outputPath);
+          } catch (error) {
+            console.error(`Error processing ${inputPath}: ${error.message}`);
+          }
         }
       }
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
     }
   }
   
@@ -101,8 +108,8 @@ async function processFile(inputPath, outputPath, effect) {
           await applyDistortion(tempPath2, outputPath);
         } finally {
           // Clean up temporary files even if effects throw
-          try { fs.unlinkSync(tempPath1); } catch (_) {}
-          try { fs.unlinkSync(tempPath2); } catch (_) {}
+          try { await fs.promises.unlink(tempPath1); } catch (_) {}
+          try { await fs.promises.unlink(tempPath2); } catch (_) {}
         }
         break;
     }

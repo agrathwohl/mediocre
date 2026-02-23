@@ -12,11 +12,7 @@ export { titleAgent, ensureUniqueTitleWithAgent } from './title/index.js';
 export { compositionAgent, generateMusicWithAgent } from './composition/index.js';
 export { qaAgent, reviewCompositionWithAgent, generateWithQA } from './qa/index.js';
 export { soundfontAgent, selectSoundfontsWithAgent } from './soundfont/index.js';
-// export { descriptionAgent } from './description/index.js';
-// export { ornamentationAgent } from './ornamentation/index.js';
-// export { midiExtensionsAgent } from './midi-extensions/index.js';
 export { timidityConfigAgent, arrangeSoundfontsAndGenerateConfig } from './timidity-config/index.js';
-// export { sketchAgent, expansionAgent, generateWithSequentialExpansion } from './sequential/index.js';
 
 /**
  * Agent availability flags

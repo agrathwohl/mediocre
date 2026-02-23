@@ -12,15 +12,13 @@ import abcjs from 'abcjs';
  */
 export async function extractMidiStems(abcFilePath, outputDir = null) {
   try {
-    const abcContent = fs.readFileSync(abcFilePath, 'utf8');
+    const abcContent = await fs.promises.readFile(abcFilePath, 'utf8');
     const basename = path.basename(abcFilePath, '.abc');
     const abcDir = path.dirname(abcFilePath);
 
     // Create stems directory
     const stemsDir = outputDir || path.join(abcDir, `${basename}_stems`);
-    if (!fs.existsSync(stemsDir)) {
-      fs.mkdirSync(stemsDir, { recursive: true });
-    }
+    await fs.promises.mkdir(stemsDir, { recursive: true });
 
     // Parse ABC to extract headers, voices, and measure structure
     const { headers, voices, measureTimeline } = parseAbcVoicesWithTimeline(abcContent);
@@ -40,7 +38,7 @@ export async function extractMidiStems(abcFilePath, outputDir = null) {
       const voiceAbcPath = path.join(stemsDir, `${voice.id}.abc`);
       const voiceMidiPath = path.join(stemsDir, `${voice.id}.mid`);
 
-      fs.writeFileSync(voiceAbcPath, voiceAbc);
+      await fs.promises.writeFile(voiceAbcPath, voiceAbc);
 
       try {
         const result = await execa('abc2midi', [voiceAbcPath, '-o', voiceMidiPath], {
@@ -48,7 +46,9 @@ export async function extractMidiStems(abcFilePath, outputDir = null) {
           reject: false,
         });
 
-        if (fs.existsSync(voiceMidiPath)) {
+        let midiExists = false;
+        try { await fs.promises.access(voiceMidiPath); midiExists = true; } catch {}
+        if (midiExists) {
           stems.push(voiceMidiPath);
           console.log(`    ✅ ${voice.id}.mid (${voice.name || 'unnamed'}) [${measureTimeline.totalMeasures} measures]`);
         }

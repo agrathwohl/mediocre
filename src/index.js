@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { execSync, spawn } from 'child_process';
+import { execa } from 'execa';
 import { program } from 'commander';
 import { config } from './utils/config.js';
 import { parseGenreList, generateMultipleHybridGenres } from './utils/genre-generator.js';
@@ -126,7 +126,7 @@ program
       
       if (options.systemPrompt) {
         try {
-          customSystemPrompt = fs.readFileSync(options.systemPrompt, 'utf8');
+          customSystemPrompt = await fs.promises.readFile(options.systemPrompt, 'utf8');
           console.log(`Loaded custom system prompt from ${options.systemPrompt}`);
         } catch (error) {
           throw new Error(`Failed to load system prompt: ${error.message}`);
@@ -135,7 +135,7 @@ program
       
       if (options.userPrompt) {
         try {
-          customUserPrompt = fs.readFileSync(options.userPrompt, 'utf8');
+          customUserPrompt = await fs.promises.readFile(options.userPrompt, 'utf8');
           console.log(`Loaded custom user prompt from ${options.userPrompt}`);
         } catch (error) {
           throw new Error(`Failed to load user prompt: ${error.message}`);
@@ -251,7 +251,7 @@ program
 
       if (options.systemPrompt) {
         try {
-          customSystemPrompt = fs.readFileSync(options.systemPrompt, 'utf8');
+          customSystemPrompt = await fs.promises.readFile(options.systemPrompt, 'utf8');
           console.log(`Loaded custom system prompt from ${options.systemPrompt}`);
         } catch (error) {
           throw new Error(`Failed to load system prompt: ${error.message}`);
@@ -260,7 +260,7 @@ program
 
       if (options.userPrompt) {
         try {
-          customUserPrompt = fs.readFileSync(options.userPrompt, 'utf8');
+          customUserPrompt = await fs.promises.readFile(options.userPrompt, 'utf8');
           console.log(`Loaded custom user prompt from ${options.userPrompt}`);
         } catch (error) {
           throw new Error(`Failed to load user prompt: ${error.message}`);
@@ -297,7 +297,7 @@ program
 
           for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
             let currentFile = files[fileIndex];
-            let currentMxml = fs.readFileSync(currentFile, 'utf8');
+            let currentMxml = await fs.promises.readFile(currentFile, 'utf8');
             console.log(`\n📝 Evaluating composition ${fileIndex + 1}/${files.length}: ${currentFile}`);
 
             // Validate initial generation with MusicXML parser
@@ -321,7 +321,7 @@ Return the FIXED MusicXML notation that will pass validation without errors.`,
               });
 
               // Save the fixed version
-              fs.writeFileSync(currentFile, fixedMxml);
+              await fs.promises.writeFile(currentFile, fixedMxml);
               currentMxml = fixedMxml;
 
               initialValidation = await validateWithMusicXmlParser(currentFile);
@@ -395,7 +395,7 @@ Return the FIXED MusicXML notation that will pass validation without errors.`,
                 const timestamp = Date.now();
                 const modifiedFilename = `${genre}-modified-${timestamp}.musicxml`;
                 const modifiedFilePath = path.join(path.dirname(currentFile), modifiedFilename);
-                fs.writeFileSync(modifiedFilePath, modifiedMxml);
+                await fs.promises.writeFile(modifiedFilePath, modifiedMxml);
 
                 // VALIDATE with MusicXML parser after each expansion
                 console.log(`  🔧 Validating with MusicXML parser...`);
@@ -418,7 +418,7 @@ Return the FIXED MusicXML notation that will pass validation without errors.`,
                     useStreaming: options.streamText || false
                   });
 
-                  fs.writeFileSync(modifiedFilePath, fixedMxml);
+                  await fs.promises.writeFile(modifiedFilePath, fixedMxml);
                   validation = await validateWithMusicXmlParser(modifiedFilePath);
 
                   if (!validation.valid) {
@@ -452,10 +452,15 @@ Return the FIXED MusicXML notation that will pass validation without errors.`,
 
             // Rename the final file to indicate it's the completed sequential output
             const finalFilename = currentFile.replace(/-modified-(\d+)\.musicxml$/, '-modified-final-$1.musicxml');
-            if (finalFilename !== currentFile && fs.existsSync(currentFile)) {
-              fs.renameSync(currentFile, finalFilename);
-              console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
-              currentFile = finalFilename;
+            if (finalFilename !== currentFile) {
+              try {
+                await fs.promises.rename(currentFile, finalFilename);
+                console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
+                currentFile = finalFilename;
+              } catch (e) {
+                // file doesn't exist, skip rename
+              }
+            } else {
             }
 
             // Replace the original file reference with the final expanded version
@@ -601,7 +606,7 @@ program
       // If instructions file is provided, read from it
       if (options.instructionsFile && !instructions) {
         try {
-          instructions = fs.readFileSync(options.instructionsFile, 'utf8');
+          instructions = await fs.promises.readFile(options.instructionsFile, 'utf8');
           console.log(`Loaded modification instructions from ${options.instructionsFile}`);
         } catch (error) {
           throw new Error(`Failed to load instructions file: ${error.message}`);
@@ -661,10 +666,14 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
         if (validation.valid) {
           // Rename the final file to indicate it's the completed sequential output
           const finalFilename = currentFile.replace(/-modified-(\d+)\.abc$/, '-modified-final-$1.abc');
-          if (finalFilename !== currentFile && fs.existsSync(currentFile)) {
-            fs.renameSync(currentFile, finalFilename);
-            console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
-            currentFile = finalFilename;
+          if (finalFilename !== currentFile) {
+            try {
+              await fs.promises.rename(currentFile, finalFilename);
+              console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
+              currentFile = finalFilename;
+            } catch (e) {
+              // file doesn't exist, skip rename
+            }
           }
           console.log(`\n✅ Final validation passed: ${currentFile}`);
         } else {
@@ -676,7 +685,7 @@ Return the FIXED ABC notation that will pass abc2midi without errors.`,
       if (options.midi && modifiedFile) {
         const midiFile = modifiedFile.replace(/\.abc$/, '.mid');
         try {
-          execSync(`abc2midi "${modifiedFile}" -o "${midiFile}"`, { stdio: 'pipe' });
+          await execa('abc2midi', [modifiedFile, '-o', midiFile]);
           console.log(`🎵 MIDI generated: ${midiFile}`);
           // Extract stems for the modified composition
           const stemResult = await extractMidiStems(modifiedFile);
@@ -771,7 +780,7 @@ program
       // If instructions file is provided, read from it
       if (options.instructionsFile && !instructions) {
         try {
-          instructions = fs.readFileSync(options.instructionsFile, 'utf8');
+          instructions = await fs.promises.readFile(options.instructionsFile, 'utf8');
           console.log(`Loaded modification instructions from ${options.instructionsFile}`);
         } catch (error) {
           throw new Error(`Failed to load instructions file: ${error.message}`);
@@ -839,7 +848,7 @@ program
         for (const abcFile of files) {
           try {
             const midiFile = abcFile.replace(/\.abc$/, '.mid');
-            execSync(`abc2midi "${abcFile}" -o "${midiFile}"`, { stdio: 'pipe' });
+            await execa('abc2midi', [abcFile, '-o', midiFile]);
             console.log(`  ✅ ${path.basename(abcFile)} → MIDI`);
             // Extract stems for each successfully created MIDI
             const stemResult = await extractMidiStems(abcFile);
@@ -1022,15 +1031,10 @@ program
         const outputDir = config.get('outputDir');
         
         // Find all ABC files in the output directory
-        const abcFiles = fs.readdirSync(outputDir)
+        const abcFiles = (await fs.promises.readdir(outputDir))
           .filter(file => file.endsWith('.abc'))
           .map(file => path.join(outputDir, file));
           
-        // TO TEST: Limit to just a few files in development
-        // const abcFiles = fs.readdirSync(outputDir)
-        //   .filter(file => file.endsWith('.abc'))
-        //   .slice(0, 3)  // Process only the first 3 files for testing
-        //   .map(file => path.join(outputDir, file));
         
         console.log(`Found ${abcFiles.length} ABC files to process.`);
         
@@ -1040,10 +1044,10 @@ program
         // Process each file
         for (const abcFile of abcFiles) {
           console.log(`Processing file: ${abcFile}`);
-          const abcContent = fs.readFileSync(abcFile, 'utf-8');
+          const abcContent = await fs.promises.readFile(abcFile, 'utf-8');
           
           // Validate the ABC notation
-          const validation = validateAbcNotation(abcContent);
+          const validation = await validateAbcNotation(abcContent);
           
           if (validation.isValid) {
             console.log(`✅ ${path.basename(abcFile)}: Validation passed. No issues found.`);
@@ -1060,7 +1064,7 @@ program
           const fixedContent = validation.fixedNotation;
           
           // Save the fixed content back to the original file
-          fs.writeFileSync(abcFile, fixedContent);
+          await fs.promises.writeFile(abcFile, fixedContent);
           console.log(`✅ Fixed ABC notation saved to: ${abcFile}`);
           fixedCount++;
         }
@@ -1071,10 +1075,10 @@ program
       
       // Standard single file processing when input is specified
       console.log(`Validating ABC file: ${options.input}`);
-      const abcContent = fs.readFileSync(options.input, 'utf-8');
+      const abcContent = await fs.promises.readFile(options.input, 'utf-8');
       
       // Validate the ABC notation
-      const validation = validateAbcNotation(abcContent);
+      const validation = await validateAbcNotation(abcContent);
       
       if (validation.isValid) {
         console.log(`✅ ABC notation validation passed. No issues found.`);
@@ -1093,7 +1097,7 @@ program
       const outputPath = options.output || options.input;
       
       // Save the fixed content
-      fs.writeFileSync(outputPath, fixedContent);
+      await fs.promises.writeFile(outputPath, fixedContent);
       console.log(`Fixed ABC notation saved to: ${outputPath}`);
     } catch (error) {
       console.error('Error validating ABC file:', error);

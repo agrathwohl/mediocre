@@ -8,7 +8,7 @@
  * 3. Save enhanced ABC
  */
 
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import { loadCompositionContext } from '../utils/orchestrator-context.js';
 import { orchestratePostProcessing } from '../agents/orchestrator/index.js';
@@ -28,7 +28,9 @@ export async function enhanceComposition(options) {
     throw new Error('Input ABC file path required');
   }
 
-  if (!fs.existsSync(input)) {
+  try {
+    await fs.access(input);
+  } catch {
     throw new Error(`Input file not found: ${input}`);
   }
 
@@ -60,7 +62,7 @@ export async function enhanceComposition(options) {
   const outputPath = output || input.replace('.abc', '-enhanced.abc');
 
   // Save enhanced ABC
-  fs.writeFileSync(outputPath, result.enhancedAbc);
+  await fs.writeFile(outputPath, result.enhancedAbc);
 
   console.log(`\n📝 Enhancement Summary:`);
   console.log(`   Iterations: ${result.iterations}`);

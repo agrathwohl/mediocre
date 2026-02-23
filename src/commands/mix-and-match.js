@@ -38,7 +38,9 @@ export async function mixAndMatch(options) {
 
   for (const filePath of options.files) {
     try {
-      if (!fs.existsSync(filePath)) {
+      try {
+        await fs.promises.access(filePath);
+      } catch {
         console.warn(`Skipping ${filePath}: File does not exist`);
         continue;
       }
@@ -49,7 +51,7 @@ export async function mixAndMatch(options) {
       }
       
       // Read the ABC content directly
-      const abcContent = fs.readFileSync(filePath, 'utf8');
+      const abcContent = await fs.promises.readFile(filePath, 'utf8');
       
       // Get the base filename without extension
       const baseFilename = path.basename(filePath, '.abc');
@@ -59,13 +61,13 @@ export async function mixAndMatch(options) {
       
       // Look for genre in description file if it exists
       const descPath = path.join(path.dirname(filePath), `${baseFilename}_description.json`);
-      if (fs.existsSync(descPath)) {
-        try {
-          const descContent = JSON.parse(fs.readFileSync(descPath, 'utf8'));
-          if (descContent.genre) {
-            genre = descContent.genre;
-          }
-        } catch (descError) {
+      try {
+        const descContent = JSON.parse(await fs.promises.readFile(descPath, 'utf8'));
+        if (descContent.genre) {
+          genre = descContent.genre;
+        }
+      } catch (descError) {
+        if (descError.code !== 'ENOENT') {
           console.warn(`Warning: Error reading description file: ${descError.message}`);
         }
       }
@@ -114,7 +116,7 @@ export async function mixAndMatch(options) {
   
   // Save the mixed ABC notation to a file
   const abcFilePath = path.join(outputDir, `${mixedFilename}.abc`);
-  fs.writeFileSync(abcFilePath, mixedComposition);
+  await fs.promises.writeFile(abcFilePath, mixedComposition);
   
   // Extract genre components for description generation
   const genreComponents = combinedGenre.split('_x_');
@@ -133,7 +135,7 @@ export async function mixAndMatch(options) {
   
   // Save the description as JSON
   const descriptionFilePath = path.join(outputDir, `${mixedFilename}_description.json`);
-  fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
+  await fs.promises.writeFile(descriptionFilePath, JSON.stringify(description, null, 2));
   
   // Create a markdown file with details about the source pieces
   const sourceDetails = sourceFiles.map(file => {
@@ -161,7 +163,7 @@ ${description.analysis}
 `;
   
   const mdFilePath = path.join(outputDir, `${mixedFilename}.md`);
-  fs.writeFileSync(mdFilePath, mdContent);
+  await fs.promises.writeFile(mdFilePath, mdContent);
   
   console.log(`Successfully created mixed composition: ${abcFilePath}`);
   
@@ -328,7 +330,7 @@ IMPORTANT: The ABC notation must be compatible with abc2midi converter. Ensure a
     notation = cleanAbcNotation(notation);
     
     // Validate the ABC notation
-    const validation = validateAbcNotation(notation);
+    const validation = await validateAbcNotation(notation);
     
     // If there are issues, log and use the fixed version
     if (!validation.isValid) {

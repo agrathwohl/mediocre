@@ -22,11 +22,13 @@ import { orchestratePostProcessing } from '../agents/orchestrator/index.js';
 export async function complainCommand(options) {
   const { sessionFile, complaint, maxIterations = 5, output } = options;
 
-  if (!fs.existsSync(sessionFile)) {
+  try {
+    await fs.promises.access(sessionFile);
+  } catch {
     throw new Error(`Session file not found: ${sessionFile}`);
   }
 
-  const sessionData = JSON.parse(fs.readFileSync(sessionFile, 'utf-8'));
+  const sessionData = JSON.parse(await fs.promises.readFile(sessionFile, 'utf-8'));
   const sessionDir = path.dirname(sessionFile);
   const sessionBase = path.basename(sessionFile, '_session.json');
 
@@ -37,7 +39,7 @@ export async function complainCommand(options) {
   console.log(`\n🗣️  Complaint: "${complaint}"`);
 
   // Find the ABC file to revise
-  const abcFilePath = findAbcFile(sessionDir, sessionBase);
+  const abcFilePath = await findAbcFile(sessionDir, sessionBase);
   if (!abcFilePath) {
     throw new Error(
       `Could not find ABC file for session base "${sessionBase}". ` +
@@ -59,7 +61,7 @@ export async function complainCommand(options) {
   const context = await loadCompositionContext(contextAbcPath);
 
   // Determine revision output path
-  const revisionPath = output || findRevisionPath(sessionDir, sessionBase);
+  const revisionPath = output || await findRevisionPath(sessionDir, sessionBase);
   console.log(`   Output: ${path.basename(revisionPath)}`);
 
   // Run orchestration loop with complaint as top priority
@@ -72,7 +74,7 @@ export async function complainCommand(options) {
     priorSession: sessionData,
   });
 
-  fs.writeFileSync(revisionPath, result.enhancedAbc);
+  await fs.promises.writeFile(revisionPath, result.enhancedAbc);
 
   console.log(`\n✅ Revision written: ${revisionPath}`);
   if (result.sessionLogPath) {
@@ -86,33 +88,43 @@ export async function complainCommand(options) {
  * Find the best ABC file to revise from:
  * Prefers final versioned output (_1.abc, _2.abc), falls back to last _iterN.abc
  */
-function findAbcFile(dir, base) {
+async function findAbcFile(dir, base) {
   // Check versioned final outputs first (_1.abc through _20.abc)
   for (let v = 20; v >= 1; v--) {
     const candidate = path.join(dir, `${base}_${v}.abc`);
-    if (fs.existsSync(candidate)) return candidate;
+    try {
+      await fs.promises.access(candidate);
+      return candidate;
+    } catch {}
   }
-
   // Fall back to last iteration checkpoint
   for (let i = 30; i >= 1; i--) {
     const candidate = path.join(dir, `${base}_iter${i}.abc`);
-    if (fs.existsSync(candidate)) return candidate;
+    try {
+      await fs.promises.access(candidate);
+      return candidate;
+    } catch {}
   }
-
   return null;
 }
 
 /**
  * Find a non-colliding revision output path
  */
-function findRevisionPath(dir, base) {
+async function findRevisionPath(dir, base) {
   const first = path.join(dir, `${base}-revision.abc`);
-  if (!fs.existsSync(first)) return first;
-
+  try {
+    await fs.promises.access(first);
+  } catch {
+    return first;
+  }
   for (let n = 2; n <= 20; n++) {
     const candidate = path.join(dir, `${base}-revision${n}.abc`);
-    if (!fs.existsSync(candidate)) return candidate;
+    try {
+      await fs.promises.access(candidate);
+    } catch {
+      return candidate;
+    }
   }
-
   throw new Error('Too many revisions already exist');
 }

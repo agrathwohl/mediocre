@@ -355,7 +355,7 @@ Remember: NO BLANK LINES between voice sections or elements!`;
     abcNotation = cleanAbcNotation(abcNotation);
 
     // Validate assembled ABC with actual abc2midi -c
-    let validation = validateAbcNotation(abcNotation);
+    let validation = await validateAbcNotation(abcNotation);
     let warnings = validation.warnings || [];
     let errors = validation.issues || [];
 
@@ -380,7 +380,7 @@ Remember: NO BLANK LINES between voice sections or elements!`;
             _isCorrection: true,
           });
           abcNotation = corrected;
-          const revalidation = validateAbcNotation(abcNotation);
+          const revalidation = await validateAbcNotation(abcNotation);
           errors = revalidation.issues || [];
           warnings = revalidation.warnings || [];
           if (isAbcCrash(errors)) {
@@ -545,7 +545,7 @@ Output ONLY the COMPLETE modified ABC notation — no markdown fences, no explan
 
     abcNotation = cleanAbcNotation(abcNotation);
 
-    let validation = validateAbcNotation(abcNotation);
+    let validation = await validateAbcNotation(abcNotation);
     let warnings = validation.warnings || [];
     let errors = validation.issues || [];
 
@@ -567,7 +567,7 @@ Output ONLY the COMPLETE modified ABC notation — no markdown fences, no explan
             _isCorrection: true,
           });
           abcNotation = corrected;
-          const revalidation = validateAbcNotation(abcNotation);
+          const revalidation = await validateAbcNotation(abcNotation);
           errors = revalidation.issues || [];
           warnings = revalidation.warnings || [];
           if (isAbcCrash(errors)) {

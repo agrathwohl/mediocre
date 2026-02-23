@@ -119,7 +119,7 @@ Steps:
   const safeSoundfonts = output.soundfonts.filter(sf => !BANNED_SOUNDFONTS.includes(sf));
 
   // Generate the actual config file (no LLM — pure code)
-  const configPath = saveCustomTimidityConfig({
+  const configPath = await saveCustomTimidityConfig({
     soundfonts: safeSoundfonts,
     outputDir,
     baseFilename,

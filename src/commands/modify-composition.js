@@ -30,7 +30,9 @@ export async function modifyComposition(options) {
     throw new Error('Modification instructions are required');
   }
   
-  if (!fs.existsSync(abcFile)) {
+  try {
+    await fs.promises.access(abcFile);
+  } catch {
     throw new Error(`ABC file not found: ${abcFile}`);
   }
   
@@ -41,7 +43,7 @@ export async function modifyComposition(options) {
   console.log(`Loading composition "${abcFile}"...`);
   
   // Read the ABC content directly
-  const originalAbc = fs.readFileSync(abcFile, 'utf8');
+  const originalAbc = await fs.promises.readFile(abcFile, 'utf8');
   
   // Get the base filename without extension
   const baseFilename = path.basename(abcFile, '.abc');
@@ -53,17 +55,17 @@ export async function modifyComposition(options) {
   
   // Look for genre in description file if it exists
   const descPath = path.join(path.dirname(abcFile), `${baseFilename}_description.json`);
-  if (fs.existsSync(descPath)) {
-    try {
-      const descContent = JSON.parse(fs.readFileSync(descPath, 'utf8'));
-      if (descContent.genre) {
-        genre = descContent.genre;
-        // Parse the hybrid genre if applicable
-        const genreComponents = genre.split('_x_');
-        classicalGenre = genreComponents.length === 2 ? genreComponents[0] : 'Classical';
-        modernGenre = genreComponents.length === 2 ? genreComponents[1] : 'Contemporary';
-      }
-    } catch (descError) {
+  try {
+    const descContent = JSON.parse(await fs.promises.readFile(descPath, 'utf8'));
+    if (descContent.genre) {
+      genre = descContent.genre;
+      // Parse the hybrid genre if applicable
+      const genreComponents = genre.split('_x_');
+      classicalGenre = genreComponents.length === 2 ? genreComponents[0] : 'Classical';
+      modernGenre = genreComponents.length === 2 ? genreComponents[1] : 'Contemporary';
+    }
+  } catch (descError) {
+    if (descError.code !== 'ENOENT') {
       console.warn(`Warning: Error reading description file: ${descError.message}`);
     }
   }
@@ -98,7 +100,7 @@ export async function modifyComposition(options) {
   modifiedAbc = cleanAbcNotation(modifiedAbc);
 
   // Validate the ABC notation
-  const validation = validateAbcNotation(modifiedAbc);
+  const validation = await validateAbcNotation(modifiedAbc);
   
   // If there are issues, log and use the fixed version
   if (!validation.isValid) {
@@ -124,7 +126,7 @@ export async function modifyComposition(options) {
   
   // Save the modified ABC notation to a file
   const abcFilePath = path.join(outputDir, `${modifiedFilename}.abc`);
-  fs.writeFileSync(abcFilePath, modifiedAbc);
+  await fs.promises.writeFile(abcFilePath, modifiedAbc);
   
   // Generate and save the description for the modified composition
   console.log('Generating description document...');
@@ -137,7 +139,7 @@ export async function modifyComposition(options) {
   
   // Save the description as JSON
   const descriptionFilePath = path.join(outputDir, `${modifiedFilename}_description.json`);
-  fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
+  await fs.promises.writeFile(descriptionFilePath, JSON.stringify(description, null, 2));
   
   // Create a markdown file with both the ABC notation, modification instructions, and description
   const mdContent = `# Modified ${genre} Composition
@@ -161,7 +163,7 @@ ${modifiedAbc}
 
 ${description.analysis}`;
   const mdFilePath = path.join(outputDir, `${modifiedFilename}.md`);
-  fs.writeFileSync(mdFilePath, mdContent);
+  await fs.promises.writeFile(mdFilePath, mdContent);
   
   console.log(`Successfully modified composition: ${abcFilePath}`);
   

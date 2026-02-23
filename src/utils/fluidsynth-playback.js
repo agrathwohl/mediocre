@@ -11,7 +11,7 @@
  * - Optimal config generation
  */
 
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import { execa } from 'execa';
 
@@ -45,7 +45,9 @@ export class FluidSynthPlayback {
       const soundfont = soundfonts[i];
       const sfPath = path.join(SOUNDFONT_DIR, soundfont);
 
-      if (!fs.existsSync(sfPath)) {
+      try {
+        await fs.access(sfPath);
+      } catch {
         console.warn(`   ⚠️  Soundfont not found: ${soundfont}`);
         continue;
       }
@@ -198,7 +200,7 @@ export async function convertAbcToWavWithFluidSynth(abcPath, soundfontSelection,
 
   // 4. Save optimal config
   const configPath = abcPath.replace(/\.abc$/, '.fluidsynth.json');
-  fs.writeFileSync(configPath, JSON.stringify(result.config, null, 2));
+  await fs.writeFile(configPath, JSON.stringify(result.config, null, 2));
   console.log(`   ✅ Saved config: ${path.basename(configPath)}`);
 
   // 5. Clean up

@@ -6,7 +6,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { validateAbcNotation } from '../../utils/claude.js';
-import fs from 'fs';
+import fs from 'fs/promises';
 
 // Cache the soundfont index
 let soundfontIndex = null;
@@ -15,9 +15,9 @@ const SOUNDFONT_INDEX_PATH = '/home/gwohl/code/mediocre/soundfonts/soundfont_ind
 /**
  * Load soundfont index (cached)
  */
-function loadSoundfontIndex() {
+async function loadSoundfontIndex() {
   if (!soundfontIndex) {
-    const data = fs.readFileSync(SOUNDFONT_INDEX_PATH, 'utf-8');
+    const data = await fs.readFile(SOUNDFONT_INDEX_PATH, 'utf-8');
     soundfontIndex = JSON.parse(data);
   }
   return soundfontIndex;
@@ -36,13 +36,13 @@ export const validateAbcTool = tool({
   execute: async ({ abcNotation, filePath }) => {
     let notation = abcNotation;
     if (filePath && !notation) {
-      notation = fs.readFileSync(filePath, 'utf-8');
+      notation = await fs.readFile(filePath, 'utf-8');
     }
     if (!notation) {
       return { isValid: false, issues: ['No notation provided — pass abcNotation or filePath'], issueCount: 1, warnings: [], warningCount: 0, recommendations: 'Provide abcNotation or filePath' };
     }
 
-    const validation = validateAbcNotation(notation);
+    const validation = await validateAbcNotation(notation);
     const hasWarnings = validation.warnings?.length > 0;
     const hasIssues = validation.issues.length > 0;
 
@@ -71,7 +71,7 @@ export const readAbcFileTool = tool({
     filePath: z.string().describe('Path to the .abc file to read'),
   }),
   execute: async ({ filePath }) => {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = await fs.readFile(filePath, 'utf-8');
     return { content, byteLength: Buffer.byteLength(content, 'utf-8') };
   },
 });
@@ -109,7 +109,7 @@ export const checkTitleExistsTool = tool({
   }),
   execute: async ({ title }) => {
     // Import titleExists function from claude.js
-    const { default: fs } = await import('fs');
+    const fsSync = await import('fs');
     const { default: path } = await import('path');
 
     // Check if title exists in compositions.json
@@ -121,15 +121,14 @@ export const checkTitleExistsTool = tool({
     let titleExists = false;
     for (const compositionsPath of possiblePaths) {
       try {
-        if (fs.existsSync(compositionsPath)) {
-          const content = fs.readFileSync(compositionsPath, 'utf8');
-          const compositions = JSON.parse(content);
-          if (Array.isArray(compositions)) {
-            titleExists = compositions.some(
-              c => c.title && c.title.toLowerCase().trim() === title.toLowerCase().trim()
-            );
-            if (titleExists) break;
-          }
+        await fsSync.default.promises.access(compositionsPath);
+        const content = await fsSync.default.promises.readFile(compositionsPath, 'utf8');
+        const compositions = JSON.parse(content);
+        if (Array.isArray(compositions)) {
+          titleExists = compositions.some(
+            c => c.title && c.title.toLowerCase().trim() === title.toLowerCase().trim()
+          );
+          if (titleExists) break;
         }
       } catch (error) {
         // Continue to next path
@@ -159,7 +158,7 @@ export const searchSoundfontCatalogTool = tool({
     limit: z.number().optional().describe('Maximum results to return (default 20)'),
   }),
   execute: async ({ keywords, limit = 20 }) => {
-    const index = loadSoundfontIndex();
+    const index = await loadSoundfontIndex();
     const searchTerms = keywords.map(k => k.toLowerCase());
 
     const results = index.soundfonts

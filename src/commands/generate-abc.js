@@ -273,7 +273,7 @@ export async function generateAbc(options) {
 
         // Save the custom TiMidity config for this composition
         console.log(`Saving custom TiMidity config with ${selectedSoundfonts.length} soundfonts...`);
-        const timidityConfigPath = saveCustomTimidityConfig({
+        const timidityConfigPath = await saveCustomTimidityConfig({
           soundfonts: selectedSoundfonts,
           outputDir,
           baseFilename: filename,
@@ -380,20 +380,21 @@ export async function generateAbc(options) {
       let cleanedAbcNotation = cleanAbcNotation(abcNotation);
 
       // Validate the ABC notation
-      let validation = validateAbcNotation(cleanedAbcNotation);
+      let validation = await validateAbcNotation(cleanedAbcNotation);
 
       // If there are issues, apply fix and revalidate — never gate on the pre-fix result
       if (!validation.isValid) {
         console.warn(`⚠️ WARNING: ABC notation validation issues found for ${filename}.abc:`);
-        validation.issues.forEach(issue => console.warn(`  - ${issue}`));
-        console.warn(`Auto-fixing ${validation.issues.length} issues...`);
-        await logStep('validation_fix', { issues: validation.issues });
+        const issues = validation.issues || [];
+        issues.forEach(issue => console.warn(`  - ${issue}`));
+        console.warn(`Auto-fixing ${issues.length} issues...`);
+        await logStep('validation_fix', { issues });
         cleanedAbcNotation = validation.fixedNotation;
         // Revalidate the fixed version — this is what actually decides whether we can proceed
-        validation = validateAbcNotation(cleanedAbcNotation);
+        validation = await validateAbcNotation(cleanedAbcNotation);
         if (!validation.isValid) {
-          console.warn(`⚠️ Fixed version still has ${validation.issues.length} issue(s)`);
-          await logStep('validation_fix_result', { status: 'still_invalid', issues: validation.issues });
+          console.warn(`⚠️ Fixed version still has ${(validation.issues || []).length} issue(s)`);
+          await logStep('validation_fix_result', { status: 'still_invalid', issues: validation.issues || [] });
         } else {
           console.log(`✅ Fixed version passes validation`);
           await logStep('validation_fix_result', { status: 'ok' });
@@ -410,7 +411,7 @@ export async function generateAbc(options) {
       await logStep('abc_written', { path: abcFilePath });
 
       // Only skip if abc2midi crashed (segfault/fatal) — non-fatal errors still produce usable MIDI
-      const abcCrashed = validation.issues.some(i => i.includes('crashed'));
+      const abcCrashed = (validation.issues || []).some(i => i.includes('crashed'));
       if (!abcCrashed) {
         // Generate and save the description
         console.log('Generating description document...');

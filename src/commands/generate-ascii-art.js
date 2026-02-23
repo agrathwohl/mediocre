@@ -73,7 +73,7 @@ export async function generateAsciiArt(options) {
       shapeCount: shapes.length
     };
 
-    asciiArtManager.addArtForAbc(abcBasename, shapes, metadata);
+    await asciiArtManager.addArtForAbc(abcBasename, shapes, metadata);
 
     console.log(chalk.green(`\n✅ ASCII art saved to library for ${abcBasename}`));
     console.log(chalk.cyan(`\nTo list saved art: mediocre generate-ascii-art --list`));
@@ -127,7 +127,7 @@ export async function exportAsciiArt(abcBasename) {
     process.exit(1);
   }
 
-  const shapes = asciiArtManager.getArtForAbc(abcBasename);
+  const shapes = await asciiArtManager.getArtForAbc(abcBasename);
 
   if (shapes.length === 0) {
     console.error(chalk.yellow(`No ASCII art found for ${abcBasename}`));

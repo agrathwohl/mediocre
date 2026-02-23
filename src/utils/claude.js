@@ -4,7 +4,7 @@ import { config } from "./config.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { execaSync } from "execa";
+import { execa } from "execa";
 import {
   exploreSoundFontsForComposition,
   generateTimidityConfig,
@@ -81,7 +81,7 @@ const SOUNDFONT_PALETTE_INFO = `AVAILABLE SOUNDFONT PALETTE - Your compositions 
  * Used to prevent LLM from reusing titles
  * @returns {Set<string>} Set of existing titles (lowercase for comparison), or empty set if file doesn't exist
  */
-function getExistingTitlesSet() {
+async function getExistingTitlesSet() {
   const possiblePaths = [
     path.join(__dirname, "../../docs/data/compositions.json"),
     path.join(process.cwd(), "docs/data/compositions.json"),
@@ -89,19 +89,17 @@ function getExistingTitlesSet() {
 
   for (const compositionsPath of possiblePaths) {
     try {
-      if (fs.existsSync(compositionsPath)) {
-        const content = fs.readFileSync(compositionsPath, "utf8");
-        const compositions = JSON.parse(content);
-        if (Array.isArray(compositions)) {
-          const titles = compositions
-            .map((c) => c.title)
-            .filter((t) => t && typeof t === "string")
-            .map((t) => t.toLowerCase().trim());
-          return new Set(titles);
-        }
+      const content = await fs.promises.readFile(compositionsPath, "utf8");
+      const compositions = JSON.parse(content);
+      if (Array.isArray(compositions)) {
+        const titles = compositions
+          .map((c) => c.title)
+          .filter((t) => t && typeof t === "string")
+          .map((t) => t.toLowerCase().trim());
+        return new Set(titles);
       }
     } catch (error) {
-      // Continue to next path or return empty
+      // Continue to next path or return empty (includes ENOENT)
     }
   }
 
@@ -123,8 +121,8 @@ function extractTitleFromAbc(abcNotation) {
  * @param {string} title - Title to check
  * @returns {boolean} True if title exists
  */
-function titleExists(title) {
-  const existingTitles = getExistingTitlesSet();
+async function titleExists(title) {
+  const existingTitles = await getExistingTitlesSet();
   return existingTitles.has(title.toLowerCase().trim());
 }
 
@@ -141,7 +139,7 @@ async function ensureUniqueTitle(abcNotation, genre) {
   let attempts = 0;
   const maxAttempts = 3;
 
-  while (currentTitle && titleExists(currentTitle) && attempts < maxAttempts) {
+  while (currentTitle && (await titleExists(currentTitle)) && attempts < maxAttempts) {
     attempts++;
     console.log(
       `Title "${currentTitle}" already exists, generating unique title (attempt ${attempts})...`,
@@ -170,7 +168,7 @@ async function ensureUniqueTitle(abcNotation, genre) {
     currentTitle = newTitle;
   }
 
-  if (attempts >= maxAttempts && titleExists(currentTitle)) {
+  if (attempts >= maxAttempts && (await titleExists(currentTitle))) {
     // Last resort: append timestamp to make unique
     const uniqueTitle = `${currentTitle} (${Date.now()})`;
     console.log(
@@ -239,7 +237,7 @@ export async function selectSoundfontsWithClaude(options) {
   const requestedInstruments = options.instruments || "";
 
   // Get soundfont recommendations based on genre
-  const exploration = exploreSoundFontsForComposition({
+  const exploration = await exploreSoundFontsForComposition({
     genreHybrid: genre,
     requiredInstruments: requestedInstruments
       ? requestedInstruments.split(",").map((i) => i.trim())
@@ -368,7 +366,7 @@ Select the optimal soundfont combination. Return ONLY the JSON response.`;
  * @param {string} [options.genre] - Genre name
  * @returns {string} Path to the saved config file
  */
-export function saveCustomTimidityConfig(options) {
+export async function saveCustomTimidityConfig(options) {
   const {
     soundfonts,
     outputDir,
@@ -381,13 +379,10 @@ export function saveCustomTimidityConfig(options) {
   const configContent = generateTimidityConfig(soundfonts, { title, genre });
 
   // Ensure output directory exists
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
+  await fs.promises.mkdir(outputDir, { recursive: true });
   // Save the config file
   const configPath = path.join(outputDir, `${baseFilename}.timidity.cfg`);
-  fs.writeFileSync(configPath, configContent);
+  await fs.promises.writeFile(configPath, configContent);
 
   return configPath;
 }
@@ -397,7 +392,7 @@ export function saveCustomTimidityConfig(options) {
  * @param {string} abcNotation - ABC notation to validate
  * @returns {Object} Validation results with issues array and isValid flag
  */
-export function validateAbcNotation(abcNotation) {
+export async function validateAbcNotation(abcNotation) {
   // Initialize result object
   const result = {
     isValid: true,
@@ -409,11 +404,11 @@ export function validateAbcNotation(abcNotation) {
 
   // Write ABC to temp file
   const tempFile = path.join('/tmp', `validate-${Date.now()}.abc`);
-  fs.writeFileSync(tempFile, abcNotation);
+  await fs.promises.writeFile(tempFile, abcNotation);
 
   try {
     // Run abc2midi -c (check only mode) - errors on both stdout and stderr
-    const { stdout, stderr, signal, exitCode } = execaSync('abc2midi', [tempFile, '-c'], { reject: false });
+    const { stdout, stderr, signal, exitCode } = await execa('abc2midi', [tempFile, '-c'], { reject: false });
 
     // Detect segfault/crash before checking output text
     const crashed = signal === 'SIGSEGV' || signal === 'SIGABRT' || (exitCode !== null && exitCode > 128);
@@ -445,7 +440,7 @@ export function validateAbcNotation(abcNotation) {
   } finally {
     // Clean up temp file
     try {
-      fs.unlinkSync(tempFile);
+      await fs.promises.unlink(tempFile);
     } catch (e) {
       // Ignore cleanup errors
     }
@@ -569,24 +564,20 @@ export function cleanAbcNotation(abcNotation) {
  * @returns {Promise<{valid: boolean, error: string|null}>} Validation result
  */
 export async function validateWithAbc2Midi(abcFilePath) {
-  const { execSync } = await import("child_process");
-  const fs = await import("fs");
   const tempMidiPath = abcFilePath.replace(".abc", "_validation_temp.mid");
-
   try {
     // Run abc2midi and capture output (array args to prevent shell injection)
-    const { execa } = await import('execa');
     const result = await execa('abc2midi', [abcFilePath, '-o', tempMidiPath], {
       timeout: 30000,
       reject: false,
     });
-
     // Check if MIDI file was created
-    if (fs.existsSync(tempMidiPath)) {
+    try {
+      await fs.promises.access(tempMidiPath);
       // Clean up temp file
-      fs.unlinkSync(tempMidiPath);
+      await fs.promises.unlink(tempMidiPath);
       return { valid: true, error: null };
-    } else {
+    } catch (e) {
       return { valid: false, error: "abc2midi did not produce output file" };
     }
   } catch (error) {
@@ -602,7 +593,6 @@ export async function validateWithAbc2Midi(abcFilePath) {
           "abc2midi not installed - skipping validation (install abcmidi package for validation)",
       };
     }
-
     // Check for segfault - multiple ways to detect it
     const isSegfault =
       error.signal === "SIGSEGV" ||
@@ -610,34 +600,29 @@ export async function validateWithAbc2Midi(abcFilePath) {
       (error.status && error.status > 128) || // Signals add 128 to exit code
       (error.message && error.message.includes("segmentation fault")) ||
       (error.stderr && error.stderr.includes("segmentation fault"));
-
     if (isSegfault) {
-      if (fs.existsSync(tempMidiPath)) {
-        fs.unlinkSync(tempMidiPath);
-      }
+      try { await fs.promises.unlink(tempMidiPath); } catch (e) { /* doesn't exist */ }
       return {
         valid: false,
         error: "abc2midi SEGFAULTED - ABC notation is invalid",
       };
     }
-
     if (error.killed) {
-      if (fs.existsSync(tempMidiPath)) {
-        fs.unlinkSync(tempMidiPath);
-      }
+      try { await fs.promises.unlink(tempMidiPath); } catch (e) { /* doesn't exist */ }
       return {
         valid: false,
         error: "abc2midi timed out - ABC notation may be malformed",
       };
     }
-
     // CRITICAL: If MIDI file was created, it's VALID even with warnings!
     // abc2midi returns non-zero for warnings too, but the file is still usable
-    if (fs.existsSync(tempMidiPath)) {
-      fs.unlinkSync(tempMidiPath);
+    try {
+      await fs.promises.access(tempMidiPath);
+      await fs.promises.unlink(tempMidiPath);
       return { valid: true, error: null };
+    } catch (e) {
+      // File doesn't exist - real error
     }
-
     // Only fail if no MIDI file was created (real errors, not just warnings)
     const actualError = error.stdout || error.stderr || error.message;
     return { valid: false, error: `abc2midi errors:\n${actualError}` };
@@ -1971,11 +1956,15 @@ Respond with JSON only. Be DEMANDING.`;
  */
 export async function validateWithMusicXmlParser(mxmlFilePath) {
   try {
-    if (!fs.existsSync(mxmlFilePath)) {
-      return { valid: false, error: "MusicXML file not found", warning: null };
+    let musicXmlContent;
+    try {
+      musicXmlContent = await fs.promises.readFile(mxmlFilePath, "utf8");
+    } catch (e) {
+      if (e.code === 'ENOENT') {
+        return { valid: false, error: "MusicXML file not found", warning: null };
+      }
+      throw e;
     }
-
-    const musicXmlContent = fs.readFileSync(mxmlFilePath, "utf8");
 
     // Use the existing validateMusicXml function
     const validation = validateMusicXml(musicXmlContent);

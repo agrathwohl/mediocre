@@ -94,7 +94,7 @@ export async function selectSoundfontsWithAgent(options) {
   } = options;
 
   // Get soundfont exploration data
-  const exploration = exploreSoundFontsForComposition({
+  const exploration = await exploreSoundFontsForComposition({
     genreHybrid: genre,
     requiredInstruments: instruments
       ? instruments.split(',').map(i => i.trim())

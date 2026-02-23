@@ -1,7 +1,7 @@
 import Conf from 'conf';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fs from 'fs';
+import fs from 'fs/promises';
 import dotenv from 'dotenv';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -48,18 +48,15 @@ export const config = new Conf({
 });
 
 // Create default directories if they don't exist
-const ensureDirectories = () => {
+const ensureDirectories = async () => {
   const directories = [
     config.get('outputDir'),
     config.get('tempDir'),
     config.get('datasetDir')
   ];
-
   for (const dir of directories) {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    await fs.mkdir(dir, { recursive: true });
   }
 };
 
-ensureDirectories();
+await ensureDirectories();

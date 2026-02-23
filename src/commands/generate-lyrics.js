@@ -35,7 +35,9 @@ export async function generateLyrics(options) {
     throw new Error('Lyrics prompt is required');
   }
   
-  if (!fs.existsSync(abcFile)) {
+  try {
+    await fs.promises.access(abcFile);
+  } catch {
     throw new Error(`ABC file not found: ${abcFile}`);
   }
   
@@ -46,7 +48,7 @@ export async function generateLyrics(options) {
   console.log(`Adding lyrics to "${midiFile}" using ABC from "${abcFile}"...`);
   
   // Read the ABC content directly
-  let originalAbc = fs.readFileSync(abcFile, 'utf8');
+  let originalAbc = await fs.promises.readFile(abcFile, 'utf8');
   let baseFilename = path.basename(abcFile, '.abc');
   
   if (!originalAbc) {
@@ -60,13 +62,13 @@ export async function generateLyrics(options) {
   
   // Try to find associated description file
   const descPath = path.join(path.dirname(abcFile), `${baseFilename}_description.json`);
-  if (fs.existsSync(descPath)) {
-    try {
-      const descContent = JSON.parse(fs.readFileSync(descPath, 'utf8'));
-      if (descContent.genre) {
-        genre = descContent.genre;
-      }
-    } catch (descError) {
+  try {
+    const descContent = JSON.parse(await fs.promises.readFile(descPath, 'utf8'));
+    if (descContent.genre) {
+      genre = descContent.genre;
+    }
+  } catch (descError) {
+    if (descError.code !== 'ENOENT') {
       console.warn(`Warning: Error reading description file: ${descError.message}`);
     }
   }
@@ -97,7 +99,7 @@ export async function generateLyrics(options) {
 
 
   // Validate the ABC notation
-  const validation = validateAbcNotation(abcWithLyrics);
+  const validation = await validateAbcNotation(abcWithLyrics);
   
   // If there are issues, log and use the fixed version
   let finalAbc = abcWithLyrics;
@@ -124,7 +126,7 @@ export async function generateLyrics(options) {
   
   // Save the ABC notation with lyrics to a file
   const abcFilePath = path.join(outputDir, `${lyricsFilename}.abc`);
-  fs.writeFileSync(abcFilePath, finalAbc);
+  await fs.promises.writeFile(abcFilePath, finalAbc);
   
   // Create a markdown file with the ABC notation and lyrics instructions
   const mdContent = `# Lyrics Added to Composition: ${baseFilename}
@@ -144,7 +146,7 @@ ${instrumentString}
 ${finalAbc}
 \`\`\``;
   const mdFilePath = path.join(outputDir, `${lyricsFilename}.md`);
-  fs.writeFileSync(mdFilePath, mdContent);
+  await fs.promises.writeFile(mdFilePath, mdContent);
   
   console.log(`Successfully added lyrics to composition: ${abcFilePath}`);
   

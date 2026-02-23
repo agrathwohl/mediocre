@@ -28,7 +28,9 @@ export async function modifyMxmlComposition(options) {
     throw new Error('Modification instructions are required');
   }
 
-  if (!fs.existsSync(mxmlFile)) {
+  try {
+    await fs.promises.access(mxmlFile);
+  } catch {
     throw new Error(`MusicXML file not found: ${mxmlFile}`);
   }
 
@@ -39,7 +41,7 @@ export async function modifyMxmlComposition(options) {
   console.log(`Loading composition "${mxmlFile}"...`);
 
   // Read the MusicXML content directly
-  const originalMxml = fs.readFileSync(mxmlFile, 'utf8');
+  const originalMxml = await fs.promises.readFile(mxmlFile, 'utf8');
 
   // Get the base filename without extension
   const baseFilename = path.basename(mxmlFile, path.extname(mxmlFile));
@@ -51,16 +53,16 @@ export async function modifyMxmlComposition(options) {
 
   // Look for genre in description file if it exists
   const descPath = path.join(path.dirname(mxmlFile), `${baseFilename}_description.json`);
-  if (fs.existsSync(descPath)) {
-    try {
-      const descContent = JSON.parse(fs.readFileSync(descPath, 'utf8'));
-      if (descContent.genre) {
-        genre = descContent.genre;
-        const genreComponents = genre.split('_x_');
-        classicalGenre = genreComponents.length === 2 ? genreComponents[0] : 'Classical';
-        modernGenre = genreComponents.length === 2 ? genreComponents[1] : 'Contemporary';
-      }
-    } catch (descError) {
+  try {
+    const descContent = JSON.parse(await fs.promises.readFile(descPath, 'utf8'));
+    if (descContent.genre) {
+      genre = descContent.genre;
+      const genreComponents = genre.split('_x_');
+      classicalGenre = genreComponents.length === 2 ? genreComponents[0] : 'Classical';
+      modernGenre = genreComponents.length === 2 ? genreComponents[1] : 'Contemporary';
+    }
+  } catch (descError) {
+    if (descError.code !== 'ENOENT') {
       console.warn(`Warning: Error reading description file: ${descError.message}`);
     }
   }
@@ -109,7 +111,7 @@ export async function modifyMxmlComposition(options) {
 
   // Save the modified MusicXML notation to a file
   const mxmlFilePath = path.join(outputDir, `${modifiedFilename}.musicxml`);
-  fs.writeFileSync(mxmlFilePath, modifiedMxml);
+  await fs.promises.writeFile(mxmlFilePath, modifiedMxml);
 
   // Generate and save the description for the modified composition
   console.log('Generating description document...');
@@ -122,7 +124,7 @@ export async function modifyMxmlComposition(options) {
 
   // Save the description as JSON
   const descriptionFilePath = path.join(outputDir, `${modifiedFilename}_description.json`);
-  fs.writeFileSync(descriptionFilePath, JSON.stringify(description, null, 2));
+  await fs.promises.writeFile(descriptionFilePath, JSON.stringify(description, null, 2));
 
   // Create a markdown file
   const instrumentString = description.instruments?.length > 0
@@ -158,7 +160,7 @@ ${instrumentString}
 ${description.analysis}`;
 
   const mdFilePath = path.join(outputDir, `${modifiedFilename}.md`);
-  fs.writeFileSync(mdFilePath, mdContent);
+  await fs.promises.writeFile(mdFilePath, mdContent);
 
   console.log(`Modified composition saved to ${mxmlFilePath}`);
 

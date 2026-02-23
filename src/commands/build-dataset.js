@@ -18,15 +18,13 @@ export async function buildDataset(options) {
   const outputDir = options.output || config.get('datasetDir');
   
   // Ensure the output directory exists
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  await fs.promises.mkdir(outputDir, { recursive: true });
   
   try {
     console.log(`Building dataset from ${inputDir} to ${outputDir}...`);
     
     // Collect all relevant files (.abc, .mid, .wav, .pdf)
-    const files = fs.readdirSync(inputDir);
+    const files = await fs.promises.readdir(inputDir);
     const datasetFiles = {
       abc: [],
       midi: [],
@@ -37,7 +35,7 @@ export async function buildDataset(options) {
     
     for (const file of files) {
       const filePath = path.join(inputDir, file);
-      const fileStats = fs.statSync(filePath);
+      const fileStats = await fs.promises.stat(filePath);
       
       if (fileStats.isDirectory()) {
         continue;
@@ -110,13 +108,13 @@ export async function buildDataset(options) {
     
     // Write metadata file
     const metadataPath = path.join(outputDir, 'metadata.json');
-    fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+    await fs.promises.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
     
     // Copy all files to the dataset directory
     for (const category of ['abc', 'midi', 'wav', 'pdf', 'json']) {
       for (const file of datasetFiles[category]) {
         const destPath = path.join(outputDir, path.basename(file));
-        fs.copyFileSync(file, destPath);
+        await fs.promises.copyFile(file, destPath);
       }
     }
     

@@ -26,7 +26,8 @@
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
-import { spawn, execSync } from 'child_process';
+import { spawn } from 'child_process';
+import { execa } from 'execa';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
@@ -44,23 +45,25 @@ const __dirname = dirname(__filename);
  * @param {string} choreographyPath - Path to choreography JSON file
  * @returns {Object} Choreography data
  */
-function loadChoreography(choreographyPath) {
-  if (!fs.existsSync(choreographyPath)) {
-    throw new Error(`Choreography file not found: ${choreographyPath}`);
+async function loadChoreography(choreographyPath) {
+  let content;
+  try {
+    content = await fs.promises.readFile(choreographyPath, 'utf-8');
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      throw new Error(`Choreography file not found: ${choreographyPath}`);
+    }
+    throw e;
   }
 
-  const content = fs.readFileSync(choreographyPath, 'utf-8');
   const data = JSON.parse(content);
-
   // Validate minimum structure
   if (!data.timeline || !Array.isArray(data.timeline)) {
     throw new Error('Invalid choreography: missing timeline array');
   }
-
   if (!data.templates || !data.templates.objects) {
     throw new Error('Invalid choreography: missing templates.objects');
   }
-
   return data;
 }
 
@@ -68,9 +71,9 @@ function loadChoreography(choreographyPath) {
  * Check if audiowaveform is available
  * @returns {boolean} True if audiowaveform is available
  */
-function hasAudiowaveform() {
+async function hasAudiowaveform() {
   try {
-    execSync('which audiowaveform', { stdio: 'ignore' });
+    await execa('which', ['audiowaveform']);
     return true;
   } catch {
     return false;
@@ -84,12 +87,10 @@ function hasAudiowaveform() {
  * @returns {Promise<{samples: number[], duration: number}>} Audio samples and duration
  */
 async function analyzeAudio(audioPath, sampleRate = 30) {
+  if (!(await hasAudiowaveform())) {
+    throw new Error('audiowaveform not found. Install with: nix-shell -p audiowaveform');
+  }
   return new Promise((resolve, reject) => {
-    if (!hasAudiowaveform()) {
-      reject(new Error('audiowaveform not found. Install with: nix-shell -p audiowaveform'));
-      return;
-    }
-
     // Use audiowaveform to get amplitude data
     const pixels = Math.ceil(44100 * 60 / sampleRate); // Estimate for 60s max, will adjust
     
@@ -170,43 +171,34 @@ function calculateAudioFeatures(samples, sampleRate = 30) {
  * @param {string} audioPath - Path to audio file
  * @returns {Object|null} Custom art data or null
  */
-function getCustomAsciiArt(audioPath) {
+async function getCustomAsciiArt(audioPath) {
   // Check if there's an associated ABC file
   const audioDir = path.dirname(audioPath);
   const audioBasename = path.basename(audioPath, path.extname(audioPath));
-  
-  // Look for matching ABC file
   const possibleAbcPaths = [
     path.join(audioDir, `${audioBasename}.abc`),
     path.join(audioDir, audioBasename.replace(/-choreography$/, '') + '.abc'),
     path.join(audioDir, audioBasename.replace(/_final$/, '') + '.abc'),
   ];
-
   for (const abcPath of possibleAbcPaths) {
-    if (fs.existsSync(abcPath)) {
-      try {
-        const abcContent = fs.readFileSync(abcPath, 'utf-8');
-        
+    try {
+      const abcContent = await fs.promises.readFile(abcPath, 'utf-8');
         // Extract metadata
-        const titleMatch = abcContent.match(/T:(.+)/);
+      const titleMatch = abcContent.match(/T:(.+)/);
         const title = titleMatch ? titleMatch[1].trim() : 'Untitled';
-        
-        // Check for ASCII art annotations
-        const artMatches = abcContent.match(/% ASCII_ART:\s*(.+)/g);
-        if (artMatches) {
-          return {
-            abcBasename: path.basename(abcPath, '.abc'),
-            title,
-            shapes: artMatches.map(m => m.replace(/% ASCII_ART:\s*/, '').trim()),
-            metadata: { title }
-          };
-        }
-      } catch (error) {
-        // Continue to next possible path
+      const artMatches = abcContent.match(/% ASCII_ART:\s*(.+)/g);
+      if (artMatches) {
+        return {
+          abcBasename: path.basename(abcPath, '.abc'),
+          title,
+          shapes: artMatches.map(m => m.replace(/% ASCII_ART:\s*/, '').trim()),
+          metadata: { title }
+        };
       }
+    } catch (error) {
+      // Continue to next possible path (file doesn't exist or read error)
     }
   }
-
   return null;
 }
 
@@ -244,9 +236,7 @@ function logChoreographyPreview(manager) {
  */
 async function startScreenRecording(audioFile, outputDir = './recordings') {
   // Create recordings directory if it doesn't exist
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  await fs.promises.mkdir(outputDir, { recursive: true });
 
   const timestamp = Date.now();
   const audioBasename = path.basename(audioFile, path.extname(audioFile));
@@ -346,7 +336,9 @@ export async function playChoreography(options) {
   } = options;
 
   // Validate audio file
-  if (!fs.existsSync(audio)) {
+  try {
+    await fs.promises.access(audio);
+  } catch {
     throw new Error(`Audio file not found: ${audio}`);
   }
 
@@ -363,10 +355,13 @@ export async function playChoreography(options) {
     ];
 
     for (const possiblePath of possiblePaths) {
-      if (fs.existsSync(possiblePath)) {
+      try {
+        await fs.promises.access(possiblePath);
         choreographyPath = possiblePath;
         console.log(chalk.gray(`Auto-detected choreography: ${choreographyPath}`));
         break;
+      } catch {
+        // File doesn't exist, try next
       }
     }
 
@@ -378,7 +373,7 @@ export async function playChoreography(options) {
   // Load choreography data
   let choreographyData;
   try {
-    choreographyData = loadChoreography(choreographyPath);
+    choreographyData = await loadChoreography(choreographyPath);
   } catch (error) {
     throw new Error(`Failed to load choreography: ${error.message}`);
   }
@@ -434,7 +429,7 @@ export async function playChoreography(options) {
   console.log(chalk.gray(`   Detected ${onsets.length} onsets`));
 
   // Check for custom ASCII art
-  const customArt = getCustomAsciiArt(audio);
+  const customArt = await getCustomAsciiArt(audio);
   if (customArt) {
     console.log(chalk.blue(`\n🎨 Custom ASCII art found for: ${customArt.title}`));
     console.log(chalk.gray(`   Shapes: ${customArt.shapes.length}`));

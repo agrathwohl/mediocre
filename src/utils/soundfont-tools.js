@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -122,18 +122,21 @@ const MIDI_PROGRAM_CATEGORIES = {
  * Load the soundfont index from disk
  * @returns {Object} The soundfont index
  */
-export function loadSoundFontIndex() {
+export async function loadSoundFontIndex() {
   if (cachedIndex) {
     return cachedIndex;
   }
 
-  if (!fs.existsSync(SOUNDFONT_INDEX_PATH)) {
-    throw new Error(`Soundfont index not found at ${SOUNDFONT_INDEX_PATH}`);
+  try {
+    const indexContent = await fs.readFile(SOUNDFONT_INDEX_PATH, 'utf8');
+    cachedIndex = JSON.parse(indexContent);
+    return cachedIndex;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      throw new Error(`Soundfont index not found at ${SOUNDFONT_INDEX_PATH}`);
+    }
+    throw error;
   }
-
-  const indexContent = fs.readFileSync(SOUNDFONT_INDEX_PATH, 'utf8');
-  cachedIndex = JSON.parse(indexContent);
-  return cachedIndex;
 }
 
 /**
@@ -144,9 +147,9 @@ export function loadSoundFontIndex() {
  * @param {boolean} [options.includePresets=false] - Include matching preset details
  * @returns {Array} Matching soundfonts with relevance scores
  */
-export function searchSoundFonts(query, options = {}) {
+export async function searchSoundFonts(query, options = {}) {
   const { limit = 20, includePresets = false } = options;
-  const index = loadSoundFontIndex();
+  const index = await loadSoundFontIndex();
   const queryLower = query.toLowerCase();
   const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 1);
 
@@ -217,8 +220,8 @@ export function searchSoundFonts(query, options = {}) {
  * @param {string} genreHybrid - The genre hybrid (e.g., "baroque_x_synthwave")
  * @returns {Object} Recommended soundfonts categorized by priority
  */
-export function getSoundFontsForGenre(genreHybrid) {
-  const index = loadSoundFontIndex();
+export async function getSoundFontsForGenre(genreHybrid) {
+  const index = await loadSoundFontIndex();
 
   // Parse the genre hybrid
   const genres = genreHybrid.toLowerCase().split('_x_');
@@ -323,9 +326,9 @@ export function getSoundFontsForGenre(genreHybrid) {
  * @param {number} [options.limit=10] - Maximum results
  * @returns {Array} Soundfonts strong in this category
  */
-export function getSoundFontsByCategory(category, options = {}) {
+export async function getSoundFontsByCategory(category, options = {}) {
   const { limit = 10 } = options;
-  const index = loadSoundFontIndex();
+  const index = await loadSoundFontIndex();
   const categoryLower = category.toLowerCase();
 
   // Get MIDI program range for this category if it exists
@@ -389,8 +392,8 @@ export function getSoundFontsByCategory(category, options = {}) {
  * Get a summary of available soundfont categories and their coverage
  * @returns {Object} Summary of soundfont collection
  */
-export function getSoundFontSummary() {
-  const index = loadSoundFontIndex();
+export async function getSoundFontSummary() {
+  const index = await loadSoundFontIndex();
 
   // Categorize soundfonts by detected type
   const categories = {
@@ -549,30 +552,28 @@ opt -k 0
  * @param {string} [params.style] - Additional style keywords
  * @returns {Object} Comprehensive soundfont recommendations
  */
-export function exploreSoundFontsForComposition(params) {
+export async function exploreSoundFontsForComposition(params) {
   const { genreHybrid, requiredInstruments = [], style = '' } = params;
-
-  // Get genre-based recommendations
-  const genreRecommendations = getSoundFontsForGenre(genreHybrid);
+  const genreRecommendations = await getSoundFontsForGenre(genreHybrid);
 
   // Search for required instruments
   const instrumentResults = {};
   for (const instrument of requiredInstruments) {
-    instrumentResults[instrument] = searchSoundFonts(instrument, { limit: 5 });
+    instrumentResults[instrument] = await searchSoundFonts(instrument, { limit: 5 });
   }
 
   // Search for style keywords if provided
   let styleResults = [];
   if (style) {
-    styleResults = searchSoundFonts(style, { limit: 10 });
+    styleResults = await searchSoundFonts(style, { limit: 10 });
   }
 
   // Get category-based suggestions for common needs
   const categoryResults = {
-    drums: getSoundFontsByCategory('drums', { limit: 5 }),
-    bass: getSoundFontsByCategory('bass', { limit: 5 }),
-    strings: getSoundFontsByCategory('strings', { limit: 5 }),
-    synth: getSoundFontsByCategory('synth', { limit: 5 })
+    drums: await getSoundFontsByCategory('drums', { limit: 5 }),
+    bass: await getSoundFontsByCategory('bass', { limit: 5 }),
+    strings: await getSoundFontsByCategory('strings', { limit: 5 }),
+    synth: await getSoundFontsByCategory('synth', { limit: 5 })
   };
 
   return {
@@ -627,8 +628,8 @@ function buildSuggestedSelection(genreRecs, instrumentRecs, styleRecs) {
  * @param {string} genreHybrid - The genre hybrid
  * @returns {string} Compact soundfont guidance
  */
-export function getCompactSoundFontGuidance(genreHybrid) {
-  const recommendations = getSoundFontsForGenre(genreHybrid);
+export async function getCompactSoundFontGuidance(genreHybrid) {
+  const recommendations = await getSoundFontsForGenre(genreHybrid);
 
   let guidance = `## Soundfont Selection for ${genreHybrid}\n\n`;
   guidance += `Keywords matched: ${recommendations.searchedKeywords.join(', ')}\n\n`;
