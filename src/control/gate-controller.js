@@ -6,10 +6,14 @@
  */
 
 import { GatePrompts } from './gate-prompts.js';
+import { PreviewPlayer } from './preview-player.js';
+import { CheckpointManager } from './checkpoint-manager.js';
 
 export class GateController {
-  constructor() {
-    this.ui = new GatePrompts();
+  constructor({ abcFilePath } = {}) {
+    const previewPlayer = abcFilePath ? new PreviewPlayer(abcFilePath) : null;
+    this.checkpointManager = abcFilePath ? new CheckpointManager(abcFilePath) : null;
+    this.ui = new GatePrompts(previewPlayer, this.checkpointManager);
     this.checkpoints = [];
     this.humanDirectives = [];
   }

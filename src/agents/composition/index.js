@@ -4,13 +4,14 @@
  * Core agent for mediocre-music generation pipeline
  */
 
-import { ToolLoopAgent, Output, stepCountIs, generateText } from 'ai';
+import { ToolLoopAgent, Output, stepCountIs, streamText } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { validateAbcTool } from '../shared/tools.js';
 import { createStepLogger } from '../shared/utils.js';
 import { validateAbcNotation, cleanAbcNotation } from '../../utils/claude.js';
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
+import { formatDrumKitForPrompt } from '../drum-arranger/gm-percussion-reference.js';
 
 const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -21,7 +22,37 @@ const anthropic = createAnthropic({
  * @param {Object} structured - Structured ABC components
  * @returns {string} Properly formatted ABC notation
  */
-function assembleAbcNotation(structured) {
+function findNearestAllowed(gm, allowedSet) {
+  let nearest = 36;
+  let minDist = Infinity;
+  for (const allowed of allowedSet) {
+    const dist = Math.abs(gm - allowed);
+    if (dist < minDist) {
+      minDist = dist;
+      nearest = allowed;
+    }
+  }
+  return nearest;
+}
+
+/**
+ * Compute a single rest bar based on meter and default note length.
+ * @param {string} meter - Time signature like "4/4"
+ * @param {string} defaultNoteLength - Default note length like "1/8"
+ * @returns {string} ABC rest notation for one full bar
+ */
+function computeRestBar(meter, defaultNoteLength) {
+  try {
+    const [mNum, mDen] = meter.split('/').map(Number);
+    const [lNum, lDen] = defaultNoteLength.split('/').map(Number);
+    const unitsPerBar = Math.round((mNum / mDen) / (lNum / lDen));
+    return `z${unitsPerBar}`;
+  } catch {
+    return 'z4';
+  }
+}
+
+function assembleAbcNotation(structured, options = {}) {
   const lines = [];
 
   // Required headers
@@ -45,9 +76,14 @@ function assembleAbcNotation(structured) {
           }
           break;
         case 'drum': {
-          // Pattern must be a single word — strip any spaces the LLM may have inserted
           const cleanPattern = ext.pattern.replace(/\s+/g, '');
-          lines.push(`%%MIDI drum ${cleanPattern} ${ext.programs.join(' ')} ${ext.velocities.join(' ')}`);
+          let programs = ext.programs;
+          if (options.allowedDrumNumbers && options.allowedDrumNumbers.size > 0) {
+            programs = programs.map(gm =>
+              options.allowedDrumNumbers.has(gm) ? gm : findNearestAllowed(gm, options.allowedDrumNumbers)
+            );
+          }
+          lines.push(`%%MIDI drum ${cleanPattern} ${programs.join(' ')} ${programs.map((_, i) => ext.velocities[i] ?? 90).join(' ')}`);
           break;
         }
         case 'gchord':
@@ -69,6 +105,9 @@ function assembleAbcNotation(structured) {
     }
   }
 
+  // Check if any drummap entries exist in midiExtensions
+  const hasDrumMap = structured.midiExtensions?.some(ext => ext.type === 'drummap') ?? false;
+
   // Voices
   for (const voice of structured.voices) {
     const voiceHeader = `[V:${voice.id}${voice.name ? ` ${voice.name}` : ''}${voice.clef ? ` clef=${voice.clef}` : ''}]`;
@@ -80,23 +119,194 @@ function assembleAbcNotation(structured) {
     if (voice.midiProgram !== undefined) {
       lines.push(`%%MIDI program ${voice.midiProgram}`);
     }
-    lines.push(Array.isArray(voice.notes) ? voice.notes.join('\n') : voice.notes);
+    // Safety net: perc voices WITHOUT drummap get all rests
+    // (prevents unmapped notes playing as whistles/bongos on channel 10)
+    // Perc voices WITH drummap keep their notes — the agent wrote real rhythmic notation
+    if (voice.clef === 'perc' && !hasDrumMap) {
+      const restBar = computeRestBar(structured.meter, structured.defaultNoteLength);
+      if (Array.isArray(voice.notes)) {
+        lines.push(voice.notes.map(() => restBar).join(' | '));
+      } else {
+        const barCount = Math.max(1, (voice.notes.match(/\|/g) || []).length + 1);
+        lines.push(Array(barCount).fill(restBar).join(' | '));
+      }
+    } else {
+      lines.push(Array.isArray(voice.notes) ? voice.notes.join('\n') : voice.notes);
+    }
   }
 
   return lines.join('\n');
 }
 
 /**
- * Composition Generation Agent
- * Uses Claude Sonnet with fully structured ABC notation output
- * Features: Validated structure, zero formatting errors, genre fusion
+ * Build a drummap assignment table from drum arranger output.
+ * Maps ABC note letters to specific GM percussion sounds so the composition
+ * agent can write real rhythmic notation instead of placeholder notes.
+ * @param {Array<{gm: number, name: string, role: string}>} drumKit
+ * @returns {Array<{abcNote: string, gm: number, name: string, role: string}>}
  */
-export const compositionAgent = new ToolLoopAgent({
-  model: anthropic('claude-sonnet-4-6', {
-    cacheControl: { type: 'ephemeral', ttl: '1h' },
-  }),
+function buildDrumMapTable(drumKit) {
+  // ABC note letters assigned in priority order: foundation → timekeeping → accent → color
+  const abcNotes = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'c', 'd', 'e', 'f', 'g', 'a', 'b'];
+  const rolePriority = { foundation: 0, timekeeping: 1, accent: 2, color: 3, ethnic: 4, novelty: 5 };
+  const sorted = [...drumKit].sort((a, b) => (rolePriority[a.role] || 5) - (rolePriority[b.role] || 5));
+  const mappings = [];
+  for (let i = 0; i < sorted.length && i < abcNotes.length; i++) {
+    mappings.push({
+      abcNote: abcNotes[i],
+      gm: sorted[i].gm,
+      name: sorted[i].name,
+      role: sorted[i].role,
+    });
+  }
+  return mappings;
+}
 
-  instructions: `You are a music composer specializing in fusion genres.
+/**
+ * Text-mode post-processing safety net: replace unmapped perc voice notes with rests.
+ * If a perc voice section has %%MIDI drummap entries, notes are preserved (the agent
+ * wrote real rhythmic notation using mapped notes).
+ * If a perc voice has NO drummap, note lines become rests to prevent literal MIDI
+ * percussion sounds (e.g. lowercase c = MIDI 72 = Long Whistle).
+ * @param {string} abcText - Raw ABC notation
+ * @returns {string} ABC notation with perc voice safety applied
+ */
+function enforcePercVoiceNotes(abcText) {
+  const lines = abcText.split('\n');
+
+  // Extract meter and default note length from headers
+  let meter = '4/4';
+  let defaultNoteLength = '1/8';
+  for (const line of lines) {
+    const mMatch = line.match(/^M:\s*(.+)/);
+    if (mMatch) meter = mMatch[1].trim();
+    const lMatch = line.match(/^L:\s*(.+)/);
+    if (lMatch) defaultNoteLength = lMatch[1].trim();
+  }
+  const restBar = computeRestBar(meter, defaultNoteLength);
+
+  const result = [];
+  let inPercVoice = false;
+  let percVoiceHasDrummap = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Detect voice section start
+    if (line.match(/^\[V:/)) {
+      inPercVoice = line.includes('clef=perc');
+      percVoiceHasDrummap = false;
+
+      // Also check for channel 10 without clef=perc
+      if (!inPercVoice) {
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].match(/^\[V:/)) break;
+          if (lines[j].match(/%%MIDI\s+channel\s+10/)) {
+            inPercVoice = true;
+            break;
+          }
+        }
+      }
+
+      // Look ahead for drummap in this voice section
+      if (inPercVoice) {
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].match(/^\[V:/)) break;
+          if (lines[j].includes('%%MIDI drummap')) {
+            percVoiceHasDrummap = true;
+            break;
+          }
+        }
+      }
+
+      result.push(line);
+      continue;
+    }
+
+    // Detect channel 10 mid-section
+    if (line.match(/%%MIDI\s+channel\s+10/) && !inPercVoice) {
+      inPercVoice = true;
+      for (let j = i + 1; j < lines.length; j++) {
+        if (lines[j].match(/^\[V:/)) break;
+        if (lines[j].includes('%%MIDI drummap')) {
+          percVoiceHasDrummap = true;
+          break;
+        }
+      }
+      result.push(line);
+      continue;
+    }
+
+    // In a perc voice without drummap: replace note lines with rests
+    if (inPercVoice && !percVoiceHasDrummap) {
+      // Keep directives and headers as-is
+      if (line.startsWith('%%') || line.match(/^[A-Z]:/) || line.trim().length === 0) {
+        result.push(line);
+        continue;
+      }
+      // Note line: count bars and replace with rest bars
+      const barCount = (line.match(/\|/g) || []).length;
+      const trailingBar = line.trimEnd().endsWith('|');
+      if (barCount > 0) {
+        const actualBars = trailingBar ? barCount : barCount + 1;
+        result.push(Array(actualBars).fill(restBar).join(' | ') + (trailingBar ? ' |' : ''));
+      } else if (line.trim().length > 0) {
+        result.push(restBar);
+      }
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Create a composition agent with dynamic drum constraints.
+ * When drumMapTable is provided, the agent's instructions and schema
+ * are constrained to use only the drum arranger's selected sounds
+ * via %%MIDI drummap notation for musical drum writing.
+ * @param {Object} [options]
+ * @param {Array} [options.drumMapTable] - From buildDrumMapTable()
+ * @returns {ToolLoopAgent}
+ */
+function createCompositionAgent(options = {}) {
+  const { drumMapTable = null } = options;
+
+  // Dynamic drum instructions based on drum arranger's selection
+  let drumMapInstructions = '';
+  if (drumMapTable && drumMapTable.length > 0) {
+    drumMapInstructions = `
+
+DRUM SOUND PALETTE (from drum arranger — use ONLY these in drum notation):
+${drumMapTable.map(m => `  ${m.abcNote} → GM ${m.gm} (${m.name}) [${m.role}]`).join('\n')}
+
+In your midiExtensions array, include a drummap entry for each sound you use:
+  { type: 'drummap', note: '${drumMapTable[0].abcNote}', midiPitch: ${drumMapTable[0].gm} }
+Then in the drum voice notes, write actual rhythmic patterns using those ABC note letters.
+Write DIFFERENT patterns per section — fills at transitions, accents on hits, dynamic variation.
+Make the drums MUSICAL and ALIVE, not a boring repeating loop.
+NEVER use note letters in the drum voice that are NOT in the above mapping. Use z for rests.
+You may ALSO add a 'drum' midiExtension for a simple repeating base groove alongside drummap notation.
+ONLY use these GM numbers in drum-related midiExtensions: ${drumMapTable.map(m => m.gm).join(', ')}`;
+  }
+
+  // Dynamic drum programs description for schema
+  const drumProgramsDesc = drumMapTable && drumMapTable.length > 0
+    ? `GM drum numbers — ONLY use: ${drumMapTable.map(m => `${m.gm}(${m.name})`).join(', ')}`
+    : 'GM drum numbers 35-81. MUST have exactly as many numbers as d characters in pattern!';
+
+  const drumMidiPitchDesc = drumMapTable && drumMapTable.length > 0
+    ? `GM drum number — ONLY use: ${drumMapTable.map(m => `${m.gm}(${m.name})`).join(', ')}`
+    : 'GM drum number 35-81 to map to';
+
+  return new ToolLoopAgent({
+    model: anthropic('claude-sonnet-4-6', {
+      cacheControl: { type: 'ephemeral', ttl: '1h' },
+    }),
+
+    instructions: `You are a music composer specializing in fusion genres.
 Your task is to create compositions that authentically blend classical and modern musical traditions.
 
 You will provide structured components that will be assembled into proper ABC notation automatically.
@@ -108,18 +318,23 @@ For genre fusions with modern electronic/dance/rock elements, you MUST include a
 DRUM VOICE RULES:
 - Always use clef: "perc" for the drum voice — this automatically assigns MIDI channel 10 (percussion)
 - Do NOT set midiProgram on a perc voice (channel 10 ignores program changes)
-- Use the 'drum' midiExtension for the repeating pattern:
+- PRIMARY METHOD — Use 'drummap' midiExtensions to assign ABC notes to drum sounds, then write REAL notation:
+  - Add drummap entries in midiExtensions for each drum sound you use
+  - In the drum voice notes, write actual rhythmic patterns using the mapped ABC note letters
+  - Write DIFFERENT patterns per section — fills, accents, dynamics — make drums MUSICAL
+  - Use z for rests between hits
+  - NEVER use note letters in a drum voice that don't have a drummap entry
+- ALTERNATIVE — Use the 'drum' midiExtension for a simple repeating pattern:
   - Pattern: ONLY d=hit and z=rest, NO spaces, NO duration numbers (e.g., "dzdzdzdz" not "d2zd z2d")
-  - programs array: EXACTLY one GM drum number per 'd' in the pattern (36=Kick, 38=Snare, 42=Hi-Hat, 46=Open Hi-Hat, 49=Crash, 47=Tom)
+  - programs array: EXACTLY one GM drum number per 'd' in the pattern
   - velocities array: EXACTLY one 0-127 value per 'd' in the pattern
   - Count your d's! If pattern is "dzdzdzdz" (4 d's), you need exactly 4 programs and 4 velocities
-  - Example: pattern "dzdzdzdz", programs [36,38,42,38], velocities [110,90,70,90] ✓
-  - WRONG: pattern "d2zd zddd", programs [36,38,42,49], velocities [100,80,70,90] ✗ (spaces, duration chars, wrong count)
+  - When using ONLY %%MIDI drum (no drummap), drum voice notes MUST be all rests (z)
+${drumMapInstructions}
 
 Guidelines for other MIDI extensions:
 - Use 'program' to set instruments (0-127 General MIDI) for melodic voices
 - Use 'gchord' for guitar chord accompaniment
-- Use 'drummap' to map specific notes to drum sounds
 - Use 'drumon'/'drumoff' to enable/disable drum patterns
 
 IMPORTANT: Create drum patterns appropriate for the specific genre fusion!
@@ -145,75 +360,126 @@ ABC OCTAVE NOTATION (CRITICAL - DO NOT USE COMMAS):
 
 ${ABC2MIDI_REFERENCE}`,
 
-  output: Output.object({
-    schema: z.object({
-      // Required headers
-      referenceNumber: z.number().describe('Reference number (e.g., 1)'),
-      title: z.string().describe('Composition title'),
-      meter: z.string().describe('Time signature (e.g., "4/4", "3/4", "6/8")'),
-      defaultNoteLength: z.string().describe('Default note length (e.g., "1/8", "1/4")'),
-      key: z.string().describe('Key signature (e.g., "C", "Dm", "G major")'),
+    output: Output.object({
+      schema: z.object({
+        // Required headers
+        referenceNumber: z.number().describe('Reference number (e.g., 1)'),
+        title: z.string().describe('Composition title'),
+        meter: z.string().describe('Time signature (e.g., "4/4", "3/4", "6/8")'),
+        defaultNoteLength: z.string().describe('Default note length (e.g., "1/8", "1/4")'),
+        key: z.string().describe('Key signature (e.g., "C", "Dm", "G major")'),
 
-      // Optional headers
-      composer: z.string().optional().describe('Composer name'),
-      tempo: z.string().optional().describe('Tempo marking (e.g., "1/4=120")'),
+        // Optional headers
+        composer: z.string().optional().describe('Composer name'),
+        tempo: z.string().optional().describe('Tempo marking (e.g., "1/4=120")'),
 
-      // Structured MIDI extensions
-      midiExtensions: z.array(z.discriminatedUnion('type', [
-        z.object({
-          type: z.literal('program'),
-          channel: z.number().optional().describe('MIDI channel 1-16'),
-          program: z.number().describe('MIDI program number 0-127'),
-        }),
-        z.object({
-          type: z.literal('drum'),
-          pattern: z.string().describe('Drum pattern using d=hit, z=rest (e.g., "dddd"). Count the d characters!'),
-          programs: z.array(z.number()).describe('GM drum numbers 35-81. MUST have exactly as many numbers as d characters in pattern!'),
-          velocities: z.array(z.number()).describe('Hit velocities 0-127. MUST have exactly as many numbers as d characters in pattern!'),
-        }),
-        z.object({
-          type: z.literal('gchord'),
-          instrument: z.number().describe('Instrument 0-127 for chord accompaniment'),
-        }),
-        z.object({
-          type: z.literal('drummap'),
-          note: z.string().describe('ABC note like C, D\', E,,'),
-          midiPitch: z.number().describe('GM drum number 35-81 to map to'),
-        }),
-        z.object({
-          type: z.enum(['drumon', 'drumoff']),
-        }),
-        z.object({
-          type: z.literal('channel'),
-          channel: z.number().describe('Melody channel 1-16'),
-        }),
-      ])).optional().describe('MIDI extensions for instruments and effects'),
+        // Structured MIDI extensions
+        midiExtensions: z.array(z.discriminatedUnion('type', [
+          z.object({
+            type: z.literal('program'),
+            channel: z.number().optional().describe('MIDI channel 1-16'),
+            program: z.number().describe('MIDI program number 0-127'),
+          }),
+          z.object({
+            type: z.literal('drum'),
+            pattern: z.string().describe('Drum pattern using d=hit, z=rest (e.g., "dddd"). Count the d characters!'),
+            programs: z.array(z.number()).describe(drumProgramsDesc),
+            velocities: z.array(z.number()).describe('Hit velocities 0-127. MUST have exactly as many numbers as d characters in pattern!'),
+          }),
+          z.object({
+            type: z.literal('gchord'),
+            instrument: z.number().describe('Instrument 0-127 for chord accompaniment'),
+          }),
+          z.object({
+            type: z.literal('drummap'),
+            note: z.string().describe('ABC note letter to map (e.g., C, D, E, F, G, A, B)'),
+            midiPitch: z.number().describe(drumMidiPitchDesc),
+          }),
+          z.object({
+            type: z.enum(['drumon', 'drumoff']),
+          }),
+          z.object({
+            type: z.literal('channel'),
+            channel: z.number().describe('Melody channel 1-16'),
+          }),
+        ])).optional().describe('MIDI extensions for instruments and effects'),
 
-      // Voices
-      voices: z.array(z.object({
-        id: z.string().describe('Voice ID like 1, melody, bass'),
-        name: z.string().optional().describe('Voice name for readability'),
-        clef: z.enum(['treble', 'bass', 'alto', 'tenor', 'treble+8', 'treble-8', 'bass+8', 'bass-8', 'perc']).optional().describe('Musical clef — use "perc" for drum/percussion voices (auto-assigns MIDI channel 10)'),
-        midiProgram: z.number().optional().describe('MIDI instrument 0-127 for this voice'),
-        notes: z.union([
-          z.string(),
-          z.array(z.string()),
-        ]).describe('ABC note sequence for this voice - measures separated by | (may be a single string or array of measure strings)'),
-      })).describe('Musical voices/parts - at least 1 required'),
+        // Voices
+        voices: z.array(z.object({
+          id: z.string().describe('Voice ID like 1, melody, bass'),
+          name: z.string().optional().describe('Voice name for readability'),
+          clef: z.enum(['treble', 'bass', 'alto', 'tenor', 'treble+8', 'treble-8', 'bass+8', 'bass-8', 'perc']).optional().describe('Musical clef — use "perc" for drum/percussion voices (auto-assigns MIDI channel 10)'),
+          midiProgram: z.number().optional().describe('MIDI instrument 0-127 for this voice'),
+          notes: z.union([
+            z.string(),
+            z.array(z.string()),
+          ]).describe('ABC note sequence for this voice - measures separated by | (may be a single string or array of measure strings)'),
+        })).describe('Musical voices/parts - at least 1 required'),
+      }),
     }),
-  }),
 
-  tools: {
-    validate_abc: validateAbcTool,
-  },
+    tools: {
+      validate_abc: validateAbcTool,
+    },
 
-  stopWhen: stepCountIs(15),
-  toolChoice: 'auto',
-});
+    stopWhen: stepCountIs(15),
+    toolChoice: 'auto',
+  });
+}
+
+// Default instance for backwards compatibility (no drum constraints)
+export const compositionAgent = createCompositionAgent();
 
 const isAbcCrash = (errs) => errs.some(e => e.includes('crashed') || e.includes('SIGSEGV') || e.includes('SIGABRT'));
 
-const TEXT_MODE_SYSTEM_PROMPT = `You are a music composer specializing in fusion genres.
+/**
+ * Build text-mode system prompt with dynamic drum constraints.
+ * @param {Array|null} drumMapTable - From buildDrumMapTable(), or null
+ * @returns {string} System prompt for text-mode composition
+ */
+function buildTextModeSystemPrompt(drumMapTable = null) {
+  let percSection;
+
+  if (drumMapTable && drumMapTable.length > 0) {
+    const exampleNotes = drumMapTable.slice(0, 3);
+    percSection = `- PERCUSSION VOICES (CRITICAL — read carefully):
+  Use %%MIDI drummap to assign ABC note letters to specific drum sounds, then write REAL rhythmic notation.
+  Your drum sound assignments for this composition:
+${drumMapTable.map(m => `    %%MIDI drummap ${m.abcNote} ${m.gm}   (${m.abcNote} = ${m.name} [${m.role}])`).join('\n')}
+  Write each %%MIDI drummap directive inside the drum voice section, then write musical patterns using those note letters.
+  CORRECT drum voice:
+    [V:drums name="Drums" clef=perc]
+    %%MIDI channel 10
+${exampleNotes.map(m => `    %%MIDI drummap ${m.abcNote} ${m.gm}`).join('\n')}
+    ${exampleNotes.map(m => m.abcNote).join(' ')} ${exampleNotes[0].abcNote} | ${exampleNotes.map(m => m.abcNote).join(' ')} z | ${exampleNotes[0].abcNote} z ${exampleNotes[1]?.abcNote || 'z'} ${exampleNotes[2]?.abcNote || 'z'} ${exampleNotes[0].abcNote} z ${exampleNotes[1]?.abcNote || 'z'} ${exampleNotes[2]?.abcNote || 'z'} |
+  Write DIFFERENT patterns per section — fills, accents, dynamics. Make the drums MUSICAL.
+  NEVER use note letters that are NOT in the above drummap assignments. Use z for rests between hits.
+  ONLY use these GM drum numbers: ${drumMapTable.map(m => m.gm).join(', ')}
+  You MAY also use %%MIDI drum for a simple repeating base groove, but drummap notation is preferred.`;
+  } else {
+    percSection = `- PERCUSSION VOICES (CRITICAL — read carefully):
+  Use %%MIDI drummap to assign ABC note letters to GM drum sounds, then write rhythmic notation.
+  Common setup:
+    %%MIDI drummap C 36   (C = Bass Drum)
+    %%MIDI drummap D 38   (D = Snare)
+    %%MIDI drummap E 42   (E = Closed Hi-Hat)
+    %%MIDI drummap F 46   (F = Open Hi-Hat)
+    %%MIDI drummap G 49   (G = Crash Cymbal)
+  CORRECT drum voice:
+    [V:drums name="Drums" clef=perc]
+    %%MIDI channel 10
+    %%MIDI drummap C 36
+    %%MIDI drummap D 38
+    %%MIDI drummap E 42
+    E E D E | E E D E | C z D E C z D E |
+  NEVER write notes in a drum voice WITHOUT %%MIDI drummap — they play as literal MIDI percussion
+  (e.g., lowercase c = MIDI 72 = Long Whistle — NOT what you want).
+  Always set up drummap first, then write notation using only mapped notes and z for rests.
+  Common GM drums: 36=Bass Drum, 38=Snare, 42=Closed Hi-Hat, 46=Open Hi-Hat, 49=Crash, 51=Ride, 37=Rim, 39=Clap
+  For breakcore/jungle/Venetian Snares style: use dense irregular patterns at high BPM (160-200+)`;
+  }
+
+  return `You are a music composer specializing in fusion genres.
 Output ONLY valid ABC notation — no markdown fences, no explanatory text, no reasoning, nothing before X:1.
 
 ABC NOTATION RULES:
@@ -229,18 +495,7 @@ ABC NOTATION RULES:
     %%MIDI program 1 42
     [V:1 name="Violin" clef=treble]
 - %%MIDI program takes ONE argument (the GM program number 0-127). Never two arguments.
-- PERCUSSION VOICES (CRITICAL — read carefully):
-  A drum voice uses %%MIDI drum, NOT pitched notes. The drum voice notes are just timing placeholders (z = rest, c = beat).
-  The %%MIDI drum directive maps those placeholder notes to actual GM drum sounds.
-  CORRECT drum voice:
-    [V:drums name="Drums" clef=perc]
-    %%MIDI channel 10
-    %%MIDI drum dzdzdzdz 36 38 36 38 36 38 36 38 120 90 110 85 100 80 95 75
-    c c c c | c c c c | c c c c | c c c c |
-  Where: d=hit, z=rest in pattern; programs list GM numbers for each d; velocities for each d.
-  Common GM drums: 36=Bass Drum, 38=Snare, 42=Closed Hi-Hat, 46=Open Hi-Hat, 49=Crash, 51=Ride, 37=Rim, 39=Clap
-  For breakcore/jungle/Venetian Snares style: use dense irregular patterns like ddzddzdz or ddddzddd at high BPM (160-200+)
-  DO NOT write pitched notes (C D E etc.) in a drum voice — only z and c as timing, with %%MIDI drum doing the work.
+${percSection}
 - Multi-voice: use [V:1], [V:2] etc., NO blank lines between voice sections
 - OCTAVE NOTATION (CRITICAL):
   - C, D, = low octave (uppercase + comma)
@@ -248,6 +503,7 @@ ABC NOTATION RULES:
   - c d e = high octave (lowercase)
   - c' d' = very high (lowercase + apostrophe)
   - NEVER use lowercase letters with commas (a, b, c, — INVALID)`;
+}
 
 /**
  * Generate ABC notation using the composition agent
@@ -275,16 +531,28 @@ export async function generateMusicWithAgent(options) {
     producer = '',
     instruments = '',
     genreResearch = null,
+    drumPrescription = null,
   } = options;
+
+  // Build drum constraints from drum arranger's selection
+  const drumMapTable = drumPrescription
+    ? buildDrumMapTable(drumPrescription.drumKit)
+    : null;
+
+  const drumKitSection = drumPrescription
+    ? formatDrumKitForPrompt(drumPrescription.drumKit) + '\n\n## DRUM PATTERN GUIDANCE\n' + drumPrescription.patternGuidance + '\n\n'
+    : '';
+
+  // Add drummap assignments to user prompt so agent knows which ABC notes to use
+  const drumMapSection = drumMapTable && drumMapTable.length > 0
+    ? `\n## DRUM NOTATION ASSIGNMENTS (use these %%MIDI drummap directives in your drum voice)\n${drumMapTable.map(m => `  %%MIDI drummap ${m.abcNote} ${m.gm}   → ${m.abcNote} = ${m.name} [${m.role}]`).join('\n')}\nWrite MUSICAL drum patterns using these mapped notes — different rhythms per section, fills at transitions!\n`
+    : '';
 
   // Build comprehensive user prompt with all requirements
   const userPrompt = `Generate a ${genre} composition that fuses ${classicalGenre} and ${modernGenre}.
-
 ${genreResearch ? `## GENRE RESEARCH (read this first — it determines what you MUST include)
 ${genreResearch}
-
-` : ''}Style: ${style}
-
+` : ''}${drumKitSection}${drumMapSection}Style: ${style}
 Guidelines:
 1. From ${classicalGenre}, incorporate:
    - Appropriate harmonic structures
@@ -318,16 +586,21 @@ Remember: NO BLANK LINES between voice sections or elements!`;
     let abcNotation;
 
     if (objectMode) {
-      const { output } = await compositionAgent.generate({
+      // Create agent with dynamic drum constraints
+      const agent = createCompositionAgent({ drumMapTable });
+      const { output } = await agent.generate({
         prompt: userPrompt,
         onStepFinish: createStepLogger('CompositionAgent[object]'),
       });
-      abcNotation = assembleAbcNotation(output);
+      const allowedDrumNumbers = drumPrescription
+        ? new Set(drumPrescription.drumKit.map(s => s.gm))
+        : null;
+      abcNotation = assembleAbcNotation(output, { allowedDrumNumbers });
       console.log(`✅ Composition generated [object]: ${output.title} (${output.voices.length} voice(s))`);
     } else {
-      const { text } = await generateText({
+      const result = streamText({
         model: anthropic('claude-sonnet-4-6', { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
-        system: TEXT_MODE_SYSTEM_PROMPT,
+        system: buildTextModeSystemPrompt(drumMapTable),
         prompt: userPrompt,
         providerOptions: {
           anthropic: {
@@ -345,8 +618,16 @@ Remember: NO BLANK LINES between voice sections or elements!`;
           },
         },
       });
+      let text = '';
+      for await (const delta of result.textStream) {
+        process.stdout.write(delta);
+        text += delta;
+      }
+      process.stdout.write('\n');
       // Strip any accidental markdown fences
       abcNotation = text.replace(/^```[^\n]*\n?/gm, '').replace(/^```$/gm, '').trim();
+      // Safety net: enforce perc voice notes (replace unmapped notes with rests)
+      abcNotation = enforcePercVoiceNotes(abcNotation);
       const titleMatch = abcNotation.match(/^T:(.+)$/m);
       console.log(`✅ Composition generated [text]: ${titleMatch ? titleMatch[1].trim() : '(untitled)'}`);
     }
@@ -456,7 +737,13 @@ export async function modifyMusicWithAgent(options) {
     modernGenre = '',
     objectMode = false,
     _isCorrection = false,
+    drumPrescription = null,
   } = options;
+
+  // Build drum constraints from drum arranger's selection
+  const drumMapTable = drumPrescription
+    ? buildDrumMapTable(drumPrescription.drumKit)
+    : null;
 
   const qaSection = qaFeedback ? `
 ## QA EVALUATION FEEDBACK
@@ -511,16 +798,21 @@ Output ONLY the COMPLETE modified ABC notation — no markdown fences, no explan
     let abcNotation;
 
     if (objectMode) {
-      const { output } = await compositionAgent.generate({
+      // Create agent with dynamic drum constraints
+      const agent = createCompositionAgent({ drumMapTable });
+      const { output } = await agent.generate({
         prompt: userPrompt,
         onStepFinish: createStepLogger('CompositionAgent[modify/object]'),
       });
-      abcNotation = assembleAbcNotation(output);
+      const modAllowedDrums = drumPrescription
+        ? new Set(drumPrescription.drumKit.map(s => s.gm))
+        : null;
+      abcNotation = assembleAbcNotation(output, { allowedDrumNumbers: modAllowedDrums });
       console.log(`✅ Composition modified [object]: ${output.title}`);
     } else {
-      const { text } = await generateText({
+      const modResult = streamText({
         model: anthropic('claude-sonnet-4-6', { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
-        system: TEXT_MODE_SYSTEM_PROMPT,
+        system: buildTextModeSystemPrompt(drumMapTable),
         prompt: userPrompt,
         providerOptions: {
           anthropic: {
@@ -538,7 +830,15 @@ Output ONLY the COMPLETE modified ABC notation — no markdown fences, no explan
           },
         },
       });
+      let text = '';
+      for await (const delta of modResult.textStream) {
+        if (!_isCorrection) process.stdout.write(delta);
+        text += delta;
+      }
+      if (!_isCorrection) process.stdout.write('\n');
       abcNotation = text.replace(/^```[^\n]*\n?/gm, '').replace(/^```$/gm, '').trim();
+      // Safety net: enforce perc voice notes (replace unmapped notes with rests)
+      abcNotation = enforcePercVoiceNotes(abcNotation);
       const titleMatch = abcNotation.match(/^T:(.+)$/m);
       console.log(`✅ Composition modified [text]: ${titleMatch ? titleMatch[1].trim() : '(untitled)'}`);
     }

@@ -15,9 +15,11 @@ import { glob } from 'glob';
  * @returns {Promise<Object>} Context object with metadata and analysis
  */
 export async function loadCompositionContext(abcFilePath) {
-  const basename = path.basename(abcFilePath, '.abc');
+  let basename = path.basename(abcFilePath, '.abc');
   const dir = path.dirname(abcFilePath);
 
+  // Sequential mode appends _N version suffix (e.g. _1, _2). Strip before lookup.
+  basename = basename.replace(/_[0-9]+$/, '');
   // Extract timestamp from basename if present (format: name-1234567890)
   const timestampMatch = basename.match(/-(\d+)$/);
   const basePattern = timestampMatch

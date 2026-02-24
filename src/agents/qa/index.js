@@ -27,6 +27,12 @@ export const qaAgent = new ToolLoopAgent({
   instructions: `You are a music composition quality assurance expert.
 Your task is to review ABC notation compositions for quality, completeness, and authenticity.
 
+DRUM KIT COMPLIANCE:
+If a drum prescription is provided in the review prompt, you MUST validate that EVERY GM percussion number
+used in %%MIDI drum directives appears in the prescribed drum kit. Any unauthorized drum sound is a CRITICAL
+technical issue that warrants a 'fail' verdict. Extract all GM numbers from %%MIDI drum lines and cross-check
+against the allowed set.
+
 REVIEW ASPECTS:
 1. Technical Quality - ABC notation syntax, headers, MIDI assignments
 2. Musical Quality - Melodic interest, harmonic coherence, rhythmic variety
@@ -128,13 +134,14 @@ export async function reviewCompositionWithAgent(options) {
     genre,
     classicalGenre,
     modernGenre,
+    drumPrescription = null,
   } = options;
 
   if (!abcFilePath && !abcNotation) {
     throw new Error('reviewCompositionWithAgent requires abcFilePath or abcNotation');
   }
 
-  const prompt = abcFilePath
+  let prompt = abcFilePath
     ? `Review the ${genre} composition (fusion of ${classicalGenre} and ${modernGenre}) stored at: ${abcFilePath}
 
 Call validate_abc with filePath="${abcFilePath}" to check for technical errors first, then provide comprehensive quality assessment across all aspects: technical, musical, genre fusion, and completeness.`
@@ -146,6 +153,15 @@ ${abcNotation}
 \`\`\`
 
 Call validate_abc with the abcNotation above to check for technical errors first, then provide comprehensive quality assessment across all aspects: technical, musical, genre fusion, and completeness.`;
+
+
+  if (drumPrescription) {
+    const allowedList = drumPrescription.drumKit.map(s => '  ' + s.gm + ' = ' + s.name).join('\n');
+    prompt += '\n\n## DRUM KIT PRESCRIPTION (validate compliance)\n'
+      + 'The following GM percussion numbers are the ONLY authorized drum sounds:\n'
+      + allowedList + '\n'
+      + 'Any %%MIDI drum directive using GM numbers NOT in this list is a CRITICAL technical issue.';
+  }
 
   try {
     const { output: assessment } = await qaAgent.generate({

@@ -32,6 +32,9 @@ import { generateTimidityConfig } from './commands/generate-timidity-config.js';
 import { createDatasetBrowser } from './ui/index.js';
 import { validateAbcNotation, cleanAbcNotation, validateWithAbc2Midi, modifyMusicXmlComposition, evaluateMusicXmlCompleteness, validateWithMusicXmlParser } from './utils/claude.js';
 import { extractMidiStems } from './utils/stem-extractor.js';
+import { resumeSession } from './commands/resume-session.js';
+import { compareIterations } from './commands/compare-iterations.js';
+import { listCheckpointsForPath, CheckpointManager } from './control/checkpoint-manager.js';
 
 // ES module path resolution
 const __filename = fileURLToPath(import.meta.url);
@@ -84,7 +87,7 @@ program
   .option('--soundfonts', '[EXPERIMENTAL] Use LLM to select custom soundfonts and generate per-composition TiMidity config')
   .option('--sequential', 'Generate foundation then use orchestrated enhancement loop (requires agents enabled)')
   .option('--max-iterations <n>', 'Max enhancement iterations for sequential mode', '10')
-  .option('--object', 'Use structured object output mode for agent generation (default: text mode)')
+  .option('--no-object', 'Use text output mode instead of structured object mode (default: object mode)')
   .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
   .option('--interactive', 'Enable human-in-the-loop interactive mode for sequential enhancement')
   .option('--midi', 'Run abc2midi on generated ABC files (enabled by default)', true)
@@ -162,7 +165,7 @@ program
           soundfonts: options.soundfonts || false,
           sequentialMode: options.sequential || false,
           maxIterations: parseInt(options.maxIterations || '5', 10),
-          objectMode: options.object || false,
+          objectMode: options.object !== false,
           useStreaming: options.streamText || false,
           interactive: options.interactive || false
         };
@@ -1108,6 +1111,111 @@ program
     }
   });
 
+
+program
+  .command('resume')
+  .description('Resume a previously paused orchestration session')
+  .argument('<sessionFile>', 'Path to session JSON file')
+  .option('--max-iterations <number>', 'Additional iterations to run', '5')
+  .option('--no-interactive', 'Disable interactive gating')
+  .action(async (sessionFile, options) => {
+    try {
+      await resumeSession({
+        sessionFile,
+        maxIterations: parseInt(options.maxIterations, 10),
+        interactive: options.interactive !== false,
+      });
+    } catch (error) {
+      console.error('Error resuming session:', error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('compare')
+  .description('A/B comparison of two ABC iterations')
+  .argument('<fileA>', 'Path to first ABC file')
+  .argument('<fileB>', 'Path to second ABC file')
+  .action(async (fileA, fileB) => {
+    try {
+      await compareIterations({ fileA, fileB });
+    } catch (error) {
+      console.error('Error comparing iterations:', error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('checkpoints')
+  .description('List all checkpoints and branches for a composition')
+  .argument('<target>', 'Path to composition directory or ABC file')
+  .action(async (target) => {
+    try {
+      const info = await listCheckpointsForPath(target);
+      console.log(`\n📁 Checkpoints for: ${path.basename(target)}`);
+      console.log('');
+      if (info.iterations.length > 0) {
+        console.log('  Iterations:');
+        for (const iter of info.iterations) {
+          console.log(`    ${iter.iteration}. ${path.basename(iter.path)} (${(iter.size / 1024).toFixed(1)} KB)`);
+        }
+      } else {
+        console.log('  No iterations found.');
+      }
+      console.log('');
+      if (info.branches.length > 0) {
+        console.log('  Branches:');
+        for (const branch of info.branches) {
+          console.log(`    • ${branch.name} ${branch.hasJson ? '(+json)' : ''}`);
+        }
+      } else {
+        console.log('  No branches found.');
+      }
+      if (info.sessionFile) {
+        console.log(`\n  Session: ${path.basename(info.sessionFile)}`);
+      }
+      console.log('');
+    } catch (error) {
+      console.error('Error listing checkpoints:', error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('branch')
+  .description('Create a branch from a specific iteration')
+  .argument('<abcFile>', 'Path to the composition ABC file')
+  .option('--from <iteration>', 'Iteration number to branch from (default: latest)')
+  .action(async (abcFile, options) => {
+    try {
+      const mgr = new CheckpointManager(abcFile);
+      const iterations = await mgr.listIterations();
+      let sourceAbc;
+      let iterNum;
+      if (options.from) {
+        iterNum = parseInt(options.from, 10);
+        const match = iterations.find(i => i.iteration === iterNum);
+        if (!match) {
+          console.error(`Iteration ${iterNum} not found. Available: ${iterations.map(i => i.iteration).join(', ')}`);
+          process.exit(1);
+        }
+        sourceAbc = await fs.promises.readFile(match.path, 'utf-8');
+      } else if (iterations.length > 0) {
+        const latest = iterations[iterations.length - 1];
+        iterNum = latest.iteration;
+        sourceAbc = await fs.promises.readFile(latest.path, 'utf-8');
+      } else {
+        iterNum = 0;
+        sourceAbc = await fs.promises.readFile(abcFile, 'utf-8');
+      }
+      const branchPath = await mgr.createBranch(sourceAbc, iterNum);
+      console.log(`\n✅ Branch created: ${path.basename(branchPath)}`);
+      console.log(`   To explore: mediocre enhance "${branchPath}" --interactive`);
+    } catch (error) {
+      console.error('Error creating branch:', error.message);
+      process.exit(1);
+    }
+  });
 // Default help message
 // Handle default command behavior
 if (process.argv.length === 2) {

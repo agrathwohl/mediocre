@@ -48,7 +48,7 @@ export async function enhanceComposition(options) {
   console.log(`   Modern: ${context.metadata.modernGenre}`);
 
   // Create gate controller for interactive mode
-  const gateController = interactive ? new GateController() : null;
+  const gateController = interactive ? new GateController({ abcFilePath: input }) : null;
   // Run orchestrated post-processing
   let result;
   try {

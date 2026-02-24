@@ -19,6 +19,7 @@ import { loadCompositionContext } from '../utils/orchestrator-context.js';
 import { orchestratePostProcessing } from '../agents/orchestrator/index.js';
 import { arrangeSoundfontsAndGenerateConfig } from '../agents/timidity-config/index.js';
 import { GateController } from '../control/gate-controller.js';
+import { selectDrumKit } from '../agents/drum-arranger/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -249,6 +250,7 @@ export async function generateAbc(options) {
       let abcNotation;
       let selectedSoundfonts = null;
       let soundfontReasoning = null;
+      let drumPrescription = null;
 
       if (useCustomSoundfonts) {
         // Generate music with LLM soundfont selection (--soundfonts flag)
@@ -302,17 +304,24 @@ export async function generateAbc(options) {
             }
           );
 
+
+          drumPrescription = await selectDrumKit({
+            classicalGenre: genreComponents.classical,
+            modernGenre: genreComponents.modern,
+            genreResearch,
+          });
           const agentArgs = {
             genre: creativeGenreName || genre,
             classicalGenre: genreComponents.classical,
             modernGenre: genreComponents.modern,
             style,
-            objectMode: options.objectMode || false,
+            objectMode: options.objectMode !== false,
             solo: includeSolo,
             recordLabel: recordLabel,
             producer: producer,
             instruments: requestedInstruments,
             genreResearch,
+            drumPrescription,
           };
           // Retry once on SIGSEGV — a fresh generation often avoids whatever caused the crash
           try {
@@ -456,6 +465,10 @@ export async function generateAbc(options) {
           description.timidityConfig = `${filename}.timidity.cfg`;
         }
 
+        if (drumPrescription) {
+          description.drumPrescription = drumPrescription;
+        }
+
         // Save the description as JSON
         const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
         await fs.promises.writeFile(descriptionFilePath, JSON.stringify(description, null, 2));
@@ -498,7 +511,7 @@ ${description.analysis}`;
             const context = await loadCompositionContext(abcFilePath);
 
             // Create gate controller for interactive mode in sequential
-            const gateController = options.interactive ? new GateController() : null;
+            const gateController = options.interactive ? new GateController({ abcFilePath }) : null;
             const enhancementResult = await orchestratePostProcessing({
               abcFilePath,
               musicalContext: context,
@@ -509,6 +522,7 @@ ${description.analysis}`;
               },
               maxIterations: options.maxIterations || 10,
               selectedSoundfonts: selectedSoundfonts || null,
+              drumPrescription,
               gateController,
             });
 

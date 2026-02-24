@@ -9,7 +9,7 @@
  * - Determines when composition meets quality standards
  */
 
-import { generateObject } from 'ai';
+import { streamText, Output } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { modifyMusicWithAgent } from '../composition/index.js';
@@ -19,6 +19,7 @@ import { addMidiExpression } from '../workers/midi-expression.js';
 import { validateAbcNotation } from '../../utils/claude.js';
 import fs from 'fs/promises';
 import path from 'path';
+import { buildSessionData } from '../../control/session-persistence.js';
 
 const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -176,9 +177,9 @@ ${iteration >= maxIterations - 1 ? `
 Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "improve ornamentation").`;
 
   try {
-    const { object: decision } = await generateObject({
+    const stream = streamText({
       model: anthropic('claude-sonnet-4-6'),
-      schema: orchestratorDecisionSchema,
+      output: Output.object({ schema: orchestratorDecisionSchema }),
       messages: [
         {
           role: 'user',
@@ -206,6 +207,44 @@ Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "imp
         },
       },
     });
+
+    // Stream decision fields to terminal in real time
+    let decision = {};
+    const prev = { action: false, agent: false, reasoning: '', directive: '', expected: '' };
+    process.stdout.write(`\n\u{1F3BC} Orchestrator Decision (Iteration ${iteration + 1}):\n`);
+
+    for await (const partial of stream.partialOutputStream) {
+      decision = partial;
+
+      if (partial.action && !prev.action) {
+        process.stdout.write(`   Action: ${partial.action}\n`);
+        prev.action = true;
+      }
+
+      if (partial.agent && !prev.agent) {
+        process.stdout.write(`   Agent: ${partial.agent}\n`);
+        prev.agent = true;
+      }
+
+      if (partial.reasoning && partial.reasoning.length > prev.reasoning.length) {
+        if (!prev.reasoning) process.stdout.write('   Reasoning: ');
+        process.stdout.write(partial.reasoning.slice(prev.reasoning.length));
+        prev.reasoning = partial.reasoning;
+      }
+
+      if (partial.directive && partial.directive.length > prev.directive.length) {
+        if (!prev.directive) process.stdout.write('\n   Directive: ');
+        process.stdout.write(partial.directive.slice(prev.directive.length));
+        prev.directive = partial.directive;
+      }
+
+      if (partial.expectedImprovement && partial.expectedImprovement.length > prev.expected.length) {
+        if (!prev.expected) process.stdout.write('\n   Expected: ');
+        process.stdout.write(partial.expectedImprovement.slice(prev.expected.length));
+        prev.expected = partial.expectedImprovement;
+      }
+    }
+    process.stdout.write('\n');
 
     // Validate decision
     if (decision.action === 'invoke' && (!decision.agent || !decision.directive)) {
@@ -237,16 +276,6 @@ Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "imp
       decision.directive = expansionDirective;
       decision.expectedImprovement = 'Expand composition to meet duration requirements before post-processing';
     }
-
-    // Log decision
-    console.log(`\n🎼 Orchestrator Decision (Iteration ${iteration + 1}):`);
-    console.log(`   Action: ${decision.action}`);
-    if (decision.action === 'invoke') {
-      console.log(`   Agent: ${decision.agent}`);
-      console.log(`   Directive: ${decision.directive}`);
-      console.log(`   Expected: ${decision.expectedImprovement}`);
-    }
-    console.log(`   Reasoning: ${decision.reasoning}`);
 
     return decision;
 
@@ -308,32 +337,51 @@ export async function orchestratePostProcessing(options) {
     genres,
     maxIterations: configMaxIterations = 10,
     selectedSoundfonts = null,
+    drumPrescription = null,
     userComplaint: initialUserComplaint = null,
     priorSession = null,
     gateController = null,
+    resumeState = null,
   } = options;
 
   let maxIterations = configMaxIterations;
   let userComplaint = initialUserComplaint;
-
+  let exitReason = 'max_iterations';
   const originalAbc = await fs.readFile(abcFilePath, 'utf-8');
   const baseNoExt = abcFilePath.replace(/\.abc$/, '');
-
-  let currentAbc = originalAbc;
-  let workHistory = [];
-  let sessionLog = [];
-  let lastQaResult = null;
-  let lastAbc2midiWarnings = [];
-  let lastAbc2midiErrors = [];
-  let iteration = 0;
-  const writtenPaths = [];
+  // Initialize state from resumeState if resuming a previous session
+  let currentAbc = resumeState?.currentAbc ?? originalAbc;
+  let workHistory = resumeState?.workHistory ?? [];
+  let sessionLog = resumeState?.sessionLog ?? [];
+  let lastQaResult = resumeState?.lastQaResult ?? null;
+  let lastAbc2midiWarnings = resumeState?.lastAbc2midiWarnings ?? [];
+  let lastAbc2midiErrors = resumeState?.lastAbc2midiErrors ?? [];
+  let iteration = resumeState?.currentIteration ?? 0;
+  const writtenPaths = resumeState?.writtenPaths ? [...resumeState.writtenPaths] : [];
   let stopped = false;
+  // When resuming, maxIterations is ADDITIVE from current iteration
+  if (resumeState) {
+    maxIterations = iteration + configMaxIterations;
+  }
 
   console.log('\n🎼 Starting Orchestrated Post-Processing');
   console.log(`   Genre: ${genres.hybrid}`);
   console.log(`   Max Iterations: ${maxIterations}`);
   if (gateController) console.log('   Mode: Interactive (human-in-the-loop)');
   console.log('');
+
+  // ── SIGINT interrupt handler ──
+  // Ctrl+C during orchestration: finish current LLM call, then stop cleanly.
+  // Best-so-far ABC is saved to ../mediocre/output/interrupts/___<name>.abc
+  const sigintHandler = () => {
+    if (!stopped) {
+      stopped = true;
+      exitReason = 'interrupted';
+      console.log('\n\n⚡ Interrupted — finishing current step then stopping...');
+      console.log('   Best iteration so far will be saved to interrupts/');
+    }
+  };
+  process.once('SIGINT', sigintHandler);
 
   while (!stopped) {
     while (iteration < maxIterations && !stopped) {
@@ -361,7 +409,7 @@ export async function orchestratePostProcessing(options) {
         const gate = await gateController.onDecision(decision, {
           iteration, maxIterations, workHistory, currentAbc, lastQaResult,
         });
-        if (gate.action === 'quit') { stopped = true; break; }
+        if (gate.action === 'quit') { stopped = true; exitReason = 'quit'; break; }
         if (gate.action === 'direct') {
           userComplaint = gate.directive;
           continue;
@@ -383,6 +431,7 @@ export async function orchestratePostProcessing(options) {
           }
         }
         console.log('\n✅ Orchestrator satisfied with composition');
+        exitReason = 'done';
         stopped = true;
         break;
       }
@@ -398,6 +447,7 @@ export async function orchestratePostProcessing(options) {
           genre: genres.hybrid,
           classicalGenre: genres.classical,
           modernGenre: genres.modern,
+          drumPrescription,
         });
       } else if (decision.agent === 'ornamentation') {
         newAbc = await addOrnamentation({
@@ -436,6 +486,7 @@ export async function orchestratePostProcessing(options) {
         genre: genres.hybrid,
         classicalGenre: genres.classical,
         modernGenre: genres.modern,
+        drumPrescription,
       });
 
       // Calculate average score
@@ -510,21 +561,54 @@ export async function orchestratePostProcessing(options) {
     break;
   }
 
-  if (gateController) gateController.close();
+  // Remove SIGINT handler now that the loop is done (no-op if already fired)
+  process.removeListener('SIGINT', sigintHandler);
 
-  // Write session log to disk
+  // ── Interrupted: save best-so-far to interrupts dir ──
+  if (exitReason === 'interrupted') {
+    try {
+      const interruptsDir = path.resolve(path.dirname(abcFilePath), '..', 'mediocre', 'output', 'interrupts');
+      await fs.mkdir(interruptsDir, { recursive: true });
+      const baseName = path.basename(abcFilePath, '.abc');
+      const interruptPath = path.join(interruptsDir, `___${baseName}.abc`);
+      await fs.writeFile(interruptPath, currentAbc);
+      console.log(`\n💾 Interrupted — best iteration saved to:`);
+      console.log(`   ${interruptPath}`);
+    } catch (saveErr) {
+      console.error('⚠️  Could not save interrupted output:', saveErr.message);
+    }
+  }
+
+  // Grab human directives from gate controller before closing
+  const humanDirectives = gateController ? gateController.getDirectives() : [];
+  if (gateController) gateController.close();
+  // Write session log to disk using session-persistence for full resumable state
   const sessionLogPath = `${baseNoExt}_session.json`;
-  const sessionData = {
-    genre: genres,
-    timestamp: new Date().toISOString(),
-    totalIterations: iteration,
-    iterations: sessionLog,
-    finalVerdict: lastQaResult?.verdict || null,
-    finalScores: lastQaResult?.scores || null,
-    finalSummary: lastQaResult?.summary || null,
+  const sessionState = {
+    abcFilePath,
+    currentAbc,
+    originalAbc,
+    genres,
+    musicalContext,
+    selectedSoundfonts,
+    drumPrescription,
+    iteration,
+    maxIterations,
+    workHistory,
+    sessionLog,
+    lastQaResult,
+    lastAbc2midiWarnings,
+    lastAbc2midiErrors,
+    humanDirectives,
+    exitReason,
+    writtenPaths,
   };
+  const sessionData = buildSessionData(sessionState);
   await fs.writeFile(sessionLogPath, JSON.stringify(sessionData, null, 2));
   console.log(`\n📋 Session log: ${path.basename(sessionLogPath)}`);
+  if (exitReason === 'quit') {
+    console.log('   (Session is resumable — use `mediocre resume` to continue)');
+  }
 
   // Return final result
   return {

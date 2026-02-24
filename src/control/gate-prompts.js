@@ -6,12 +6,13 @@
  */
 
 import { createInterface } from 'readline';
+import path from 'path';
 import chalk from 'chalk';
 
 export class GatePrompts {
-  constructor() {
-    // No persistent readline — created per-prompt in _ask() to avoid
-    // state corruption between long async orchestrator operations.
+  constructor(previewPlayer = null, checkpointManager = null) {
+    this.previewPlayer = previewPlayer;
+    this.checkpointManager = checkpointManager;
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────
@@ -106,7 +107,7 @@ export class GatePrompts {
     console.error(chalk.dim('  QA Scores (current):'));
     console.error(this._renderScores(context.lastQaResult));
     console.error('');
-    console.error(chalk.bold('  [a]pprove  [d]irect  [q]uit  [+]adjust iterations'));
+    console.error(chalk.bold('  [a]pprove  [l]isten  [b]ranch  [d]irect  [q]uit  [+]adjust iterations'));
     console.error(this._divider());
 
     while (true) {
@@ -117,6 +118,30 @@ export class GatePrompts {
           const directive = await this._askDirective();
           return { action: 'direct', directive };
         }
+        case 'l': {
+          if (!this.previewPlayer) {
+            console.error(chalk.red('  Preview not available (no ABC file path)'));
+            break;
+          }
+          await this.previewPlayer.play(context.currentAbc);
+          console.error('');
+          console.error(chalk.bold('  [a]pprove  [l]isten  [b]ranch  [d]irect  [q]uit  [+]adjust iterations'));
+          console.error(this._divider());
+          break;
+        }
+        case 'b': {
+          if (!this.checkpointManager) {
+            console.error(chalk.red('  Branching not available'));
+            break;
+          }
+          const branchPath = await this.checkpointManager.createBranch(context.currentAbc, context.iteration);
+          console.error(chalk.green(`\n  ✅ Branch saved: ${path.basename(branchPath)}`));
+          console.error(chalk.dim(`     To explore: mediocre enhance "${branchPath}" --interactive`));
+          console.error('');
+          console.error(chalk.bold('  [a]pprove  [l]isten  [b]ranch  [d]irect  [q]uit  [+]adjust iterations'));
+          console.error(this._divider());
+          break;
+        }
         case 'q': return { action: 'quit' };
         case '+':
         case '-': {
@@ -124,7 +149,7 @@ export class GatePrompts {
           return { action: 'approve', extend };
         }
         default:
-          console.error(chalk.red('  Invalid key. Use: a, d, q, +'));
+          console.error(chalk.red('  Invalid key. Use: a, l, b, d, q, +'));
       }
     }
   }
@@ -146,12 +171,36 @@ export class GatePrompts {
     console.error('');
     console.error(`  ABC length: ${finalAbc.length} chars`);
     console.error('');
-    console.error(chalk.bold('  [a]ccept  [r]eject (force more)  [d]irect (force more with feedback)'));
+    console.error(chalk.bold('  [a]ccept  [l]isten  [b]ranch  [r]eject (force more)  [d]irect (force more with feedback)'));
     console.error(this._divider());
 
     while (true) {
       const key = await this._ask('  > ');
       switch (key) {
+        case 'l': {
+          if (!this.previewPlayer) {
+            console.error(chalk.red('  Preview not available (no ABC file path)'));
+            break;
+          }
+          await this.previewPlayer.play(finalAbc);
+          console.error('');
+          console.error(chalk.bold('  [a]ccept  [l]isten  [b]ranch  [r]eject (force more)  [d]irect (force more with feedback)'));
+          console.error(this._divider());
+          break;
+        }
+        case 'b': {
+          if (!this.checkpointManager) {
+            console.error(chalk.red('  Branching not available'));
+            break;
+          }
+          const branchPath = await this.checkpointManager.createBranch(finalAbc, iterations);
+          console.error(chalk.green(`\n  ✅ Branch saved: ${path.basename(branchPath)}`));
+          console.error(chalk.dim(`     To explore: mediocre enhance "${branchPath}" --interactive`));
+          console.error('');
+          console.error(chalk.bold('  [a]ccept  [l]isten  [b]ranch  [r]eject (force more)  [d]irect (force more with feedback)'));
+          console.error(this._divider());
+          break;
+        }
         case 'a': return { action: 'approve' };
         case 'r': return { action: 'reject' };
         case 'd': {
@@ -159,7 +208,7 @@ export class GatePrompts {
           return { action: 'direct', directive };
         }
         default:
-          console.error(chalk.red('  Invalid key. Use: a, r, d'));
+          console.error(chalk.red('  Invalid key. Use: a, l, b, r, d'));
       }
     }
   }
@@ -191,12 +240,36 @@ export class GatePrompts {
       console.error(`\n  Summary: ${chalk.dim(qaResult.summary)}`);
     }
     console.error('');
-    console.error(chalk.bold('  [a]pprove  [r]eject  [d]irect  [q]uit  [+]adjust iterations'));
+    console.error(chalk.bold('  [a]pprove  [l]isten  [b]ranch  [r]eject  [d]irect  [q]uit  [+]adjust iterations'));
     console.error(this._divider());
 
     while (true) {
       const key = await this._ask('  > ');
       switch (key) {
+        case 'l': {
+          if (!this.previewPlayer) {
+            console.error(chalk.red('  Preview not available (no ABC file path)'));
+            break;
+          }
+          await this.previewPlayer.play(newAbc);
+          console.error('');
+          console.error(chalk.bold('  [a]pprove  [l]isten  [b]ranch  [r]eject  [d]irect  [q]uit  [+]adjust iterations'));
+          console.error(this._divider());
+          break;
+        }
+        case 'b': {
+          if (!this.checkpointManager) {
+            console.error(chalk.red('  Branching not available'));
+            break;
+          }
+          const branchPath = await this.checkpointManager.createBranch(newAbc, iteration);
+          console.error(chalk.green(`\n  ✅ Branch saved: ${path.basename(branchPath)}`));
+          console.error(chalk.dim(`     To explore: mediocre enhance "${branchPath}" --interactive`));
+          console.error('');
+          console.error(chalk.bold('  [a]pprove  [l]isten  [b]ranch  [r]eject  [d]irect  [q]uit  [+]adjust iterations'));
+          console.error(this._divider());
+          break;
+        }
         case 'a': return { action: 'approve' };
         case 'r': return { action: 'reject' };
         case 'd': {
@@ -210,7 +283,7 @@ export class GatePrompts {
           return { action: 'approve', extend };
         }
         default:
-          console.error(chalk.red('  Invalid key. Use: a, r, d, q, +'));
+          console.error(chalk.red('  Invalid key. Use: a, l, b, r, d, q, +'));
       }
     }
   }
@@ -232,12 +305,36 @@ export class GatePrompts {
     console.error('');
     console.error(`  ABC length: ${currentAbc.length} chars`);
     console.error('');
-    console.error(chalk.bold('  [a]ccept as-is  [d]irect + extend  [+]extend (add more iterations)'));
+    console.error(chalk.bold('  [a]ccept as-is  [l]isten  [b]ranch  [d]irect + extend  [+]extend (add more iterations)'));
     console.error(this._divider());
 
     while (true) {
       const key = await this._ask('  > ');
       switch (key) {
+        case 'l': {
+          if (!this.previewPlayer) {
+            console.error(chalk.red('  Preview not available (no ABC file path)'));
+            break;
+          }
+          await this.previewPlayer.play(currentAbc);
+          console.error('');
+          console.error(chalk.bold('  [a]ccept as-is  [l]isten  [b]ranch  [d]irect + extend  [+]extend (add more iterations)'));
+          console.error(this._divider());
+          break;
+        }
+        case 'b': {
+          if (!this.checkpointManager) {
+            console.error(chalk.red('  Branching not available'));
+            break;
+          }
+          const branchPath = await this.checkpointManager.createBranch(currentAbc, iterations);
+          console.error(chalk.green(`\n  ✅ Branch saved: ${path.basename(branchPath)}`));
+          console.error(chalk.dim(`     To explore: mediocre enhance "${branchPath}" --interactive`));
+          console.error('');
+          console.error(chalk.bold('  [a]ccept as-is  [l]isten  [b]ranch  [d]irect + extend  [+]extend (add more iterations)'));
+          console.error(this._divider());
+          break;
+        }
         case 'a': return { action: 'approve' };
         case 'd': {
           const directive = await this._askDirective();
@@ -249,7 +346,7 @@ export class GatePrompts {
           return { action: 'approve', extend };
         }
         default:
-          console.error(chalk.red('  Invalid key. Use: a, d, +'));
+          console.error(chalk.red('  Invalid key. Use: a, l, b, d, +'));
       }
     }
   }

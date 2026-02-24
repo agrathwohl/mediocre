@@ -10,7 +10,7 @@
  * - Dynamic markings (!pp!, !mf!, !ff!, etc.)
  */
 
-import { generateText } from 'ai';
+import { streamText } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
 
@@ -37,7 +37,7 @@ You have access to the complete abc2midi %%MIDI extension set and should use it 
 ${ABC2MIDI_REFERENCE}`;
 
   try {
-    const { text: enhancedAbc } = await generateText({
+    const result = streamText({
       model: anthropic('claude-sonnet-4-6'),
       system: systemPrompt,
       experimental_providerMetadata: {
@@ -50,6 +50,13 @@ ${ABC2MIDI_REFERENCE}`;
         },
       ],
     });
+
+    let enhancedAbc = '';
+    for await (const delta of result.textStream) {
+      process.stdout.write(delta);
+      enhancedAbc += delta;
+    }
+    process.stdout.write('\n');
 
     // Clean up the response (remove markdown code fences if present)
     const cleaned = enhancedAbc
