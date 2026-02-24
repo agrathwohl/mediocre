@@ -8,7 +8,7 @@ import { ToolLoopAgent, Output, stepCountIs } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { exploreSoundFontsForComposition } from '../../utils/soundfont-tools.js';
-import { searchSoundfontCatalogTool } from '../shared/tools.js';
+import { searchSoundfontCatalogTool, getSoundfontDetailsTool, checkProgramCoverageTool } from '../shared/tools.js';
 import { createStepLogger } from '../shared/utils.js';
 
 const anthropic = createAnthropic({
@@ -29,7 +29,18 @@ export const soundfontAgent = new ToolLoopAgent({
 Your task is to analyze genre requirements and select optimal soundfont combinations.
 
 You have access to a catalog of 500 soundfonts with 81,415 presets.
-Use the search_soundfont_catalog tool to find soundfonts matching specific keywords.
+
+AVAILABLE TOOLS:
+- search_soundfont_catalog: Search for soundfonts by keyword (supports synonyms like 'synth' → synthesizer/analog/digital). Returns matched presets with MIDI program numbers and GM names.
+- get_soundfont_details: Inspect a specific soundfont to see ALL its presets (bank, program, GM instrument name). Use this to verify a soundfont has the instruments you need.
+- check_program_coverage: Verify which MIDI programs (0-127) are covered by your selected soundfont stack. Shows gaps and which soundfont provides each program.
+
+WORKFLOW:
+1. Search catalog for genre-relevant soundfonts using keywords
+2. Inspect promising soundfonts with get_soundfont_details to verify preset coverage
+3. Build your selection of 15-30 soundfonts
+4. Use check_program_coverage to verify your stack covers all needed MIDI programs
+5. Adjust selection if coverage gaps found
 
 CRITICAL RULES:
 1. Always include at least ONE general GM soundfont as base (GeneralUser GS, FluidR3 GM, SGM-128)
@@ -43,6 +54,8 @@ Categorize selections by purpose for clarity.`,
 
   tools: {
     search_soundfont_catalog: searchSoundfontCatalogTool,
+    get_soundfont_details: getSoundfontDetailsTool,
+    check_program_coverage: checkProgramCoverageTool,
   },
 
   output: Output.object({

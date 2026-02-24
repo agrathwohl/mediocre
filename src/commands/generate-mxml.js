@@ -4,7 +4,10 @@ import { fileURLToPath } from 'url';
 import {
   generateMusicXmlWithClaude,
   generateMusicXmlDescription,
-  validateMusicXml
+  validateMusicXml,
+  modifyMusicXmlComposition,
+  evaluateMusicXmlCompleteness,
+  validateWithMusicXmlParser
 } from '../utils/claude.js';
 import { generateCreativeGenreName } from '../utils/genre-generator.js';
 import { config } from '../utils/config.js';
@@ -229,6 +232,187 @@ ${description.analysis}`;
   return generatedFiles;
 }
 
+
+export async function runMxmlSequentialExpansion(files, options) {
+  console.log('\n\ud83d\udd17 Sequential expansion mode enabled - LLM will evaluate and expand until complete...\n');
+
+  const MAX_PASSES = 10;
+
+  for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+    let currentFile = files[fileIndex];
+    let currentMxml = await fs.promises.readFile(currentFile, 'utf8');
+    console.log(`\n\ud83d\udcdd Evaluating composition ${fileIndex + 1}/${files.length}: ${currentFile}`);
+
+    // Validate initial generation with MusicXML parser
+    console.log(`  \ud83d\udd27 Validating initial generation with MusicXML parser...`);
+    let initialValidation = await validateWithMusicXmlParser(currentFile);
+
+    if (!initialValidation.valid) {
+      console.warn(`  \u26a0\ufe0f Initial generation failed MusicXML validation: ${initialValidation.error}`);
+      console.log(`  \ud83d\udd27 Attempting to fix initial MusicXML notation...`);
+
+      const fixedMxml = await modifyMusicXmlComposition({
+        musicXml: currentMxml,
+        instructions: `FIX THIS MUSICXML NOTATION - IT FAILED VALIDATION WITH ERROR: "${initialValidation.error}".
+DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE MUSICXML NOTATION.
+Return the FIXED MusicXML notation that will pass validation without errors.`,
+        solo: options.solo || false,
+        recordLabel: options.recordLabel || '',
+        producer: options.producer || '',
+        instruments: options.instruments || '',
+        useStreaming: options.useStreaming || false
+      });
+
+      // Save the fixed version
+      await fs.promises.writeFile(currentFile, fixedMxml);
+      currentMxml = fixedMxml;
+
+      initialValidation = await validateWithMusicXmlParser(currentFile);
+      if (!initialValidation.valid) {
+        console.error(`  \u274c FATAL: Cannot fix initial generation. Skipping this composition.`);
+        continue;
+      }
+
+      console.log(`  \u2705 Initial MusicXML notation fixed!`);
+    } else {
+      console.log(`  \u2705 Initial generation passes MusicXML validation`);
+    }
+
+    // Extract genre info from filename for evaluation
+    const baseFilename = path.basename(currentFile, '.musicxml');
+    let genre = 'Classical_x_Contemporary';
+    let classicalGenre = 'Classical';
+    let modernGenre = 'Contemporary';
+
+    if (baseFilename.includes('_x_')) {
+      genre = baseFilename.split('-score')[0];
+      const parts = genre.split('_x_');
+      if (parts.length === 2) {
+        classicalGenre = parts[0];
+        modernGenre = parts[1];
+      }
+    }
+
+    let passNumber = 0;
+    let needsExpansion = true;
+
+    while (needsExpansion && passNumber < MAX_PASSES) {
+      passNumber++;
+      console.log(`\n  \ud83d\udd0d Pass ${passNumber}: Evaluating composition completeness...`);
+
+      try {
+        // Ask the LLM to evaluate if the composition needs more work
+        const evaluation = await evaluateMusicXmlCompleteness({
+          musicXml: currentMxml,
+          genre,
+          classicalGenre,
+          modernGenre,
+          currentPass: passNumber
+        });
+
+        console.log(`  \ud83d\udcca Evaluation: ${evaluation.reasoning}`);
+
+        if (!evaluation.needsExpansion) {
+          console.log(`  \u2705 Composition is complete!`);
+          needsExpansion = false;
+          break;
+        }
+
+        console.log(`  \ud83d\udcdd Expanding: ${evaluation.instructions.substring(0, 100)}...`);
+
+        // Apply the LLM-suggested modifications
+        const modifiedMxml = await modifyMusicXmlComposition({
+          musicXml: currentMxml,
+          instructions: evaluation.instructions,
+          genre,
+          classicalGenre,
+          modernGenre,
+          solo: options.solo || false,
+          recordLabel: options.recordLabel || '',
+          producer: options.producer || '',
+          instruments: options.instruments || '',
+          useStreaming: options.useStreaming || false
+        });
+
+        // Create a new file for this iteration
+        const timestamp = Date.now();
+        const modifiedFilename = `${genre}-modified-${timestamp}.musicxml`;
+        const modifiedFilePath = path.join(path.dirname(currentFile), modifiedFilename);
+        await fs.promises.writeFile(modifiedFilePath, modifiedMxml);
+
+        // VALIDATE with MusicXML parser after each expansion
+        console.log(`  \ud83d\udd27 Validating with MusicXML parser...`);
+        let validation = await validateWithMusicXmlParser(modifiedFilePath);
+
+        if (!validation.valid) {
+          console.warn(`  \u26a0\ufe0f MusicXML validation failed: ${validation.error}`);
+          console.log(`  \ud83d\udd27 Attempting to fix the MusicXML notation...`);
+
+          const fixedMxml = await modifyMusicXmlComposition({
+            musicXml: modifiedMxml,
+            instructions: `FIX THIS MUSICXML NOTATION - IT FAILED VALIDATION WITH ERROR: "${validation.error}".
+
+DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE MUSICXML NOTATION.
+Return the FIXED MusicXML notation that will pass validation without errors.`,
+            solo: options.solo || false,
+            recordLabel: options.recordLabel || '',
+            producer: options.producer || '',
+            instruments: options.instruments || '',
+            useStreaming: options.useStreaming || false
+          });
+
+          await fs.promises.writeFile(modifiedFilePath, fixedMxml);
+          validation = await validateWithMusicXmlParser(modifiedFilePath);
+
+          if (!validation.valid) {
+            console.error(`  \u274c FATAL: Fix attempt also failed MusicXML validation: ${validation.error}`);
+            console.error(`  \u274c STOPPING GENERATION - MusicXML notation is unfixable`);
+            needsExpansion = false;
+            break;
+          }
+
+          console.log(`  \u2705 MusicXML notation fixed successfully!`);
+          currentFile = modifiedFilePath;
+          currentMxml = fixedMxml;
+        } else {
+          console.log(`  \u2705 MusicXML validation passed`);
+          currentFile = modifiedFilePath;
+          currentMxml = modifiedMxml;
+        }
+
+        console.log(`  \u2705 Pass ${passNumber} complete: ${currentFile}`);
+
+      } catch (passError) {
+        console.error(`  \u274c Error in pass ${passNumber}:`, passError.message);
+        // Break on error to avoid infinite error loops
+        break;
+      }
+    }
+
+    if (passNumber >= MAX_PASSES) {
+      console.log(`  \u26a0\ufe0f Reached maximum ${MAX_PASSES} passes - stopping expansion`);
+    }
+
+    // Rename the final file to indicate it's the completed sequential output
+    const finalFilename = currentFile.replace(/-modified-(\d+)\.musicxml$/, '-modified-final-$1.musicxml');
+    if (finalFilename !== currentFile) {
+      try {
+        await fs.promises.rename(currentFile, finalFilename);
+        console.log(`  \ud83d\udce6 Renamed final output: ${path.basename(finalFilename)}`);
+        currentFile = finalFilename;
+      } catch (e) {
+        // file doesn't exist, skip rename
+      }
+    } else {
+    }
+
+    // Replace the original file reference with the final expanded version
+    files[fileIndex] = currentFile;
+    console.log(`\n  \ud83c\udfb5 Final composition after ${passNumber} passes: ${currentFile}`);
+  }
+
+  console.log('\n\ud83c\udfb5 Sequential expansion complete!\n');
+}
 // If called directly from the command line
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);

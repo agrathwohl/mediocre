@@ -9,14 +9,14 @@ import { program } from 'commander';
 import { config } from './utils/config.js';
 import { parseGenreList, generateMultipleHybridGenres } from './utils/genre-generator.js';
 import { generateAbc } from './commands/generate-abc.js';
-import { generateMxml } from './commands/generate-mxml.js';
+import { generateMxml, runMxmlSequentialExpansion } from './commands/generate-mxml.js';
 import { convertToMidi } from './commands/convert-midi.js';
 import { convertToPdf } from './commands/convert-pdf.js';
 import { convertToWav } from './commands/convert-wav.js';
 import { processEffects } from './commands/process-effects.js';
 import { buildDataset } from './commands/build-dataset.js';
 import { listCompositions, displayCompositionInfo, createMoreLikeThis } from './commands/manage-dataset.js';
-import { modifyComposition } from './commands/modify-composition.js';
+import { modifyComposition, runModifyValidationLoop } from './commands/modify-composition.js';
 import { modifyMxmlComposition } from './commands/modify-mxml-composition.js';
 import { combineCompositions } from './commands/combine-compositions.js';
 import { generateLyrics } from './commands/generate-lyrics.js';
@@ -30,8 +30,8 @@ import { enhanceComposition } from './commands/enhance-composition.js';
 import { complainCommand } from './commands/complain.js';
 import { generateTimidityConfig } from './commands/generate-timidity-config.js';
 import { createDatasetBrowser } from './ui/index.js';
-import { validateAbcNotation, cleanAbcNotation, validateWithAbc2Midi, modifyMusicXmlComposition, evaluateMusicXmlCompleteness, validateWithMusicXmlParser } from './utils/claude.js';
 import { extractMidiStems } from './utils/stem-extractor.js';
+import { validateAbcCommand } from './commands/validate-abc.js';
 import { resumeSession } from './commands/resume-session.js';
 import { compareIterations } from './commands/compare-iterations.js';
 import { listCheckpointsForPath, CheckpointManager } from './control/checkpoint-manager.js';
@@ -296,184 +296,13 @@ program
 
         // If sequential mode is enabled, let the LLM decide when the composition is complete
         if (options.sequential && files.length > 0) {
-          console.log('\n🔗 Sequential expansion mode enabled - LLM will evaluate and expand until complete...\n');
-
-          const MAX_PASSES = 10; // Safety limit to prevent infinite loops
-
-          for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
-            let currentFile = files[fileIndex];
-            let currentMxml = await fs.promises.readFile(currentFile, 'utf8');
-            console.log(`\n📝 Evaluating composition ${fileIndex + 1}/${files.length}: ${currentFile}`);
-
-            // Validate initial generation with MusicXML parser
-            console.log(`  🔧 Validating initial generation with MusicXML parser...`);
-            let initialValidation = await validateWithMusicXmlParser(currentFile);
-
-            if (!initialValidation.valid) {
-              console.warn(`  ⚠️ Initial generation failed MusicXML validation: ${initialValidation.error}`);
-              console.log(`  🔧 Attempting to fix initial MusicXML notation...`);
-
-              const fixedMxml = await modifyMusicXmlComposition({
-                musicXml: currentMxml,
-                instructions: `FIX THIS MUSICXML NOTATION - IT FAILED VALIDATION WITH ERROR: "${initialValidation.error}".
-DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE MUSICXML NOTATION.
-Return the FIXED MusicXML notation that will pass validation without errors.`,
-                solo: options.solo || false,
-                recordLabel: options.recordLabel || '',
-                producer: options.producer || '',
-                instruments: options.instruments || '',
-                useStreaming: options.streamText || false
-              });
-
-              // Save the fixed version
-              await fs.promises.writeFile(currentFile, fixedMxml);
-              currentMxml = fixedMxml;
-
-              initialValidation = await validateWithMusicXmlParser(currentFile);
-              if (!initialValidation.valid) {
-                console.error(`  ❌ FATAL: Cannot fix initial generation. Skipping this composition.`);
-                continue;
-              }
-
-              console.log(`  ✅ Initial MusicXML notation fixed!`);
-            } else {
-              console.log(`  ✅ Initial generation passes MusicXML validation`);
-            }
-
-            // Extract genre info from filename for evaluation
-            const baseFilename = path.basename(currentFile, '.musicxml');
-            let genre = 'Classical_x_Contemporary';
-            let classicalGenre = 'Classical';
-            let modernGenre = 'Contemporary';
-
-            if (baseFilename.includes('_x_')) {
-              genre = baseFilename.split('-score')[0];
-              const parts = genre.split('_x_');
-              if (parts.length === 2) {
-                classicalGenre = parts[0];
-                modernGenre = parts[1];
-              }
-            }
-
-            let passNumber = 0;
-            let needsExpansion = true;
-
-            while (needsExpansion && passNumber < MAX_PASSES) {
-              passNumber++;
-              console.log(`\n  🔍 Pass ${passNumber}: Evaluating composition completeness...`);
-
-              try {
-                // Ask the LLM to evaluate if the composition needs more work
-                const evaluation = await evaluateMusicXmlCompleteness({
-                  musicXml: currentMxml,
-                  genre,
-                  classicalGenre,
-                  modernGenre,
-                  currentPass: passNumber
-                });
-
-                console.log(`  📊 Evaluation: ${evaluation.reasoning}`);
-
-                if (!evaluation.needsExpansion) {
-                  console.log(`  ✅ Composition is complete!`);
-                  needsExpansion = false;
-                  break;
-                }
-
-                console.log(`  📝 Expanding: ${evaluation.instructions.substring(0, 100)}...`);
-
-                // Apply the LLM-suggested modifications
-                const modifiedMxml = await modifyMusicXmlComposition({
-                  musicXml: currentMxml,
-                  instructions: evaluation.instructions,
-                  genre,
-                  classicalGenre,
-                  modernGenre,
-                  solo: options.solo || false,
-                  recordLabel: options.recordLabel || '',
-                  producer: options.producer || '',
-                  instruments: options.instruments || '',
-                  useStreaming: options.streamText || false
-                });
-
-                // Create a new file for this iteration
-                const timestamp = Date.now();
-                const modifiedFilename = `${genre}-modified-${timestamp}.musicxml`;
-                const modifiedFilePath = path.join(path.dirname(currentFile), modifiedFilename);
-                await fs.promises.writeFile(modifiedFilePath, modifiedMxml);
-
-                // VALIDATE with MusicXML parser after each expansion
-                console.log(`  🔧 Validating with MusicXML parser...`);
-                let validation = await validateWithMusicXmlParser(modifiedFilePath);
-
-                if (!validation.valid) {
-                  console.warn(`  ⚠️ MusicXML validation failed: ${validation.error}`);
-                  console.log(`  🔧 Attempting to fix the MusicXML notation...`);
-
-                  const fixedMxml = await modifyMusicXmlComposition({
-                    musicXml: modifiedMxml,
-                    instructions: `FIX THIS MUSICXML NOTATION - IT FAILED VALIDATION WITH ERROR: "${validation.error}".
-
-DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE MUSICXML NOTATION.
-Return the FIXED MusicXML notation that will pass validation without errors.`,
-                    solo: options.solo || false,
-                    recordLabel: options.recordLabel || '',
-                    producer: options.producer || '',
-                    instruments: options.instruments || '',
-                    useStreaming: options.streamText || false
-                  });
-
-                  await fs.promises.writeFile(modifiedFilePath, fixedMxml);
-                  validation = await validateWithMusicXmlParser(modifiedFilePath);
-
-                  if (!validation.valid) {
-                    console.error(`  ❌ FATAL: Fix attempt also failed MusicXML validation: ${validation.error}`);
-                    console.error(`  ❌ STOPPING GENERATION - MusicXML notation is unfixable`);
-                    needsExpansion = false;
-                    break;
-                  }
-
-                  console.log(`  ✅ MusicXML notation fixed successfully!`);
-                  currentFile = modifiedFilePath;
-                  currentMxml = fixedMxml;
-                } else {
-                  console.log(`  ✅ MusicXML validation passed`);
-                  currentFile = modifiedFilePath;
-                  currentMxml = modifiedMxml;
-                }
-
-                console.log(`  ✅ Pass ${passNumber} complete: ${currentFile}`);
-
-              } catch (passError) {
-                console.error(`  ❌ Error in pass ${passNumber}:`, passError.message);
-                // Break on error to avoid infinite error loops
-                break;
-              }
-            }
-
-            if (passNumber >= MAX_PASSES) {
-              console.log(`  ⚠️ Reached maximum ${MAX_PASSES} passes - stopping expansion`);
-            }
-
-            // Rename the final file to indicate it's the completed sequential output
-            const finalFilename = currentFile.replace(/-modified-(\d+)\.musicxml$/, '-modified-final-$1.musicxml');
-            if (finalFilename !== currentFile) {
-              try {
-                await fs.promises.rename(currentFile, finalFilename);
-                console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
-                currentFile = finalFilename;
-              } catch (e) {
-                // file doesn't exist, skip rename
-              }
-            } else {
-            }
-
-            // Replace the original file reference with the final expanded version
-            files[fileIndex] = currentFile;
-            console.log(`\n  🎵 Final composition after ${passNumber} passes: ${currentFile}`);
-          }
-
-          console.log('\n🎵 Sequential expansion complete!\n');
+          await runMxmlSequentialExpansion(files, {
+            solo: options.solo || false,
+            recordLabel: options.recordLabel || '',
+            producer: options.producer || '',
+            instruments: options.instruments || '',
+            useStreaming: options.streamText || false
+          });
         }
 
         allFiles.push(...files);
@@ -631,60 +460,7 @@ program
 
       // If sequential mode is enabled, validate with abc2midi and auto-fix
       if (options.sequential && modifiedFile) {
-        console.log('\n🔗 Sequential mode enabled - validating with abc2midi...\n');
-
-        let currentFile = modifiedFile;
-        let validation = await validateWithAbc2Midi(currentFile);
-        const MAX_FIX_ATTEMPTS = 3;
-        let fixAttempt = 0;
-
-        while (!validation.valid && fixAttempt < MAX_FIX_ATTEMPTS) {
-          fixAttempt++;
-          console.warn(`  ⚠️ abc2midi validation failed: ${validation.error}`);
-          console.log(`  🔧 Fix attempt ${fixAttempt}/${MAX_FIX_ATTEMPTS}...`);
-
-          try {
-            const fixedFile = await modifyComposition({
-              abcFile: currentFile,
-              instructions: `FIX THIS ABC NOTATION - IT FAILED abc2midi VALIDATION WITH ERROR: "${validation.error}".
-DO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE ABC NOTATION.
-Return the FIXED ABC notation that will pass abc2midi without errors.`,
-              output: options.output,
-              solo: options.solo || false,
-              recordLabel: options.recordLabel || '',
-              producer: options.producer || '',
-              instruments: options.instruments || '',
-              useStreaming: options.streamText || false
-            });
-
-            currentFile = fixedFile;
-            validation = await validateWithAbc2Midi(currentFile);
-
-            if (validation.valid) {
-              console.log(`  ✅ ABC notation fixed on attempt ${fixAttempt}!`);
-            }
-          } catch (fixError) {
-            console.error(`  ❌ Fix attempt ${fixAttempt} failed: ${fixError.message}`);
-          }
-        }
-
-        if (validation.valid) {
-          // Rename the final file to indicate it's the completed sequential output
-          const finalFilename = currentFile.replace(/-modified-(\d+)\.abc$/, '-modified-final-$1.abc');
-          if (finalFilename !== currentFile) {
-            try {
-              await fs.promises.rename(currentFile, finalFilename);
-              console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
-              currentFile = finalFilename;
-            } catch (e) {
-              // file doesn't exist, skip rename
-            }
-          }
-          console.log(`\n✅ Final validation passed: ${currentFile}`);
-        } else {
-          console.error(`\n❌ Could not fix ABC notation after ${MAX_FIX_ATTEMPTS} attempts.`);
-          console.error(`   Last error: ${validation.error}`);
-        }
+        await runModifyValidationLoop(modifiedFile, options);
       }
 
       if (options.midi && modifiedFile) {
@@ -1029,86 +805,7 @@ program
   .option('-i, --input <file>', 'Input ABC file to validate and fix')
   .option('-o, --output <file>', 'Output file path (defaults to overwriting input)')
   .action(async (options) => {
-    try {
-      // When no input/output options are provided, process all ABC files in the output directory
-      if (!options.input) {
-        console.log('No input file specified. Processing all ABC files in the output directory...');
-        
-        // Get the output directory path from config
-        const outputDir = config.get('outputDir');
-        
-        // Find all ABC files in the output directory
-        const abcFiles = (await fs.promises.readdir(outputDir))
-          .filter(file => file.endsWith('.abc'))
-          .map(file => path.join(outputDir, file));
-          
-        
-        console.log(`Found ${abcFiles.length} ABC files to process.`);
-        
-        let fixedCount = 0;
-        let validCount = 0;
-        
-        // Process each file
-        for (const abcFile of abcFiles) {
-          console.log(`Processing file: ${abcFile}`);
-          const abcContent = await fs.promises.readFile(abcFile, 'utf-8');
-          
-          // Validate the ABC notation
-          const validation = await validateAbcNotation(abcContent);
-          
-          if (validation.isValid) {
-            console.log(`✅ ${path.basename(abcFile)}: Validation passed. No issues found.`);
-            validCount++;
-            continue;
-          }
-          
-          // Log the issues found
-          console.warn(`⚠️ ${path.basename(abcFile)}: Found ${validation.issues.length} issues in the ABC notation:`);
-          validation.issues.forEach(issue => console.warn(`  - ${issue}`));
-          
-          // Apply automatic fixes
-          console.log(`Applying automatic fixes to ${path.basename(abcFile)}...`);
-          const fixedContent = validation.fixedNotation;
-          
-          // Save the fixed content back to the original file
-          await fs.promises.writeFile(abcFile, fixedContent);
-          console.log(`✅ Fixed ABC notation saved to: ${abcFile}`);
-          fixedCount++;
-        }
-        
-        console.log(`Processed ${abcFiles.length} files: ${validCount} already valid, ${fixedCount} fixed.`);
-        return;
-      }
-      
-      // Standard single file processing when input is specified
-      console.log(`Validating ABC file: ${options.input}`);
-      const abcContent = await fs.promises.readFile(options.input, 'utf-8');
-      
-      // Validate the ABC notation
-      const validation = await validateAbcNotation(abcContent);
-      
-      if (validation.isValid) {
-        console.log(`✅ ABC notation validation passed. No issues found.`);
-        return;
-      }
-      
-      // Log the issues found
-      console.warn(`⚠️ Found ${validation.issues.length} issues in the ABC notation:`);
-      validation.issues.forEach(issue => console.warn(`  - ${issue}`));
-      
-      // Apply automatic fixes
-      console.log(`Applying automatic fixes...`);
-      const fixedContent = validation.fixedNotation;
-      
-      // Determine the output path
-      const outputPath = options.output || options.input;
-      
-      // Save the fixed content
-      await fs.promises.writeFile(outputPath, fixedContent);
-      console.log(`Fixed ABC notation saved to: ${outputPath}`);
-    } catch (error) {
-      console.error('Error validating ABC file:', error);
-    }
+    await validateAbcCommand(options);
   });
 
 

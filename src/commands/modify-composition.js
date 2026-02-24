@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { modifyCompositionWithClaude, generateDescription, validateAbcNotation, cleanAbcNotation } from '../utils/claude.js';
+import { modifyCompositionWithClaude, generateDescription, validateAbcNotation, cleanAbcNotation, validateWithAbc2Midi } from '../utils/claude.js';
 import { getMusicPieceInfo } from '../utils/dataset-utils.js';
 import { config } from '../utils/config.js';
 import { extractInstruments } from './generate-abc.js';
@@ -170,6 +170,61 @@ ${description.analysis}`;
   return abcFilePath;
 }
 
+
+export async function runModifyValidationLoop(modifiedFile, options) {
+  console.log('\n🔗 Sequential mode enabled - validating with abc2midi...\n');
+
+  let currentFile = modifiedFile;
+  let validation = await validateWithAbc2Midi(currentFile);
+  const MAX_FIX_ATTEMPTS = 3;
+  let fixAttempt = 0;
+
+  while (!validation.valid && fixAttempt < MAX_FIX_ATTEMPTS) {
+    fixAttempt++;
+    console.warn(`  ⚠️ abc2midi validation failed: ${validation.error}`);
+    console.log(`  🔧 Fix attempt ${fixAttempt}/${MAX_FIX_ATTEMPTS}...`);
+
+    try {
+      const fixedFile = await modifyComposition({
+        abcFile: currentFile,
+        instructions: `FIX THIS ABC NOTATION - IT FAILED abc2midi VALIDATION WITH ERROR: "${validation.error}".\nDO NOT EXPAND OR MODIFY THE MUSIC. ONLY FIX THE TECHNICAL ERRORS IN THE ABC NOTATION.\nReturn the FIXED ABC notation that will pass abc2midi without errors.`,
+        output: options.output,
+        solo: options.solo || false,
+        recordLabel: options.recordLabel || '',
+        producer: options.producer || '',
+        instruments: options.instruments || '',
+        useStreaming: options.streamText || false
+      });
+
+      currentFile = fixedFile;
+      validation = await validateWithAbc2Midi(currentFile);
+
+      if (validation.valid) {
+        console.log(`  ✅ ABC notation fixed on attempt ${fixAttempt}!`);
+      }
+    } catch (fixError) {
+      console.error(`  ❌ Fix attempt ${fixAttempt} failed: ${fixError.message}`);
+    }
+  }
+
+  if (validation.valid) {
+    // Rename the final file to indicate it's the completed sequential output
+    const finalFilename = currentFile.replace(/-modified-(\d+)\.abc$/, '-modified-final-$1.abc');
+    if (finalFilename !== currentFile) {
+      try {
+        await fs.promises.rename(currentFile, finalFilename);
+        console.log(`  📦 Renamed final output: ${path.basename(finalFilename)}`);
+        currentFile = finalFilename;
+      } catch (e) {
+        // file doesn't exist, skip rename
+      }
+    }
+    console.log(`\n✅ Final validation passed: ${currentFile}`);
+  } else {
+    console.error(`\n❌ Could not fix ABC notation after ${MAX_FIX_ATTEMPTS} attempts.`);
+    console.error(`   Last error: ${validation.error}`);
+  }
+}
 // If called directly from the command line
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
