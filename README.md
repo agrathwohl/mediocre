@@ -31,13 +31,20 @@ The documentation site features playable audio, PDF scores, section navigation, 
 - [Core Commands](#core-commands)
   - [Generate Compositions](#generate-compositions)
   - [Modify Compositions](#modify-compositions)
+  - [Enhance Compositions](#enhance-compositions)
   - [Combine Compositions](#combine-compositions)
   - [Validate ABC Notation](#validate-abc-notation)
   - [Sanitize Drums](#sanitize-drums)
+  - [More Like This](#more-like-this)
+  - [Mix and Match](#mix-and-match)
+  - [Add Lyrics](#add-lyrics)
+- [Multi-Agent Composition Pipeline](#multi-agent-composition-pipeline)
+- [Human-in-the-Loop Control](#human-in-the-loop-control)
+- [Choreography System](#choreography-system)
   - [Generate Choreography](#generate-choreography)
   - [Play Choreography](#play-choreography)
 - [Advanced Features](#advanced-features)
-  - [Sequential Expansion Mode](#sequential-expansion-mode)
+  - [Sequential Enhancement Mode](#sequential-enhancement-mode)
   - [Streaming Mode](#streaming-mode)
   - [Title Uniqueness Protection](#title-uniqueness-protection)
   - [ABC Validation Pipeline](#abc-validation-pipeline)
@@ -45,6 +52,8 @@ The documentation site features playable audio, PDF scores, section navigation, 
 - [Documentation Site](#documentation-site)
 - [TiMidity Configuration](#timidity-configuration)
 - [Hybrid Genre System](#hybrid-genre-system)
+- [Additional Commands](#additional-commands)
+- [Architecture Documentation](#architecture-documentation)
 - [CLI Reference](#cli-reference)
 - [Tips & Best Practices](#tips--best-practices)
 - [Troubleshooting](#troubleshooting)
@@ -54,13 +63,19 @@ The documentation site features playable audio, PDF scores, section navigation, 
 
 ## Features
 
-- **Genre Fusion** - Combine classical and modern elements into unique hybrids
-- **AI Composition** - Generate ABC notation using Claude 3.7 Sonnet with streaming support
-- **Sequential Expansion** - LLM-driven multi-pass composition development with validation
+- **Multi-Agent AI Pipeline** - 10+ specialized agents (composition, QA, orchestrator, soundfont, drum arranger, genre research, ornamentation, MIDI expression, description, title) coordinated via AI SDK v6
+- **Structured Output** - Composition agent uses `Output.object()` with Zod schemas to generate structured components, deterministically assembled into valid ABC notation — eliminates formatting errors
+- **Genre Fusion** - Combine classical and modern elements into unique hybrids with genre research agent providing authentic fusion context
+- **Human-in-the-Loop Control** - `--interactive` flag enables gate-based supervision of the orchestrator loop with approve/reject/direct/listen/compare/branch actions
+- **QA Scoring** - QA agent evaluates every iteration across 5 dimensions: technical, musical, fusion, completeness, duration
+- **Orchestrator-Driven Enhancement** - `--sequential` mode generates a foundation then iteratively enhances via specialized worker agents (composition, ornamentation, MIDI expression)
+- **Session Persistence** - Orchestration sessions auto-save and can be resumed with `mediocre resume`
+- **Checkpointing & Branching** - Every iteration saves a checkpoint; branch from any point to explore alternatives
+- **Drum Arrangement** - Dedicated drum arranger agent prescribes GM percussion kits with note mappings per genre
 - **ASCII Art Choreography** - Generate and play synchronized visual animations with iterative improvement
-- **Title Uniqueness** - Automatic protection against duplicate composition titles
+- **Title Uniqueness** - Automatic protection against duplicate composition titles via title agent
 - **Format Conversion** - ABC → MIDI → WAV → WebM pipeline with PDF scores
-- **ABC Validation** - Automatic syntax cleaning and segfault prevention
+- **ABC Validation** - Automatic syntax cleaning, segfault prevention, and 3-pass error correction
 - **Audio Processing** - Apply reverb, delay, distortion and more
 - **Dataset Building** - Create structured datasets for ML training
 - **Interactive TUI** - Browse compositions with playback and rating system
@@ -103,28 +118,20 @@ echo "ANTHROPIC_API_KEY=your_key_here" > .env
 
 ### API Keys
 
-- `ANTHROPIC_API_KEY` - Claude 3.7 Sonnet (required for generation)
+- `ANTHROPIC_API_KEY` - Claude Sonnet 4 (required for generation)
 
-### Why Claude 3.7 Sonnet?
+### Why Claude Sonnet 4?
 
-This project specifically requires **Claude 3.7 Sonnet** (`claude-3-7-sonnet-20250219`). Later Claude models (3.5, 4.0, Opus, etc.) have significantly regressed in ABC notation generation capabilities:
+This project uses **Claude Sonnet 4** (`claude-sonnet-4-6`) via the Vercel AI SDK v6 (`@ai-sdk/anthropic`). The model is configured in `src/utils/llm-client.js`. Each agent in the multi-agent pipeline can select its own model — most use Sonnet 4 for generation quality.
 
-**Claude 3.7 Sonnet excels at:**
+**Claude Sonnet 4 excels at:**
 
 - Generating syntactically correct ABC notation with proper header sequences
 - Understanding musical structure, voice leading, and harmonic relationships
 - Producing creative genre fusion that respects both classical and modern traditions
 - Working within abc2midi's extension syntax (%%MIDI commands, multi-voice arrangements)
+- Generating structured output via Zod schemas (Output.object() mode)
 - Thinking compositionally rather than just textually
-
-**Later models fail at:**
-
-- ABC syntax correctness (missing headers, malformed voice declarations)
-- Musical coherence (random notes vs. actual compositional logic)
-- Genre-appropriate instrumentation and rhythmic patterns
-- Understanding the relationship between notation and sonic output
-
-This isn't about "newer = better." Claude 3.7 Sonnet has specific training or fine-tuning that makes it exceptional for musical notation tasks. The model is hardcoded in `src/utils/claude.js` - do not change it unless you want broken compositions.
 
 ### External Tools
 
@@ -169,6 +176,11 @@ mediocre generate \
   --record-label "PAN" \
   --solo \
   --sequential --stream-text
+
+# Interactive enhancement with human-in-the-loop control
+mediocre generate \
+  -g "Spectralism_x_Footwork" \
+  --sequential --interactive --max-iterations 10
 
 # Validate and convert
 mediocre validate-abc -i output/*.abc
@@ -250,7 +262,11 @@ mediocre generate -g "Opera_x_Noise" \
 | `--creative-names` | Generate wild genre names instead of "X_x_Y" format                     |
 | `--system-prompt`  | Custom system prompt file                                               |
 | `--user-prompt`    | Custom user prompt file                                                 |
-| `--sequential`     | Enable LLM-driven expansion mode                                        |
+| `--sequential`     | Enable orchestrator-driven iterative enhancement                        |
+| `--max-iterations` | Maximum enhancement iterations (default: 10)                            |
+| `--interactive`    | Enable human-in-the-loop interactive mode with gate controls            |
+| `--no-object`      | Use text output instead of structured object mode                       |
+| `--soundfonts`     | Use LLM-powered soundfont selection (experimental)                      |
 | `--stream-text`    | Use streaming API (prevents timeouts)                                   |
 | `--no-midi`        | Skip MIDI conversion                                                    |
 
@@ -297,6 +313,26 @@ mediocre modify "piece.abc" \
 | `--solo`                  | Add a solo section                          |
 | `--sequential`            | Enable validation loop                      |
 | `--stream-text`           | Use streaming API                           |
+
+### Enhance Compositions
+
+Enhance existing compositions using the multi-agent orchestrator loop. The orchestrator analyzes the composition, decides which worker agent to invoke (composition, ornamentation, or MIDI expression), and iterates until quality thresholds are met.
+
+```bash
+# Enhance with orchestrated multi-agent improvement
+mediocre enhance "output/baroque_x_trap-*.abc" --max-iterations 5
+
+# Interactive enhancement with human gates at every step
+mediocre enhance "output/composition.abc" --interactive --max-iterations 10
+```
+
+**All Enhance Flags:**
+
+| Flag               | Description                                          |
+| ------------------ | ---------------------------------------------------- |
+| `--max-iterations` | Maximum enhancement iterations (default: 10)         |
+| `--interactive`    | Enable human-in-the-loop interactive mode            |
+| `-o, --output`     | Output directory                                     |
 
 ### Combine Compositions
 
@@ -460,6 +496,114 @@ mediocre lyrics \
   --instruments "Voice,Synthesizer,808,Strings"
 ```
 
+---
+
+## Multi-Agent Composition Pipeline
+
+The generation pipeline is built on AI SDK v6 with 10+ specialized agents coordinating to produce compositions:
+
+### Agent Architecture
+
+| Agent | Role | Output Mode |
+| ----- | ---- | ----------- |
+| **Genre Research** | Researches classical + modern genre characteristics for authentic fusion | Text |
+| **Drum Arranger** | Prescribes GM drum kit with note mappings and patterns per genre | Structured (`Output.object()`) |
+| **Composition** | Generates structured ABC components (headers, MIDI extensions, voices) | Structured (`Output.object()`) |
+| **QA** | Scores iterations across 5 dimensions with categorized issues | Structured (`Output.object()`) |
+| **Orchestrator** | Decides which worker agent to invoke next during enhancement | Structured (`Output.object()`) |
+| **Soundfont** | Selects optimal soundfont stack for genre fusion | Structured (`Output.object()`) |
+| **Description** | Analyzes composition, generates metadata | Text |
+| **Title** | Ensures unique title via collision checking | Text |
+| **Ornamentation** | Adds stylistically appropriate ornaments (worker) | Text (ABC) |
+| **MIDI Expression** | Adds dynamics, expression, MIDI directives (worker) | Text (ABC) |
+| **TiMidity Config** | Generates optimized TiMidity config | Text |
+
+### Generation Pipeline (Object Mode)
+
+The composition agent uses `Output.object()` with Zod schemas to generate structured components. These are then deterministically assembled into valid ABC notation by `assembleAbcNotation()` — no LLM formatting errors possible.
+
+```
+CLI → Genre Research → Drum Arrangement → Composition Agent (structured output)
+  → assembleAbcNotation() → Percussion Safety Net → 3-Pass Error Correction
+  → Validation → File Output → Description Agent (parallel)
+```
+
+When `--sequential` is passed, the pipeline continues into the enhancement loop:
+
+```
+Foundation ABC → Orchestrator decides next action →
+  ├── "invoke composition" → Composition agent (structural changes)
+  ├── "invoke ornamentation" → Ornamentation agent (embellishments)
+  ├── "invoke midi-expression" → MIDI Expression agent (dynamics)
+  └── "done" → Stop enhancement
+  → QA Agent scores iteration → Loop until quality threshold or max iterations
+```
+
+See [docs/COMPOSITION_WORKFLOW_OBJECT_MODE.md](docs/COMPOSITION_WORKFLOW_OBJECT_MODE.md) for the complete 25-step pipeline reference with data shapes at each stage.
+
+### Architecture Diagrams
+
+Visual diagrams of the pipeline are available in `docs/diagrams/`:
+
+- **[Main Pipeline](docs/diagrams/main-pipeline.png)** — End-to-end generation pipeline
+- **[Agent Communication](docs/diagrams/agent-communication.png)** — Agent interaction and delegation patterns
+- **[Orchestrator Loop](docs/diagrams/orchestrator-loop.png)** — Enhancement loop with gate integration
+- **[Data Flow](docs/diagrams/data-flow.png)** — Data shapes at each pipeline stage
+
+---
+
+## Human-in-the-Loop Control
+
+The `--interactive` flag enables human supervision of the orchestrator enhancement loop. Instead of running autonomously, the system pauses at key gate points for human input.
+
+### Gate Points
+
+Gates fire at four points during enhancement:
+
+1. **After orchestrator decision** — See what the orchestrator wants to do next
+2. **After agent output** — Review the new ABC and QA scores
+3. **When orchestrator says "done"** — Approve completion or force more iterations
+4. **When max iterations reached** — Accept result or extend
+
+### Gate Actions
+
+| Key | Action | Effect |
+| --- | ------ | ------ |
+| `a` | Approve | Continue to next step |
+| `r` | Reject | Discard this iteration, re-run with same directive |
+| `d` | Direct | Inject a musical directive (free text fed to orchestrator) |
+| `l` | Listen | Preview current ABC as audio (abc2midi → timidity) |
+| `c` | Compare | A/B listen: previous iteration vs current |
+| `+`/`-` | Extend | Increase/decrease remaining iterations |
+| `q` | Quit | Stop orchestration, keep best iteration |
+
+### Session Persistence
+
+Sessions auto-save on quit. Resume with:
+
+```bash
+mediocre resume output/session.json --max-iterations 5
+```
+
+### Checkpointing & Branching
+
+Every iteration saves a checkpoint `.abc` file. Branch from any point:
+
+```bash
+# List checkpoints
+mediocre checkpoints output/baroque_x_trap-*/
+
+# Create a branch from iteration 3
+mediocre branch output/composition.abc --from 3
+
+# Compare two iterations
+mediocre compare output/composition_iter2.abc output/composition_iter5.abc
+```
+
+---
+
+## Choreography System
+
 ### Generate Choreography
 
 Create animated ASCII art choreography synchronized to your music. The system supports iterative improvement - running the command multiple times on the same piece will progressively enhance the choreography.
@@ -538,6 +682,7 @@ mediocre play-choreography output/composition.wav \
 | `--osd`         | Show on-screen display with playback info   |
 | `--no-title`    | Skip title cards and "starring" displays    |
 | `--no-descript` | Skip subtitle/descript text overlay         |
+| `--record`      | Record playback                             |
 
 **Choreography File Format:**
 
@@ -552,44 +697,48 @@ The choreography JSON uses the v1.1 schema with support for:
 
 ## Advanced Features
 
-### Sequential Expansion Mode
+### Sequential Enhancement Mode
 
-The `--sequential` flag enables LLM-driven multi-pass composition development. Instead of generating a complete piece in one shot, it:
+The `--sequential` flag enables the orchestrator-driven multi-agent enhancement loop. Instead of generating a complete piece in one shot, it:
 
-1. **Generates** an initial composition framework
-2. **Validates** with abc2midi to catch syntax errors
-3. **Evaluates** completeness using genre-aware criteria
-4. **Expands** iteratively until the piece is musically complete
+1. **Generates a foundation** — The composition agent produces a short, high-quality thematic foundation (`sequentialMode: true`)
+2. **Orchestrator decides** — The orchestrator agent analyzes the current composition and QA scores, then decides which worker agent to invoke next
+3. **Worker agents enhance** — Three specialized workers:
+   - **Composition agent** — Structural changes (extend, add voices, develop themes)
+   - **Ornamentation agent** — Stylistic embellishments (trills, mordents, grace notes, genre-specific techniques)
+   - **MIDI Expression agent** — Dynamics and expression (%%MIDI directives, volume automation, articulation)
+4. **QA agent scores** — Every iteration is scored across 5 dimensions: technical, musical, fusion, completeness, duration
+5. **Loop iterates** — Until the orchestrator decides quality is sufficient ("done"), max iterations reached, or the human quits (if `--interactive`)
 
 ```bash
-# Enable sequential expansion
-mediocre generate -g "Minimalist_x_Drum_and_Bass" --sequential
+# Sequential enhancement (autopilot)
+mediocre generate -g "Minimalist_x_Drum_and_Bass" --sequential --max-iterations 5
+
+# Sequential with human-in-the-loop gates
+mediocre generate -g "Spectralism_x_Footwork" --sequential --interactive --max-iterations 10
 ```
 
-**How it works:**
+**Enhancement Loop:**
 
 ```
-Initial Generation
+Foundation Generation (composition agent, sequentialMode: true)
        ↓
-abc2midi Validation ←──── Fix Errors (if needed)
+Orchestrator Decision ←──── Human Gate (if --interactive)
        ↓
-Completeness Evaluation
+   "done"? ─── Yes ──→ Final Validation ──→ Done
        ↓
-   Complete? ─── Yes ──→ Done
+      No (invoke worker)
        ↓
-      No
+   Worker Agent (composition | ornamentation | midi-expression)
        ↓
-   Expansion Pass ───→ abc2midi Validation ───→ Loop
+   abc2midi Validation ←──── Auto-fix errors if found
+       ↓
+   QA Scoring (5 dimensions) ←──── Human Gate (if --interactive)
+       ↓
+   Loop back to Orchestrator Decision
 ```
 
-The system uses Claude to evaluate whether a composition needs expansion based on:
-
-- Genre-specific completeness criteria
-- Musical structure (intro, development, conclusion)
-- Voice/instrument utilization
-- Rhythmic and harmonic development
-
-**Safety limits:** Maximum 10 passes to prevent infinite loops.
+**Safety limits:** Configurable via `--max-iterations` (default: 10).
 
 ### Streaming Mode
 
@@ -958,36 +1107,99 @@ mediocre generate \
 
 ---
 
+## Additional Commands
+
+| Command | Description | Usage |
+| ------- | ----------- | ----- |
+| `complain` | Send feedback about a prior orchestration session | `mediocre complain <sessionFile> "complaint text"` |
+| `resume` | Resume a paused orchestration session | `mediocre resume <sessionFile> --max-iterations 5` |
+| `compare` | A/B comparison of two ABC iteration files | `mediocre compare <fileA> <fileB>` |
+| `checkpoints` | List all checkpoints and branches for a composition | `mediocre checkpoints <target>` |
+| `branch` | Create a new branch from a specific iteration | `mediocre branch <abcFile> --from <iteration>` |
+| `timidity-config` | Generate optimized TiMidity config using soundfont agent | `mediocre timidity-config <abcFile>` |
+| `generate-mxml` | Generate MusicXML composition using Claude | `mediocre generate-mxml [options]` |
+| `modify-mxml` | Modify existing MusicXML composition | `mediocre modify-mxml <mxmlFile> [options]` |
+| `generate-onsets` | Extract onset timing data from audio | `mediocre generate-onsets --abc <abcFile>` |
+| `generate-ascii-art` | Generate ASCII art assets | `mediocre generate-ascii-art [options]` |
+| `browse` | Interactive TUI composition browser | `mediocre browse` |
+| `info` | Display detailed composition information | `mediocre info <abcFile>` |
+| `list` | List compositions with sorting/filtering | `mediocre list -s age -g baroque` |
+| `convert` | Convert ABC to MIDI/WAV/PDF | `mediocre convert --to wav -i <abcFile>` |
+| `process` | Apply audio effects to WAV files | `mediocre process -e reverb -i <wavFile>` |
+| `dataset` | Build ML training datasets | `mediocre dataset -d ./output` |
+
+---
+
+## Architecture Documentation
+
+Detailed technical documentation is in the `docs/` directory:
+
+| Document | Description |
+| -------- | ----------- |
+| [COMPOSITION_WORKFLOW_OBJECT_MODE.md](docs/COMPOSITION_WORKFLOW_OBJECT_MODE.md) | Complete 25-step pipeline reference: agent schemas, data shapes at each stage, gate system, assembly logic |
+| [sequential-generation-workflow.md](docs/sequential-generation-workflow.md) | Sequential generation workflow details |
+| [CUSTOM_PROMPTS.md](docs/CUSTOM_PROMPTS.md) | Custom prompt system documentation |
+| [CHOREOGRAPHY_V1.1_SCHEMA.md](docs/CHOREOGRAPHY_V1.1_SCHEMA.md) | Choreography v1.1 schema specification |
+
+### Architecture Diagrams
+
+Generated from Graphviz `.dot` sources in `docs/diagrams/`:
+
+| Diagram | Description |
+| ------- | ----------- |
+| [main-pipeline.png](docs/diagrams/main-pipeline.png) | End-to-end generation pipeline |
+| [agent-communication.png](docs/diagrams/agent-communication.png) | Agent interaction and delegation patterns |
+| [orchestrator-loop.png](docs/diagrams/orchestrator-loop.png) | Orchestrator enhancement loop with gate integration |
+| [data-flow.png](docs/diagrams/data-flow.png) | Data shapes at each pipeline stage |
+
+---
+
 ## CLI Reference
 
 ### All Commands
 
-| Command          | Description                          |
-| ---------------- | ------------------------------------ |
-| `generate`       | Create new compositions              |
-| `modify`         | Transform existing compositions      |
-| `combine`        | Merge multiple compositions          |
-| `genres`         | Generate hybrid genre names          |
-| `convert`        | Convert ABC to MIDI/WAV/PDF          |
-| `process`        | Apply audio effects                  |
-| `validate-abc`   | Validate and fix ABC notation        |
-| `sanitize`       | Remap problematic drum notes         |
-| `info`           | Display composition information      |
-| `more-like-this` | Generate similar compositions        |
-| `mix-and-match`  | Combine elements from multiple files |
-| `lyrics`         | Add lyrics to compositions           |
-| `dataset`        | Build ML training datasets           |
-| `tui`            | Interactive terminal browser         |
+| Command                | Description                                   |
+| ---------------------- | --------------------------------------------- |
+| `generate`             | Create new compositions                       |
+| `modify`               | Transform existing compositions               |
+| `enhance`              | Orchestrated multi-agent enhancement          |
+| `combine`              | Merge multiple compositions                   |
+| `complain`             | Send feedback about prior session             |
+| `resume`               | Resume paused orchestration session           |
+| `compare`              | A/B comparison of iteration files             |
+| `checkpoints`          | List checkpoints and branches                 |
+| `branch`               | Create branch from iteration                  |
+| `genres`               | Generate hybrid genre names                   |
+| `convert`              | Convert ABC to MIDI/WAV/PDF                   |
+| `process`              | Apply audio effects                           |
+| `validate-abc`         | Validate and fix ABC notation                 |
+| `sanitize`             | Remap problematic drum notes                  |
+| `info`                 | Display composition information               |
+| `more-like-this`       | Generate similar compositions                 |
+| `mix-and-match`        | Combine elements from multiple files          |
+| `lyrics`               | Add lyrics to compositions                    |
+| `timidity-config`      | Generate optimized TiMidity config            |
+| `generate-mxml`        | Generate MusicXML composition                 |
+| `modify-mxml`          | Modify existing MusicXML                      |
+| `generate-onsets`      | Extract onset timing data                     |
+| `generate-choreography`| Generate visual choreography                  |
+| `play-choreography`    | Play choreography animation                   |
+| `generate-ascii-art`   | Generate ASCII art assets                     |
+| `dataset`              | Build ML training datasets                    |
+| `browse`               | Interactive terminal browser                  |
+| `list`                 | List compositions with filtering              |
 
 ### Global Flags
 
-| Flag                   | Description                          |
-| ---------------------- | ------------------------------------ |
-| `--sequential`         | Enable LLM-driven expansion mode     |
-| `--stream-text`        | Use streaming API                    |
-| `--midi` / `--no-midi` | Control MIDI generation              |
-| `-d, --output-dir`     | Output directory (default: ./output) |
-| `--verbose`            | Enable verbose logging               |
+| Flag                   | Description                                  |
+| ---------------------- | -------------------------------------------- |
+| `--sequential`         | Enable orchestrator-driven enhancement       |
+| `--stream-text`        | Use streaming API                            |
+| `--interactive`        | Human-in-the-loop interactive control        |
+| `--max-iterations <n>` | Maximum enhancement iterations               |
+| `--midi` / `--no-midi` | Control MIDI generation                      |
+| `-d, --output-dir`     | Output directory (default: ./output)         |
+| `--verbose`            | Enable verbose logging                       |
 
 ---
 
@@ -1001,19 +1213,25 @@ mediocre generate \
    mediocre generate -g "Spectralist_x_IDM" --sequential --stream-text
    ```
 
-2. **Validate before converting** to catch issues early
+2. **Use `--interactive` for fine control** over enhancement iterations
+
+   ```bash
+   mediocre generate -g "Baroque_x_Trap" --sequential --interactive --max-iterations 10
+   ```
+
+3. **Validate before converting** to catch issues early
 
    ```bash
    mediocre validate-abc -i output/*.abc
    ```
 
-3. **Use the publish pipeline** for production-ready assets
+4. **Use the publish pipeline** for production-ready assets
 
    ```bash
    npm run publish:composition
    ```
 
-4. **Layer soundfonts** in TiMidity for richer sound
+5. **Layer soundfonts** in TiMidity for richer sound
    - Base: GeneralUser GS (comprehensive)
    - Orchestral: Sonatina Symphony Orchestra
    - Synths: Premium soundfonts for electronic genres
@@ -1042,10 +1260,16 @@ mediocre validate-abc -i output/genre_x_genre-*.abc
 npm run publish:composition
 ```
 
-**Extend Existing:**
+**Interactive Enhancement:**
 
 ```bash
-mediocre modify "composition.abc" -i "Add virtuosic coda" --sequential --stream-text
+mediocre generate -g "Genre_x_Genre" --sequential --interactive --max-iterations 10
+```
+
+**Enhance Existing:**
+
+```bash
+mediocre enhance "composition.abc" --interactive --max-iterations 5
 ```
 
 **Combine Pieces:**

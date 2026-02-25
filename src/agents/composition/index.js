@@ -657,7 +657,7 @@ Remember: NO BLANK LINES between voice sections or elements!`;
             genre,
             classicalGenre,
             modernGenre,
-            objectMode,
+            objectMode: false,
             _isCorrection: true,
           });
           abcNotation = corrected;
@@ -699,7 +699,7 @@ Remember: NO BLANK LINES between voice sections or elements!`;
           genre,
           classicalGenre,
           modernGenre,
-          objectMode,
+            objectMode: false,
           _isCorrection: true,
         });
         abcNotation = corrected;
@@ -863,7 +863,7 @@ Output ONLY the COMPLETE modified ABC notation — no markdown fences, no explan
             genre,
             classicalGenre,
             modernGenre,
-            objectMode,
+            objectMode: false,
             _isCorrection: true,
           });
           abcNotation = corrected;
@@ -904,6 +904,7 @@ Output ONLY the COMPLETE modified ABC notation — no markdown fences, no explan
           genre,
           classicalGenre,
           modernGenre,
+            objectMode: false,
           _isCorrection: true,
         });
         abcNotation = corrected;
