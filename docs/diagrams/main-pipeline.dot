@@ -1,0 +1,134 @@
+digraph MainPipeline {
+  rankdir=TB;
+  bgcolor="#0a0a0f";
+  fontname="Helvetica";
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box, color="#333355", fontcolor="#e0e0e0"];
+  edge [fontname="Helvetica", fontsize=9, color="#555577", fontcolor="#888888"];
+
+  /* ── User Entry ── */
+  cli [label="CLI: mediocre generate\n--genre baroque_x_synthwave\n--sequential --interactive", fillcolor="#1a1a3e", penwidth=2, color="#00d4ff"];
+
+  /* ── Phase 1: Research & Setup ── */
+  subgraph cluster_research {
+    label="Phase 1: Research & Setup";
+    labeljust=l;
+    fontcolor="#00d4ff";
+    color="#222244";
+    style="rounded,dashed";
+
+    genre_research [label="Genre Research Agent\n(Haiku)", fillcolor="#1e1e40"];
+    drum_arranger [label="Drum Arranger Agent\n(Haiku)", fillcolor="#1e1e40"];
+    soundfont_agent [label="Soundfont Agent\n(Haiku + 3 tools)", fillcolor="#1e1e40"];
+  }
+
+  /* ── Phase 2: Composition ── */
+  subgraph cluster_composition {
+    label="Phase 2: Composition Generation";
+    labeljust=l;
+    fontcolor="#ff6b6b";
+    color="#222244";
+    style="rounded,dashed";
+
+    comp_agent [label="Composition Agent\n(Sonnet, Output.object())\nStructured ABC components", fillcolor="#2a1a1a"];
+    assemble [label="assembleAbcNotation()\nStructured → ABC text", fillcolor="#2a2a1a"];
+    perc_safety [label="Percussion Safety\nsanitizeDrumDirectives()", fillcolor="#2a2a1a"];
+  }
+
+  /* ── Phase 3: Validation & Save ── */
+  subgraph cluster_validate {
+    label="Phase 3: Validation & File I/O";
+    labeljust=l;
+    fontcolor="#6bff6b";
+    color="#222244";
+    style="rounded,dashed";
+
+    clean [label="cleanAbcNotation()", fillcolor="#1a2a1a"];
+    validate [label="validateAbcNotation()", fillcolor="#1a2a1a"];
+    write_abc [label="Write .abc file", fillcolor="#1a2a1a"];
+    abc2midi_check [label="abc2midi validation", fillcolor="#1a2a1a"];
+  }
+
+  /* ── Phase 4: Metadata ── */
+  subgraph cluster_metadata {
+    label="Phase 4: Metadata Generation";
+    labeljust=l;
+    fontcolor="#ffb86b";
+    color="#222244";
+    style="rounded,dashed";
+
+    desc_agent [label="Description Agent\n(Sonnet, Output.object())", fillcolor="#2a2a1a"];
+    write_json [label="Write .json metadata", fillcolor="#2a2a1a"];
+    write_md [label="Write .md description", fillcolor="#2a2a1a"];
+  }
+
+  /* ── Phase 5: Orchestrator Enhancement ── */
+  subgraph cluster_orchestrator {
+    label="Phase 5: Orchestrated Enhancement\n(--sequential mode)";
+    labeljust=l;
+    fontcolor="#d4ff00";
+    color="#222244";
+    style="rounded,dashed";
+
+    orch_decision [label="Orchestrator Agent\n(Sonnet, Output.object())\nDecides next action", fillcolor="#2a2a1e"];
+    gate1 [label="HITL Gate 1\nonDecision()", fillcolor="#3a1a3a", color="#ff00ff", penwidth=2];
+    invoke_worker [label="Invoke Worker Agent\n(composition | ornamentation\n| midi-expression)", fillcolor="#2a2a1e"];
+    checkpoint [label="Save iteration\ncheckpoint", fillcolor="#2a2a1e"];
+    qa_agent [label="QA Agent\n(Sonnet, Output.object())\nScore: tech/music/fusion", fillcolor="#2a2a1e"];
+    gate2 [label="HITL Gate 2\nonAgentOutput()", fillcolor="#3a1a3a", color="#ff00ff", penwidth=2];
+    iterate [label="Loop or Done?", fillcolor="#2a2a1e", shape=diamond];
+  }
+
+  /* ── Phase 6: Final Output ── */
+  subgraph cluster_output {
+    label="Phase 6: Final Conversion";
+    labeljust=l;
+    fontcolor="#6b6bff";
+    color="#222244";
+    style="rounded,dashed";
+
+    abc2midi [label="abc2midi\nABC → MIDI", fillcolor="#1a1a2a"];
+    timidity [label="TiMidity++ / FluidSynth\nMIDI → WAV", fillcolor="#1a1a2a"];
+    abcm2ps [label="abcm2ps + gs\nABC → PDF", fillcolor="#1a1a2a"];
+    final [label="Final Package\n.abc  .mid  .wav  .pdf\n.json  .md", fillcolor="#1a1a3e", penwidth=2, color="#00d4ff"];
+  }
+
+  /* ── Edges ── */
+  cli -> genre_research;
+  genre_research -> drum_arranger;
+  drum_arranger -> soundfont_agent;
+  soundfont_agent -> comp_agent;
+
+  comp_agent -> assemble [label="structured\nobject"];
+  assemble -> perc_safety [label="ABC text"];
+  perc_safety -> clean;
+
+  clean -> validate;
+  validate -> write_abc;
+  write_abc -> abc2midi_check;
+
+  abc2midi_check -> desc_agent [label="parallel"];
+  desc_agent -> write_json;
+  write_json -> write_md;
+
+  write_abc -> orch_decision [label="--sequential\nfoundation ABC"];
+
+  orch_decision -> gate1;
+  gate1 -> invoke_worker [label="approve"];
+  gate1 -> orch_decision [label="direct\n(inject feedback)", style=dashed, color="#ff00ff"];
+  invoke_worker -> checkpoint;
+  checkpoint -> abc2midi_check [label="validate\niteration", style=dotted];
+  abc2midi_check -> qa_agent [label="score"];
+  qa_agent -> gate2;
+  gate2 -> iterate [label="approve"];
+  gate2 -> invoke_worker [label="reject\n(re-run)", style=dashed, color="#ff00ff"];
+  iterate -> orch_decision [label="continue", style=dashed];
+  iterate -> abc2midi [label="done"];
+
+  abc2midi_check -> abc2midi [label="no --sequential"];
+  abc2midi -> timidity;
+  abc2midi -> abcm2ps;
+  timidity -> final;
+  abcm2ps -> final;
+  write_json -> final [style=dotted];
+  write_md -> final [style=dotted];
+}

@@ -1,0 +1,73 @@
+digraph OrchestratorLoop {
+  rankdir=TB;
+  bgcolor="#0a0a0f";
+  fontname="Helvetica";
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded", shape=box, color="#333355", fontcolor="#e0e0e0"];
+  edge [fontname="Helvetica", fontsize=9, color="#555577", fontcolor="#888888"];
+
+  start [label="Enhanced ABC\n(foundation from generate)", fillcolor="#1a1a3e", penwidth=2, color="#00d4ff"];
+
+  load_ctx [label="loadCompositionContext()\nParse ABC + JSON metadata\nExtract genre characteristics", fillcolor="#1e1e40"];
+
+  /* ── Orchestrator Decision ── */
+  orch [label="Orchestrator Agent\n(Sonnet, Output.object())\n\nFields:\n  action: invoke | revise | done\n  agent: composition | ornamentation | midi-expression\n  reasoning: string\n  expectedImprovement: string", fillcolor="#2a2a1e", shape=box];
+
+  /* ── HITL Gate 1 ── */
+  gate1 [label="Gate 1: onDecision()\n\n[a]pprove  [d]irect  [q]uit", fillcolor="#3a1a3a", color="#ff00ff", penwidth=2];
+
+  /* ── Worker Dispatch ── */
+  dispatch [label="Worker Dispatch\nbased on decision.agent", fillcolor="#1e1e40", shape=diamond];
+
+  comp_worker [label="Composition Worker\naddMoreMusicalContent()\nExtend/modify ABC", fillcolor="#2a1a1a"];
+  orn_worker [label="Ornamentation Worker\naddOrnamentation()\nGrace notes, trills, dynamics", fillcolor="#1a2a1a"];
+  midi_worker [label="MIDI Expression Worker\naddMidiExpression()\n%%MIDI directives, dynamics", fillcolor="#1a1a2a"];
+
+  /* ── Post-Worker ── */
+  save_iter [label="Save iteration\ncheckpointManager.save()\niter-N.abc", fillcolor="#1e1e40"];
+
+  abc2midi [label="abc2midi validation\nCheck for compilation errors", fillcolor="#1e1e40"];
+
+  qa [label="QA Agent\n(Sonnet, Output.object())\n\nScores:\n  technical: 0-10\n  musical: 0-10\n  fusion: 0-10\n  completeness: 0-10\n\nverdict: pass | fail | needs_revision\nrecommendations: prioritized[]", fillcolor="#2a2a1e"];
+
+  /* ── HITL Gate 2 ── */
+  gate2 [label="Gate 2: onAgentOutput()\n\n[a]pprove  [r]eject  [d]irect\n[l]isten   [+]more  [q]uit", fillcolor="#3a1a3a", color="#ff00ff", penwidth=2];
+
+  update [label="Update workHistory[]\ncurrentAbc = enhanced\niteration++", fillcolor="#1e1e40"];
+
+  check [label="iteration < maxIterations?", fillcolor="#1e1e40", shape=diamond];
+
+  done [label="Return enhanced ABC\n+ QA history\n+ iteration count", fillcolor="#1a1a3e", penwidth=2, color="#00d4ff"];
+
+  /* ── Edges ── */
+  start -> load_ctx;
+  load_ctx -> orch;
+
+  orch -> gate1;
+  gate1 -> dispatch [label="approve"];
+  gate1 -> orch [label="direct\n(userComplaint injected)", style=dashed, color="#ff00ff"];
+  gate1 -> done [label="quit"];
+
+  dispatch -> comp_worker [label="composition"];
+  dispatch -> orn_worker [label="ornamentation"];
+  dispatch -> midi_worker [label="midi-expression"];
+  dispatch -> done [label="action == done"];
+
+  comp_worker -> save_iter;
+  orn_worker -> save_iter;
+  midi_worker -> save_iter;
+
+  save_iter -> abc2midi;
+  abc2midi -> qa [label="valid"];
+  abc2midi -> gate2 [label="errors\n(reported to gate)", style=dashed, color="#ff6b6b"];
+
+  qa -> gate2;
+
+  gate2 -> update [label="approve"];
+  gate2 -> dispatch [label="reject\n(re-invoke same agent)", style=dashed, color="#ff00ff"];
+  gate2 -> orch [label="direct\n(new feedback)", style=dashed, color="#ff00ff"];
+  gate2 -> done [label="quit"];
+
+  update -> check;
+  check -> orch [label="yes"];
+  check -> done [label="no\n(max reached)"];
+}

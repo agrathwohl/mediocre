@@ -469,6 +469,11 @@ export async function generateAbc(options) {
           description.drumPrescription = drumPrescription;
         }
 
+        // Preserve genre research so enhance/orchestrator has genre context later
+        if (genreResearch) {
+          description.research = genreResearch;
+        }
+
         // Save the description as JSON
         const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
         await fs.promises.writeFile(descriptionFilePath, JSON.stringify(description, null, 2));
