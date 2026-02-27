@@ -309,6 +309,17 @@ ONLY use these GM numbers in drum-related midiExtensions: ${drumMapTable.map(m =
     instructions: `You are a music composer specializing in fusion genres.
 Your task is to create compositions that authentically blend classical and modern musical traditions.
 
+MUSICOLOGICAL PRINCIPLES:
+You compose with authentic technique fidelity — each genre's specific compositional methods must be faithfully implemented, not just superficially referenced. When genre research mentions STYLE FINGERPRINTS, these are non-negotiable requirements that must appear in your composition.
+
+MIXTURE STRATEGY (Alcalde 2022):
+When genre research recommends a mixture strategy, structure your entire piece around it:
+- CLASH: Keep traditions structurally and perceptually distinct. Different tonalities, registers, textures. Friction is deliberate. Juxtapose (alternate in time) or overlap (superimpose without alignment).
+- COEXISTENCE: Find shared traits between traditions and use them as linchpins for integration. Make concessions from each to create a THIRD compound identity — an amalgam, not two things side by side.
+- DISTORTION: One tradition is clearly recognizable source material. Alter it with incongruous elements that don't form a second coherent style — they corrupt, exaggerate, or undermine. The source is recognizable but defamiliarized.
+- TRAJECTORY: Gradual, traceable transformation from one tradition to another. The process of change must be audible and followable.
+If no strategy is specified, default to COEXISTENCE.
+
 You will provide structured components that will be assembled into proper ABC notation automatically.
 Focus on the musical content - the formatting will be handled correctly.
 
@@ -482,6 +493,17 @@ ${exampleNotes.map(m => `    %%MIDI drummap ${m.abcNote} ${m.gm}`).join('\n')}
   return `You are a music composer specializing in fusion genres.
 Output ONLY valid ABC notation — no markdown fences, no explanatory text, no reasoning, nothing before X:1.
 
+MUSICOLOGICAL PRINCIPLES:
+You compose with authentic technique fidelity — each genre's specific compositional methods must be faithfully implemented, not just superficially referenced. When genre research mentions STYLE FINGERPRINTS, these are non-negotiable requirements that must appear in your composition.
+
+MIXTURE STRATEGY (Alcalde 2022):
+When genre research recommends a mixture strategy, structure your entire piece around it:
+- CLASH: Keep traditions structurally and perceptually distinct. Different tonalities, registers, textures. Friction is deliberate. Juxtapose (alternate in time) or overlap (superimpose without alignment).
+- COEXISTENCE: Find shared traits between traditions and use them as linchpins for integration. Make concessions from each to create a THIRD compound identity — an amalgam, not two things side by side.
+- DISTORTION: One tradition is clearly recognizable source material. Alter it with incongruous elements that don't form a second coherent style — they corrupt, exaggerate, or undermine. The source is recognizable but defamiliarized.
+- TRAJECTORY: Gradual, traceable transformation from one tradition to another. The process of change must be audible and followable.
+If no strategy is specified, default to COEXISTENCE.
+
 ABC NOTATION RULES:
 - Required headers in order: X: T: M: L: Q: K:
 - MIDI PROGRAM PLACEMENT (CRITICAL): %%MIDI program N must appear INSIDE each voice section,
@@ -554,19 +576,22 @@ ${genreResearch ? `## GENRE RESEARCH (read this first — it determines what you
 ${genreResearch}
 ` : ''}${drumKitSection}${drumMapSection}Style: ${style}
 Guidelines:
-1. From ${classicalGenre}, incorporate:
-   - Appropriate harmonic structures
-   - Melodic patterns and motifs
-   - Formal structures
-   - Typical instrumentation choices
+1. From ${classicalGenre}, implement these SPECIFIC techniques from the genre research:
+   - The identified STYLE FINGERPRINTS — these are required, not optional
+   - The specific harmonic language and voice leading described
+   - The formal structure appropriate to this tradition
+   - Instrumentation that serves the compositional techniques
 
-2. From ${modernGenre}, incorporate:
-   - Rhythmic elements
-   - Textural approaches
-   - Production aesthetics
-   - Distinctive sounds or techniques
+2. From ${modernGenre}, implement these SPECIFIC techniques from the genre research:
+   - The identified STYLE FINGERPRINTS — these are required, not optional
+   - The rhythmic and textural methods described
+   - The production/sonic aesthetics characteristic of this tradition
+   - Any technique-specific notation requirements
 
-3. Technical requirements:
+3. MIXTURE APPROACH:
+   Follow the MIXTURE STRATEGY from the genre research. Your structural decisions (form, voice assignment, sectional organization, harmonic trajectory) should all serve this strategy. Do not simply alternate genres or layer them arbitrarily — commit to the recommended approach and make it audible in the structure.
+
+4. Technical requirements:
    - SUBSTANTIAL LENGTH: Target at least 4-5 minutes of music. At 120 BPM in 4/4 this means approximately 120+ measures per voice. DO NOT write a short sketch — write a complete, developed work.
    - Include multiple distinct sections: introduction, at least two developmental sections, climax, and resolution/coda
    - Complete structure with development and conclusion

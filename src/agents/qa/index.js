@@ -56,6 +56,22 @@ If validate_abc reports no hard errors, estimate the duration by examining the t
 The vast majority of music — across almost every genre — should not be under 2 minutes. Very short durations are only appropriate when the genre context itself specifically calls for extreme brevity as an aesthetic position. If the hybrid does not clearly reference such a tradition, a sub-2-minute piece should be flagged as needing expansion.
 
 Beyond that floor, use your own musical judgment: does this specific hybrid demand a longer, more developed form? Does one side of the fusion call for extended development that the piece doesn't satisfy? Or is the current length appropriate for what this particular piece is trying to be? You may honor one tradition's length expectations, both, or neither — use your discernment. Issue a high-priority 'duration' recommendation only if you genuinely judge the piece is underdeveloped relative to its own musical ambition and genre context.
+
+TECHNIQUE FIDELITY EVALUATION:
+When evaluating technique fidelity, check: are the specific compositional methods of each genre actually used, not just referenced?
+- For serial music: are there actual tone rows with transformations, not just chromatic passages?
+- For minimalism: are there actual phase processes or additive patterns, not just repetition?
+- For fugue: is there genuine subject/answer exposition with countersubject, not just imitative entries?
+- For electronic genres: are rhythmic and textural approaches authentic to the specific subgenre?
+Score 0-3 if style fingerprints absent, 4-6 if present but superficial, 7-10 if authentically implemented.
+
+MIXTURE STRATEGY EVALUATION (Alcalde 2022):
+Assess whether the piece commits to a coherent mixture strategy:
+- CLASH: Are styles kept genuinely distinct with deliberate structural friction?
+- COEXISTENCE: Is there a genuine compound identity with shared integration points, or are styles just placed side by side?
+- DISTORTION: Is one style recognizable but altered by incongruous elements that don't form a second identity? (If both styles clearly identifiable, it's coexistence, not distortion.)
+- TRAJECTORY: Is the transformation gradual and traceable?
+A piece with no discernible strategy: score below 4. Commits but inconsistent: 4-6. Coherent throughout: 7-10.
 Provide detailed, actionable assessment with specific issues and recommendations.`,
 
   output: Output.object({
@@ -67,9 +83,12 @@ Provide detailed, actionable assessment with specific issues and recommendations
       scores: z.object({
         technical: z.number().describe('Technical quality score 0-10'),
         musical: z.number().describe('Musical quality score 0-10'),
-        fusion: z.number().describe('Genre fusion authenticity score 0-10'),
+        fusion: z.number().describe('Genre fusion authenticity score 0-10 — both genres should be recognizably present per the recommended mixture strategy, not just one with surface decoration from the other'),
         completeness: z.number().describe('Completeness score 0-10'),
         duration: z.number().describe('Duration appropriateness score 0-10 — judged against this specific genre hybrid\'s needs, not a fixed time target'),
+        techniqueFidelity: z.number().describe('Technique fidelity score 0-10 — are the specific compositional methods (style fingerprints) of each genre authentically implemented? 0-3: fingerprints absent, 4-6: present but superficial, 7-10: authentically implemented'),
+        fusionStrategy: z.number().describe('Mixture strategy coherence score 0-10 — does the piece commit to a clear mixture strategy (clash/coexistence/distortion/trajectory)? 0-3: no strategy discernible, 4-6: partially executed, 7-10: coherent throughout'),
+        harmonicSophistication: z.number().describe('Harmonic sophistication score 0-10 — does the harmonic language go beyond simple triads? Consider chord vocabulary diversity, voice leading quality, cadential variety, harmonic rhythm'),
       }),
 
       // Detailed issues by category
@@ -190,6 +209,9 @@ Call validate_abc with the abcNotation above to check for technical errors first
     console.log(`   Fusion: ${assessment.scores.fusion}/10`);
     console.log(`   Completeness: ${assessment.scores.completeness}/10`);
     console.log(`   Duration: ${assessment.scores.duration}/10`);
+    console.log(`   Technique Fidelity: ${assessment.scores.techniqueFidelity}/10`);
+    console.log(`   Mixture Strategy: ${assessment.scores.fusionStrategy}/10`);
+    console.log(`   Harmonic Sophistication: ${assessment.scores.harmonicSophistication}/10`);
 
     // Show issues if any
     const totalIssues = assessment.issues.technical.length +

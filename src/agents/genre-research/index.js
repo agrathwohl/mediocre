@@ -56,13 +56,15 @@ Write a dense, factual briefing covering BOTH genres. For each genre, answer:
 3. ESSENTIAL INSTRUMENTS: What instruments MUST be present for the genre to be authentic?
 4. FORMAL STRUCTURE: Typical length, section structure, development approach.
 5. MUST NOT OMIT: What elements, if absent, would make a listener say "this isn't ${classicalGenre}" or "this isn't ${modernGenre}"?
+6. COMPOSITIONAL TECHNIQUES: What specific compositional methods define this genre? Include: voice leading rules or tendencies, harmonic language (chord vocabulary, progression logic, cadential patterns), counterpoint or layering methods, rhythmic construction approach (additive, divisive, process-based, chance-based), and textural strategies (homophonic, polyphonic, heterophonic, sound-mass).
+7. STYLE FINGERPRINTS (CRITICAL): Identify exactly 2-3 techniques that are ESSENTIAL MARKERS of authenticity for this genre. These are techniques where, if absent, a knowledgeable listener would say "this isn't really ${classicalGenre}" or "this isn't really ${modernGenre}." Format each as: TECHNIQUE NAME — one-sentence description of what it sounds like and how a composer would implement it.
 
 If "${classicalGenre}" or "${modernGenre}" refers to a specific artist or act (e.g., "Venetian Snares", "Aphex Twin", "Burial"), describe their specific style, not the general genre they represent.
 ${flagsBlock}
 Be direct and specific. Do not hedge or generalize. Format as:
 - SECTION 1: ${classicalGenre}
 - SECTION 2: ${modernGenre}
-- SECTION 3: HOW TO FUSE THEM (key tensions and opportunities in the hybrid)
+- SECTION 3: MIXTURE STRATEGY RECOMMENDATION (recommend ONE of these four approaches from Alcalde 2022: CLASH — harsh juxtaposition/superposition where styles remain structurally distinct and friction is deliberate; COEXISTENCE — align shared characteristics as linchpins while maintaining unaligned features, creating a third compound identity; DISTORTION — one recognizable style altered by incongruous elements that don't form a second clear identity; TRAJECTORY — gradual traceable transformation from one style into another. Explain WHY this strategy suits this pairing, and identify which STYLE FINGERPRINTS from each genre should interact and HOW under the chosen strategy.)
 ${flagsBlock ? '- SECTION 4: FLAG ASSESSMENT (complement vs. clash for each flag above)' : ''}`,
   });
 

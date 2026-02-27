@@ -154,6 +154,9 @@ If the QA feedback contains ANY high-priority recommendations with category "dur
 - Use the expansion directive from the duration recommendation
 You MAY NOT invoke ornamentation or midi-expression while high-priority duration issues remain unresolved. This gate takes absolute precedence over all other considerations.
 
+## TECHNIQUE FIDELITY GATE
+If the QA feedback scores techniqueFidelity below 5 OR fusionStrategy below 5, prioritize invoking the composition agent to address musicological deficiencies BEFORE spending iterations on ornamentation or midi-expression polish. A piece that fails to authentically represent its genres should not receive surface polish — fix the foundation first.
+
 ## YOUR TASK
 Analyze the current state and decide:
 - If composition meets quality standards → action: "done"

@@ -251,6 +251,7 @@ export async function generateAbc(options) {
       let selectedSoundfonts = null;
       let soundfontReasoning = null;
       let drumPrescription = null;
+      let genreResearch = null;
 
       if (useCustomSoundfonts) {
         // Generate music with LLM soundfont selection (--soundfonts flag)
@@ -292,7 +293,7 @@ export async function generateAbc(options) {
           // Research genres before generation so the composition agent knows
           // exactly what each genre requires (instruments, tempo, essential elements).
           // Also assesses whether the CLI flags complement or clash with the genres.
-          const genreResearch = await researchGenresForComposition(
+          genreResearch = await researchGenresForComposition(
             genreComponents.classical,
             genreComponents.modern,
             {
