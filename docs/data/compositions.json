@@ -5702,5 +5702,537 @@
         "startTime": 6685.71
       }
     ]
+  },
+  {
+    "id": "cosmic-symmetry-1767869310535",
+    "title": "Cosmic Symmetry",
+    "composer": "Bruckner × Eric Dolphy Fusion",
+    "key": "Dmin",
+    "meter": "7/8",
+    "tempo": "120",
+    "genre": "bruckner_x_eric dolphy",
+    "classicalGenre": "bruckner",
+    "modernGenre": "eric dolphy",
+    "style": "standard",
+    "instruments": "Piccolo, French Horn, Viola, Guitar harmonics, Tenor Sax, Bassoon, String Ensemble 1, Cello",
+    "analysis": "# Analysis of \"Cosmic Symmetry\" - A Bruckner × Eric Dolphy Fusion\n\n## 1. Overview of the Hybrid Genre Approach\n\n\"Cosmic Symmetry\" represents a fascinating fusion between two seemingly disparate musical worlds: Anton Bruckner's expansive symphonic romanticism and Eric Dolphy's avant-garde jazz experimentation. The composition successfully marries Bruckner's architectural grandeur, brass chorales, and harmonic language with Dolphy's angular melodic sensibility, rhythmic innovation, and timbral experimentation. The result is a hybrid genre that honors both traditions while creating something genuinely novel.\n\n## 2. Bruckner Elements Present in the Composition\n\nThe Brucknerian influence is immediately apparent in several key aspects:\n\n* **Architectural form**: The multi-movement structure (Cosmic Symmetry, Adagio Mysticum, Scherzo Phantasmagoricum) mirrors Bruckner's symphonic approach with distinct movements serving different emotional purposes.\n\n* **Brass chorales**: The piece opens with stately brass chorales reminiscent of Bruckner's signature orchestral textures, particularly in the second voice (T2) marked as \"Brass Section.\"\n\n* **Gradual dynamic builds**: Throughout the composition, we see the characteristic Brucknerian technique of building gradually from pianissimo to fortissimo over extended periods, creating a sense of monumental scale.\n\n* **Extensive development sections**: The composition features lengthy development sections that transform thematic material through modulations and harmonic progressions, a hallmark of Bruckner's compositional approach.\n\n* **Harmonic language**: The rich, extended tertian harmony and pedal points (seen in the B2 part) are distinctly Brucknerian, creating a foundation of harmonic stability that grounds the more experimental elements.\n\n* **Adagio movement**: The second movement \"Adagio Mysticum\" channels Bruckner's profound slow movements with its expansive, contemplative nature and spiritual quality.\n\n## 3. Eric Dolphy Elements Present in the Composition\n\nDolphy's innovative voice is equally present throughout the work:\n\n* **Angular melodic lines**: The melodic material frequently employs large, unpredictable intervals and jagged contours characteristic of Dolphy's improvisational style, particularly evident in phrases like \"d2 ^c>d e>f (3gfe\" and similar passages.\n\n* **Complex rhythmic groupings**: The extensive use of quintuplets, septuplets, and other irregular groupings (like \"(7:8d^cdefga)\") directly references Dolphy's rhythmic innovation.\n\n* **Extended techniques**: The score calls for multiphonics and flutter tonguing (marked with \"!multiphonic!\" and \"!flutter!\"), techniques Dolphy pioneered in jazz contexts.\n\n* **Timbral exploration**: The bass clarinet solos in the second movement are a direct homage to Dolphy's virtuosic command of this instrument.\n\n* **Asymmetrical meters**: The third movement's frequent shifts between meters (7/8, 11/8, 5/4, 13/16, etc.) reflect Dolphy's rhythmic flexibility and willingness to subvert traditional structures.\n\n* **Extreme register jumps**: Passages that leap across multiple octaves mirror Dolphy's characteristic technical approach, especially in the flute and bass clarinet parts.\n\n## 4. Technical Elements (Instrumentation, Structure)\n\nThe instrumentation itself embodies the fusion concept:\n* **T1**: Flute/Alto Saxophone (representing Dolphy's primary instruments)\n* **T2**: Brass Section (representing Bruckner's orchestral foundation)\n* **B1**: Cello (representing Bruckner's string writing)\n* **B2**: Acoustic Bass (representing Dolphy's jazz rhythm section)\n\nStructurally, the composition follows a three-movement format:\n\n1. **Movement I - Cosmic Symmetry**: A sonata-like structure that introduces and develops the main thematic material, combining Bruckner's developmental approach with Dolphy's rhythmic and melodic innovations.\n\n2. **Movement II - Adagio Mysticum**: A slow movement featuring bass clarinet soliloquies (Dolphy) over Brucknerian harmonic progressions, incorporating extended techniques and extreme register exploration.\n\n3. **Movement III - Scherzo Phantasmagoricum**: A rhythmically complex scherzo that alternates between angular themes and a more lyrical trio section, with constantly shifting meters and timbral effects.\n\n## 5. Artistic Assessment of the Fusion\n\nThe composition achieves its fusion aims through several innovative approaches:\n\n* **Contextual reframing**: Bruckner's harmonic language is placed within Dolphy's rhythmic frameworks, creating familiar harmonies in unfamiliar rhythmic contexts.\n\n* **Instrumental dialogue**: The score creates meaningful dialogue between instruments representing both traditions, allowing them to comment on each other's material.\n\n* **Structural flexibility**: While maintaining Bruckner's large-scale architectural approach, the composition incorporates Dolphy's moment-to-moment flexibility and spontaneity.\n\n* **Dynamic extremes**: The composition explores extreme dynamic ranges, from multiple pianissimos to multiple fortissimos, creating dramatic tension that serves both the Brucknerian epic scale and Dolphy's expressive intensity.\n\n* **Harmonic innovation**: The fusion successfully navigates between Bruckner's extended tonality and Dolphy's more experimental harmonic approach, creating a coherent language that honors both influences.\n\nWhat makes this fusion particularly successful is that it doesn't simply juxtapose elements from each composer but finds genuine points of connection—both Bruckner and Dolphy were innovators who pushed boundaries in their respective contexts, and this composition highlights their shared exploratory spirit.\n\n## 6. Audio Processing Suggestions\n\nWhile the composition is generally well-constructed, a few sections might benefit from careful audio processing attention:\n\n* In Movement II, the multiphonic passages for bass clarinet (particularly the extended sections marked with extreme dynamics like \"!multiphonic!!ffffffff!\") might create harsh timbres that could benefit from subtle EQ treatment to tame any excessive upper harmonics while preserving the intended timbral complexity.\n\n* The extreme register leaps in the bass clarinet soliloquies (measures where the instrument jumps several octaves within a short span) might benefit from careful compression to manage the dynamic differences between registers, ensuring clarity across the entire range without diminishing the dramatic effect.\n\n* The transition points between extreme dynamic shifts (such as the sudden shifts from !ffffff! to !pp! in the third movement) might need volume automation to ensure these contrasts remain effective without being jarring to listeners.\n\nThis composition stands as a thoughtful exploration of how two seemingly distant musical worlds can find common ground in their shared commitment to innovation, expressivity, and pushing the boundaries of their respective traditions.",
+    "timestamp": "2026-01-08T10:48:30.535Z",
+    "mediaSrc": "media/cosmic-symmetry-1767869310535.webm",
+    "pdfSrc": "media/cosmic-symmetry-1767869310535-score.pdf",
+    "abcFile": "bruckner_x_eric dolphy-modified-final-1767869256792.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "MOVEMENT I - COSMIC SYMMETRY",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "Introduction - Brucknerian brass chorales with Dolphy-esque rhythmic displacement",
+        "startTime": 0
+      },
+      {
+        "numeral": "III",
+        "title": "Extended Introduction - More complex brass chorales",
+        "startTime": 53.33
+      },
+      {
+        "numeral": "IV",
+        "title": "Main Theme - Dolphy-inspired angular melody over Brucknerian harmonic progression",
+        "startTime": 106.67
+      },
+      {
+        "numeral": "V",
+        "title": "Main Theme Variation - More extreme angular leaps",
+        "startTime": 160
+      },
+      {
+        "numeral": "VI",
+        "title": "Development - Bruckner-like orchestral build with Dolphy's intervallic leaps",
+        "startTime": 213.33
+      },
+      {
+        "numeral": "VII",
+        "title": "Extended Development I - More complex harmonies and modulations",
+        "startTime": 266.67
+      },
+      {
+        "numeral": "VIII",
+        "title": "Rhythmic Interlude - Dolphy's rhythmic complexity with Bruckner's harmonic language",
+        "startTime": 320
+      },
+      {
+        "numeral": "IX",
+        "title": "Extended Rhythmic Interlude - More complex rhythmic patterns",
+        "startTime": 373.33
+      },
+      {
+        "numeral": "X",
+        "title": "Brucknerian Development Section - Modulating harmonies and thematic transformation",
+        "startTime": 426.67
+      },
+      {
+        "numeral": "XI",
+        "title": "Extended Brucknerian Development - More modulations",
+        "startTime": 480
+      },
+      {
+        "numeral": "XII",
+        "title": "Extended Development II - More quintuplets and septuplets",
+        "startTime": 586.67
+      },
+      {
+        "numeral": "XIII",
+        "title": "Extended Modulating Harmonies - More distant key areas",
+        "startTime": 693.33
+      },
+      {
+        "numeral": "XIV",
+        "title": "Extended Development III - More complex contrapuntal textures",
+        "startTime": 800
+      },
+      {
+        "numeral": "XV",
+        "title": "Extended Development IV - More complex septuplets",
+        "startTime": 906.67
+      },
+      {
+        "numeral": "XVI",
+        "title": "Dolphy - style Improvisational Section - Angular lines and asymmetrical rhythms",
+        "startTime": 960
+      },
+      {
+        "numeral": "XVII",
+        "title": "Extended Improvisational Section I - More angular lines",
+        "startTime": 1013.33
+      },
+      {
+        "numeral": "XVIII",
+        "title": "Extended Improvisational Section II - More extreme angular leaps",
+        "startTime": 1120
+      },
+      {
+        "numeral": "XIX",
+        "title": "Extended Improvisational Section III - More extreme rhythmic complexity",
+        "startTime": 1226.67
+      },
+      {
+        "numeral": "XX",
+        "title": "Extended Improvisational Section IV - More extreme quintuplets",
+        "startTime": 1333.33
+      },
+      {
+        "numeral": "XXI",
+        "title": "Extended Thematic Development - More extreme dynamics",
+        "startTime": 1440
+      },
+      {
+        "numeral": "XXII",
+        "title": "Recapitulation - Combining Bruckner and Dolphy influences",
+        "startTime": 1493.33
+      },
+      {
+        "numeral": "XXIII",
+        "title": "Extended Recapitulation I - More complex contrapuntal textures",
+        "startTime": 1546.67
+      },
+      {
+        "numeral": "XXIV",
+        "title": "Extended Recapitulation II - More extreme septuplets",
+        "startTime": 1653.33
+      },
+      {
+        "numeral": "XXV",
+        "title": "Extended Recapitulation III - More extreme triplets and quintuplets",
+        "startTime": 1760
+      },
+      {
+        "numeral": "XXVI",
+        "title": "Extended Recapitulation IV - More extreme dynamics",
+        "startTime": 1866.67
+      },
+      {
+        "numeral": "XXVII",
+        "title": "Extended Recapitulation V - More complex triplets",
+        "startTime": 1973.33
+      },
+      {
+        "numeral": "XXVIII",
+        "title": "Final Thematic Statement - Ultimate synthesis",
+        "startTime": 2080
+      },
+      {
+        "numeral": "XXIX",
+        "title": "MOVEMENT II - ADAGIO MYSTICUM",
+        "startTime": 2133.33
+      },
+      {
+        "numeral": "XXX",
+        "title": "Introduction - Brucknerian slow build with atmospheric harmonies",
+        "startTime": 2133.33
+      },
+      {
+        "numeral": "XXXI",
+        "title": "Extended Introduction - More complex harmonies",
+        "startTime": 2186.67
+      },
+      {
+        "numeral": "XXXII",
+        "title": "Bass Clarinet Soliloquy I - Dolphy-inspired melodic exploration",
+        "startTime": 2240
+      },
+      {
+        "numeral": "XXXIII",
+        "title": "Extended Bass Clarinet Soliloquy I - More extreme intervals",
+        "startTime": 2293.33
+      },
+      {
+        "numeral": "XXXIV",
+        "title": "Extended Bass Clarinet Soliloquy II - More extreme register jumps",
+        "startTime": 2400
+      },
+      {
+        "numeral": "XXXV",
+        "title": "Extended Bass Clarinet Soliloquy III - More extreme multiphonics",
+        "startTime": 2506.67
+      },
+      {
+        "numeral": "XXXVI",
+        "title": "Brucknerian Harmonic Progression - Slow, stately chord changes",
+        "startTime": 2560
+      },
+      {
+        "numeral": "XXXVII",
+        "title": "Extended Brucknerian Harmonies I - More distant modulations",
+        "startTime": 2613.33
+      },
+      {
+        "numeral": "XXXVIII",
+        "title": "Extended Brucknerian Harmonies II - More extreme dynamics",
+        "startTime": 2720
+      },
+      {
+        "numeral": "XXXIX",
+        "title": "Bass Clarinet Soliloquy II - More extreme intervallic exploration",
+        "startTime": 2773.33
+      },
+      {
+        "numeral": "XL",
+        "title": "Extended Bass Clarinet Soliloquy IV - More extreme multiphonics",
+        "startTime": 2826.67
+      },
+      {
+        "numeral": "XLI",
+        "title": "Extended Bass Clarinet Soliloquy V - More extreme register jumps",
+        "startTime": 2933.33
+      },
+      {
+        "numeral": "XLII",
+        "title": "Multiphonic Exploration - Extended techniques",
+        "startTime": 2986.67
+      },
+      {
+        "numeral": "XLIII",
+        "title": "Extended Multiphonic Exploration I - More extreme multiphonics",
+        "startTime": 3040
+      },
+      {
+        "numeral": "XLIV",
+        "title": "Extended Multiphonic Exploration II - More extreme flutter tonguing",
+        "startTime": 3146.67
+      },
+      {
+        "numeral": "XLV",
+        "title": "Harmonic Climax - Brucknerian brass chorale effect",
+        "startTime": 3200
+      },
+      {
+        "numeral": "XLVI",
+        "title": "Extended Harmonic Climax I - More extreme brass chorales",
+        "startTime": 3253.33
+      },
+      {
+        "numeral": "XLVII",
+        "title": "Extended Harmonic Climax II - More extreme brass chorales",
+        "startTime": 3360
+      },
+      {
+        "numeral": "XLVIII",
+        "title": "Bass Clarinet Soliloquy III - Climactic statement",
+        "startTime": 3413.33
+      },
+      {
+        "numeral": "XLIX",
+        "title": "Extended Bass Clarinet Soliloquy VI - More extreme register jumps",
+        "startTime": 3466.67
+      },
+      {
+        "numeral": "L",
+        "title": "Extended Bass Clarinet Soliloquy VII - More extreme dynamics",
+        "startTime": 3573.33
+      },
+      {
+        "numeral": "LI",
+        "title": "Ethereal Coda - Brucknerian resolution with Dolphy-esque final gesture",
+        "startTime": 3626.67
+      },
+      {
+        "numeral": "LII",
+        "title": "Extended Ethereal Coda I - More distant harmonies",
+        "startTime": 3680
+      },
+      {
+        "numeral": "LIII",
+        "title": "Extended Ethereal Coda II - More extreme register jumps",
+        "startTime": 3786.67
+      },
+      {
+        "numeral": "LIV",
+        "title": "Final Ethereal Gesture - Ultimate resolution",
+        "startTime": 3893.33
+      },
+      {
+        "numeral": "LV",
+        "title": "MOVEMENT III - SCHERZO PHANTASMAGORICUM",
+        "startTime": 3946.67
+      },
+      {
+        "numeral": "LVI",
+        "title": "Scherzo Theme A - Angular Dolphy-esque melody with Bruckner's rhythmic drive",
+        "startTime": 3946.67
+      },
+      {
+        "numeral": "LVII",
+        "title": "Extended Scherzo Theme A - More angular melodies",
+        "startTime": 4000
+      },
+      {
+        "numeral": "LVIII",
+        "title": "Extended Scherzo Theme A - More extreme dynamics",
+        "startTime": 4106.67
+      },
+      {
+        "numeral": "LIX",
+        "title": "Extended Scherzo Theme A - More extreme intervals",
+        "startTime": 4213.33
+      },
+      {
+        "numeral": "LX",
+        "title": "Extended Scherzo Theme A - More extreme harmonies",
+        "startTime": 4320
+      },
+      {
+        "numeral": "LXI",
+        "title": "Scherzo Theme B - Asymmetrical meters with timbral exploration",
+        "startTime": 4373.33
+      },
+      {
+        "numeral": "LXII",
+        "title": "Extended Scherzo Theme B - More extreme asymmetrical meters",
+        "startTime": 4426.67
+      },
+      {
+        "numeral": "LXIII",
+        "title": "Extended Scherzo Theme B - More extreme flutter tonguing",
+        "startTime": 4533.33
+      },
+      {
+        "numeral": "LXIV",
+        "title": "Extended Scherzo Theme B - More extreme metric modulations",
+        "startTime": 4640
+      },
+      {
+        "numeral": "LXV",
+        "title": "Extended Scherzo Theme B - More extreme timbral exploration",
+        "startTime": 4746.67
+      },
+      {
+        "numeral": "LXVI",
+        "title": "Trio Section - Brucknerian harmonic language with Dolphy's timbral effects",
+        "startTime": 4800
+      },
+      {
+        "numeral": "LXVII",
+        "title": "Extended Trio Section I - More complex harmonies",
+        "startTime": 4853.33
+      },
+      {
+        "numeral": "LXVIII",
+        "title": "Extended Trio Section II - More extreme dynamics",
+        "startTime": 4960
+      },
+      {
+        "numeral": "LXIX",
+        "title": "Extended Trio Section III - More extreme multiphonics",
+        "startTime": 5066.67
+      },
+      {
+        "numeral": "LXX",
+        "title": "Da Capo al Scherzo - Return to main theme with variations",
+        "startTime": 5226.67
+      },
+      {
+        "numeral": "LXXI",
+        "title": "Extended Da Capo - More extreme rhythmic variations",
+        "startTime": 5280
+      },
+      {
+        "numeral": "LXXII",
+        "title": "Extended Da Capo - More extreme dynamics",
+        "startTime": 5386.67
+      },
+      {
+        "numeral": "LXXIII",
+        "title": "Extended Da Capo - More extreme intervals",
+        "startTime": 5493.33
+      },
+      {
+        "numeral": "LXXIV",
+        "title": "Extended Da Capo - More extreme harmonies",
+        "startTime": 5600
+      },
+      {
+        "numeral": "LXXV",
+        "title": "Coda - Combining scherzo elements with extreme dynamic contrasts",
+        "startTime": 5653.33
+      },
+      {
+        "numeral": "LXXVI",
+        "title": "Extended Coda I - More extreme dynamic contrasts",
+        "startTime": 5706.67
+      },
+      {
+        "numeral": "LXXVII",
+        "title": "Extended Coda II - More extreme dynamic contrasts",
+        "startTime": 5813.33
+      },
+      {
+        "numeral": "LXXVIII",
+        "title": "Extended Coda III - More extreme septuplets",
+        "startTime": 5920
+      }
+    ]
+  },
+  {
+    "id": "viennese-glitch-waltz-1768854783329",
+    "title": "Viennese Glitch Waltz",
+    "composer": "Strauss_x_Oneohtrix Point Never",
+    "key": "Dmaj",
+    "meter": "3/4",
+    "tempo": "120",
+    "genre": "Strauss_x_Oneohtrix Point Never",
+    "classicalGenre": "Strauss",
+    "modernGenre": "Oneohtrix Point Never",
+    "style": "standard",
+    "instruments": "Percussion, Synth Bass 2, Pad 3 (polysynth), Lead 5 (charang), Viola, Cello, FX 6 (goblins)",
+    "analysis": "# Analysis of \"Viennese Glitch Waltz\": Strauss x Oneohtrix Point Never Fusion\n\n## 1. Overview of the hybrid genre approach\n\n\"Viennese Glitch Waltz\" represents a sophisticated fusion between Johann Strauss's elegant 19th-century waltz style and Daniel Lopatin's (Oneohtrix Point Never) experimental electronic aesthetics. This composition successfully merges the elegant, flowing melodic content of Strauss with the fragmented, processed, and glitchy textures characteristic of Oneohtrix Point Never. The piece maintains the formal structure and harmonic language of a traditional waltz while introducing digital manipulation, granular synthesis effects, and timbral explorations that transform the classical material into something thoroughly contemporary.\n\n## 2. Strauss elements present in the composition\n\nThe Strauss influence is prominently displayed throughout the composition:\n\n- **Meter and Form**: The strict adherence to 3/4 time signature maintains the waltz's characteristic lilt and dance-like quality.\n- **Melodic Structure**: The primary theme (A3-^G-A2 | F3-E-D2 | ^C3-D-E2 | F6) showcases the elegant, arching melodic lines typical of Strauss, with balanced 4-bar phrases.\n- **Harmonic Progressions**: Traditional functional harmony in D major with clear cadential points and a secondary dominant (A-E7-A) relationship.\n- **Orchestration Choices**: The use of violins for the primary melody with cellos and bass providing the characteristic \"oom-pah-pah\" accompaniment patterns.\n- **Formal Design**: The composition follows traditional waltz structure with introduction, main sections, trio (in F# major), and recapitulation.\n- **Dynamic Contrasts**: The gradual buildups and elegant contours of dynamics mirror Strauss's approach to orchestral color.\n\n## 3. Oneohtrix Point Never elements present in the composition\n\nThe Oneohtrix Point Never influence manifests in several innovative ways:\n\n- **Glitch Elements**: The \"Glitch FX\" voice introduces digital fragmentation through triplet figures, irregular rhythmic patterns, and timbral distortions.\n- **Digital Artifacts**: Rhythmically complex patterns like \"(3z/z/D/ (3z/z/F/ (3z/z/A/\" create the impression of digitally processed sounds and stuttering effects.\n- **Ambient Textures**: The \"Ambient Bridge\" section employs sustained, ethereal synth textures characteristic of Oneohtrix's ambient explorations.\n- **Granular Synthesis**: The \"Granular Expansion\" section deconstructs the waltz motifs into microsounds and stretched fragments, mimicking granular synthesis techniques.\n- **Timbral Manipulation**: Electronic processing techniques are suggested through the \"Harmonic Disintegration\" section where traditional sounds decompose into digital artifacts.\n- **Rhythmic Experimentation**: The polyrhythmic layering in the \"Polytemporal Development\" section creates the complex metric relationships found in Oneohtrix's work.\n\n## 4. Technical elements (instrumentation, structure)\n\nThe composition employs a hybrid instrumentation that bridges classical and electronic worlds:\n\n- **Traditional Orchestra**: Violins, cellos and bass provide the traditional waltz foundation.\n- **Electronic Elements**: Synth pad, synth lead, and glitch FX voices introduce electronic timbres and processing.\n- **Percussion**: The percussion section acts as a bridge between both worlds, sometimes reinforcing the waltz rhythm, other times emphasizing electronic glitch patterns.\n\nThe structure demonstrates sophisticated fusion techniques:\n- **Multi-sectional Development**: The piece progresses through numerous sections that gradually transform the material.\n- **Transformative Processes**: Traditional waltz material undergoes electronic processing techniques like:\n  - Fragmentation in the \"Glitch Section\"\n  - Granular expansion in the \"Granular Expansion\" section\n  - Spectral manipulation in the \"Spectral Reconstruction\" section\n- **Contrasting Textures**: The composition alternates between dense orchestral sections and sparse electronic textures.\n\n## 5. Artistic assessment of the fusion\n\nThis composition achieves a remarkable artistic synthesis between seemingly incompatible musical worlds:\n\n- The traditional waltz elements maintain their inherent elegance while being revitalized through electronic manipulation.\n- The electronic elements gain historical context and formal structure from the classical framework.\n- The piece creates effective tension between metric stability (waltz) and metric disruption (glitch elements).\n- The harmonic language bridges traditional tonality with moments of ambiguity and contemporary coloration.\n- The formal development balances predictable waltz structures with unexpected electronic interventions.\n\nThe composition succeeds by treating both traditions with respect while allowing them to transform each other. Rather than simply juxtaposing disparate elements, \"Viennese Glitch Waltz\" creates a genuine dialogue between Strauss and Oneohtrix Point Never, resulting in a cohesive new hybrid that honors its influences while creating something genuinely novel.\n\n## 6. Audio processing suggestions\n\nThe composition is well-designed from an audio perspective, with thoughtful balancing between electronic and acoustic elements. However, a few specific sections might benefit from careful audio processing consideration:\n\n- In the \"Glitch Section\" (measures 65-80), the rapid transitions between different textures and the extreme triplet figures in the Glitch FX voice could create abrupt volume jumps. Careful compression and automation might help maintain balanced levels.\n\n- The \"Polytemporal Development\" section (measures 225-256) contains dense layering of different rhythmic subdivisions across all voices. This complexity could potentially result in a muddy mix without careful attention to frequency separation and spatial positioning.\n\n- The \"Extended Coda\" features extreme dynamic markings (from ffff to f) that might create balance challenges. Gradual dynamic automation rather than sudden changes would help manage this transition naturally.\n\nOverall, the composition is structurally sound and doesn't present any significant audio concerns beyond what would be expected in a complex orchestral-electronic hybrid work.",
+    "timestamp": "2026-01-19T20:33:03.329Z",
+    "mediaSrc": "media/viennese-glitch-waltz-1768854783329.webm",
+    "pdfSrc": "media/viennese-glitch-waltz-1768854783329-score.pdf",
+    "abcFile": "Strauss_x_Oneohtrix Point Never-modified-final-1768854720907.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "Introduction - Gradual Build-up",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "A Section - Main Theme",
+        "startTime": 192
+      },
+      {
+        "numeral": "III",
+        "title": "B Section - Harmonic Modulation",
+        "startTime": 384
+      },
+      {
+        "numeral": "IV",
+        "title": "Glitch Section - Oneohtrix Style",
+        "startTime": 576
+      },
+      {
+        "numeral": "V",
+        "title": "Climactic Development - Increased Rhythmic Complexity",
+        "startTime": 768
+      },
+      {
+        "numeral": "VI",
+        "title": "Waltz Section - Strauss Homage with Electronic Manipulation",
+        "startTime": 960
+      },
+      {
+        "numeral": "VII",
+        "title": "Coda - Bringing Material Full Circle",
+        "startTime": 1152
+      },
+      {
+        "numeral": "VIII",
+        "title": "Extended Development Section - Timbral Transformation",
+        "startTime": 1344
+      },
+      {
+        "numeral": "IX",
+        "title": "Rhythmic Deconstruction - Glitch Elements Take Over",
+        "startTime": 1536
+      },
+      {
+        "numeral": "X",
+        "title": "Ambient Bridge - Electronic Textures Dominate - EXPANDED",
+        "startTime": 1728
+      },
+      {
+        "numeral": "XI",
+        "title": "Countermelody Section - Increased Contrapuntal Complexity",
+        "startTime": 2016
+      },
+      {
+        "numeral": "XII",
+        "title": "Harmonic Disintegration - Strauss Decomposes into Digital Artifacts",
+        "startTime": 2592
+      },
+      {
+        "numeral": "XIII",
+        "title": "Spectral Reconstruction - Melodic Fragments in New Timbral Contexts",
+        "startTime": 2784
+      },
+      {
+        "numeral": "XIV",
+        "title": "False Recapitulation - Teasing Main Theme with Subverted Expectations",
+        "startTime": 2976
+      },
+      {
+        "numeral": "XV",
+        "title": "False Recapitulation Continues",
+        "startTime": 3162
+      },
+      {
+        "numeral": "XVI",
+        "title": "Granular Expansion - Tiny Fragments Stretched and Processed",
+        "startTime": 3348
+      },
+      {
+        "numeral": "XVII",
+        "title": "Granular Expansion Continues",
+        "startTime": 3540
+      },
+      {
+        "numeral": "XVIII",
+        "title": "Polytemporal Development - 3/4 Waltz vs Glitchy Electronic Rhythms",
+        "startTime": 3732
+      },
+      {
+        "numeral": "XIX",
+        "title": "Polytemporal Development Continues",
+        "startTime": 3924
+      },
+      {
+        "numeral": "XX",
+        "title": "Extended Coda - Final Statement with Maximum Orchestration",
+        "startTime": 4116
+      }
+    ]
   }
 ]
