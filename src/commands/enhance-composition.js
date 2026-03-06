@@ -62,6 +62,7 @@ export async function enhanceComposition(options) {
       },
       maxIterations,
       gateController,
+      enhance: true,
     });
   } finally {
     if (gateController) gateController.close();

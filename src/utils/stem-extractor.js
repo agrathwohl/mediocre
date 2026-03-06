@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execa } from 'execa';
-import abcjs from 'abcjs';
+
 
 /**
  * Extracts individual voice stems from ABC notation and creates separate MIDI files
@@ -82,20 +82,11 @@ function getRestForTimeSignature(timeSignature, defaultLength = '1/8') {
 }
 
 /**
- * Parse ABC notation using abcjs to get accurate measure count
+ * Parse ABC notation to extract voices and measure count
  * @param {string} abcContent - Full ABC notation
  * @returns {{headers: string[], voices: Array<{id: string, name: string, content: string[], midiProgram: string}>, measureTimeline: {totalMeasures: number, defaultTimeSignature: string}}}
  */
 function parseAbcVoicesWithTimeline(abcContent) {
-  // Parse with abcjs
-  const cleanedForParsing = abcContent.split('\n').filter(l => !l.trim().startsWith('%%MIDI')).join('\n');
-  const parsed = abcjs.parseOnly(cleanedForParsing);
-  if (!parsed || parsed.length === 0) {
-    throw new Error('Failed to parse ABC notation');
-  }
-
-  const tune = parsed[0];
-
   // Extract headers manually
   const lines = abcContent.split('\n');
   const headers = [];
@@ -114,20 +105,6 @@ function parseAbcVoicesWithTimeline(abcContent) {
     }
     if (trimmed.startsWith('%%MIDI') && !trimmed.includes('V:')) {
       headers.push(trimmed);
-    }
-  }
-
-  // Count total measures by summing across ALL lines/sections
-  let totalMeasures = 0;
-  for (const line of tune.lines) {
-    if (line.staff && line.staff.length > 0) {
-      // Count measures in first staff (all staffs in a section have same measure count)
-      const staff = line.staff[0];
-      if (staff && staff.voices && staff.voices.length > 0) {
-        const voice = staff.voices[0];
-        const barCount = voice.filter(el => el.el_type === 'bar').length;
-        totalMeasures += barCount;
-      }
     }
   }
 
@@ -165,6 +142,13 @@ function parseAbcVoicesWithTimeline(abcContent) {
         currentVoice.midiProgram = trimmed;
       }
     }
+  }
+
+  // Count total measures from raw ABC text (max barlines across voices)
+  let totalMeasures = 0;
+  for (const [, vData] of voiceMap) {
+    const barCount = (vData.content.join('\n').match(/\|/g) || []).length;
+    if (barCount > totalMeasures) totalMeasures = barCount;
   }
 
   return {

@@ -9,10 +9,11 @@
  * - Determines when composition meets quality standards
  */
 
-import { streamText, Output } from 'ai';
+import { streamText, generateText, Output, stepCountIs } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { modifyMusicWithAgent } from '../composition/index.js';
+import { readAbcFileTool } from '../shared/tools.js';
 import { reviewCompositionWithAgent } from '../qa/index.js';
 import { addOrnamentation } from '../workers/ornamentation.js';
 import { addMidiExpression } from '../workers/midi-expression.js';
@@ -33,14 +34,14 @@ const orchestratorDecisionSchema = z.object({
 
   reasoning: z.string().describe('Why this decision was made, synthesizing QA feedback, musical context, and work history'),
 
-  agent: z.enum(['composition', 'ornamentation', 'midi-expression']).optional()
-    .describe('Which agent to invoke (required if action is "invoke")'),
+  agent: z.enum(['composition', 'ornamentation', 'midi-expression'])
+    .describe('Which agent to invoke next. Always provide even when action is "done".'),
 
-  directive: z.string().optional()
-    .describe('Specific instructions for the agent (required if action is "invoke")'),
+  directive: z.string()
+    .describe('Specific instructions for the agent. Always provide even when action is "done".'),
 
-  expectedImprovement: z.string().optional()
-    .describe('What improvement this should achieve (required if action is "invoke")'),
+  expectedImprovement: z.string()
+    .describe('What improvement this should achieve. Always provide even when action is "done".'),
 });
 
 /**
@@ -289,6 +290,185 @@ Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "imp
 }
 
 /**
+ * Orchestrator Agent for Enhance mode
+ * Uses generateText + read_abc_file tool so the orchestrator can read the
+ * existing composition from disk before deciding what to improve.
+ */
+export async function orchestratorAgentEnhance(options) {
+  const {
+    currentAbc,
+    originalAbc,
+    abcFilePath,
+    musicalContext,
+    genres,
+    workHistory = [],
+    qaFeedback = null,
+    iteration = 0,
+    maxIterations = 10,
+    selectedSoundfonts = null,
+    userComplaint = null,
+    priorSession = null,
+    abc2midiWarnings = [],
+    abc2midiErrors = [],
+  } = options;
+
+  if (iteration >= maxIterations) {
+    return {
+      action: 'done',
+      reasoning: `Reached maximum iterations (${maxIterations}). Accepting current state.`,
+      agent: 'composition',
+      directive: 'N/A',
+      expectedImprovement: 'N/A',
+    };
+  }
+
+  const anthropic = createAnthropic({});
+  const context = buildOrchestratorContext({ musicalContext, workHistory, qaFeedback, iteration });
+
+  const complaintBlock = userComplaint ? `
+## ⚠️ USER COMPLAINT — ABSOLUTE TOP PRIORITY
+The user has reviewed the prior session and has this complaint:
+
+"${userComplaint}"
+
+You MUST address this complaint above ALL other considerations.
+${priorSession ? `## PRIOR SESSION SUMMARY
+Genre: ${priorSession.genre?.hybrid}
+Total prior iterations: ${priorSession.totalIterations}
+Prior final verdict: ${priorSession.finalVerdict} | ${priorSession.finalSummary || ''}
+` : ''}` : '';
+
+  const filePath = iteration === 0
+    ? abcFilePath
+    : abcFilePath.replace(/\.abc$/i, `_iter${iteration}.abc`);
+
+  const prompt = `You are the orchestrator for a music composition post-processing pipeline.
+${complaintBlock}
+## YOUR ROLE
+You synthesize QA feedback, musical history context, and work history to decide what to do next.
+You can invoke:
+1. **composition** agent - to regenerate or modify musical content
+2. **ornamentation** agent - to add baroque/classical ornaments (trills, mordents, grace notes)
+3. **midi-expression** agent - to add velocity curves, crescendos, expression markers
+
+## MUSICAL CONTEXT
+${context.musicalContextSummary}
+
+## GENRE
+- Classical: ${genres.classical}
+- Modern: ${genres.modern}
+- Hybrid: ${genres.hybrid}
+
+## WORK HISTORY (${workHistory.length} iterations so far)
+${context.workHistorySummary}
+
+## ABC2MIDI VALIDATION (last iteration)
+${abc2midiErrors.length > 0
+  ? `🚨 HARD ERRORS: ${abc2midiErrors.length} abc2midi error(s) detected.
+Sample errors:
+${abc2midiErrors.slice(0, 15).join('\n')}`
+  : '✅ No abc2midi errors'}
+
+${abc2midiWarnings.length > 0
+  ? `⚠️ ${abc2midiWarnings.length} timing warning(s) detected.
+Sample warnings:
+${abc2midiWarnings.slice(0, 15).join('\n')}`
+  : '✅ No abc2midi warnings'}
+
+## LATEST QA FEEDBACK
+${context.qaFeedbackSummary}
+
+## LOADED SOUNDFONTS (${selectedSoundfonts ? selectedSoundfonts.length : 0} total)
+${selectedSoundfonts && selectedSoundfonts.length > 0
+  ? `Loaded in TiMidity:\n${selectedSoundfonts.map((sf, i) => `${i + 1}. ${sf}`).join('\n')}`
+  : 'No custom soundfonts selected.'}
+
+## CURRENT ITERATION: ${iteration + 1}/${maxIterations}
+
+## YOUR TASK
+A composition ALREADY EXISTS on disk. Use the read_abc_file tool with filePath "${filePath}" to read it BEFORE making any decision.
+
+Analyze the existing composition and decide:
+- If composition meets quality standards → action: "done"
+- If improvements needed → action: "invoke", specify which agent and exact directive
+Do NOT ask the composition agent to write from scratch. Direct it to MODIFY the existing piece.
+
+${iteration === 0 ? `
+## FIRST ITERATION GUIDANCE
+This is the first iteration. Read the composition with read_abc_file first, then decide what aspect most needs improvement.
+` : ''}
+
+Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "improve ornamentation").`;
+
+  try {
+    const result = await generateText({
+      model: anthropic('claude-sonnet-4-6'),
+      tools: { read_abc_file: readAbcFileTool },
+      output: Output.object({ schema: orchestratorDecisionSchema }),
+      stopWhen: stepCountIs(7),
+      messages: [{ role: 'user', content: prompt }],
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: 'ephemeral', ttl: '1h' },
+        },
+      },
+    });
+
+    process.stdout.write(`\n\u{1F3BC} Orchestrator Decision (Iteration ${iteration + 1}):\n`);
+    let decision;
+    try {
+      decision = result.output;
+    } catch (outputErr) {
+      // Log what the model actually returned for debugging
+      console.error(`   Failed to extract structured output. Raw text: ${(result.text || '(empty)').slice(0, 500)}`);
+      console.error(`   Steps: ${result.steps?.length || 0}`);
+      throw outputErr;
+    }
+    if (!decision || !decision.action) {
+      throw new Error(`Orchestrator returned empty decision. Raw text: ${(result.text || '').slice(0, 300)}`);
+    }
+    process.stdout.write(`   Action: ${decision.action}\n`);
+    if (decision.agent) process.stdout.write(`   Agent: ${decision.agent}\n`);
+    if (decision.reasoning) process.stdout.write(`   Reasoning: ${decision.reasoning}\n`);
+    if (decision.directive) process.stdout.write(`   Directive: ${decision.directive}\n`);
+    if (decision.expectedImprovement) process.stdout.write(`   Expected: ${decision.expectedImprovement}\n`);
+
+    if (decision.action === 'invoke' && (!decision.agent || !decision.directive)) {
+      throw new Error('Orchestrator returned "invoke" without agent or directive');
+    }
+
+    // Programmatic error gate
+    if (abc2midiErrors.length > 0 && decision.agent !== 'composition') {
+      console.log(`🚨 abc2midi error gate override: forcing composition agent (was: ${decision.agent || 'done'})`);
+      decision.action = 'invoke';
+      decision.agent = 'composition';
+      decision.directive = `Fix ${abc2midiErrors.length} abc2midi hard error(s). Errors: ${abc2midiErrors.slice(0, 10).join('; ')}`;
+      decision.expectedImprovement = 'Eliminate abc2midi errors so MIDI output is valid and complete';
+    }
+
+    // Duration gate
+    const highPriorityDurationIssues = (Array.isArray(qaFeedback) ? qaFeedback : []).filter(
+      r => r.priority === 'high' && r.category === 'duration'
+    );
+    if (highPriorityDurationIssues.length > 0 &&
+        decision.action === 'invoke' &&
+        decision.agent !== 'composition') {
+      const expansionDirective = highPriorityDurationIssues.map(r => r.action).join('. ');
+      console.log(`⚠️  Duration gate override: forcing composition agent (was: ${decision.agent})`);
+      decision.agent = 'composition';
+      decision.directive = expansionDirective;
+      decision.expectedImprovement = 'Expand composition to meet duration requirements before post-processing';
+    }
+
+    return decision;
+
+  } catch (error) {
+    console.error('Orchestrator agent error (enhance):', error.message);
+    throw error;
+  }
+}
+
+/**
  * Build context summary for orchestrator prompt
  */
 function buildOrchestratorContext(options) {
@@ -345,6 +525,7 @@ export async function orchestratePostProcessing(options) {
     priorSession = null,
     gateController = null,
     resumeState = null,
+    enhance = false,
   } = options;
 
   let maxIterations = configMaxIterations;
@@ -388,9 +569,11 @@ export async function orchestratePostProcessing(options) {
 
   while (!stopped) {
     while (iteration < maxIterations && !stopped) {
-      const decision = await orchestratorAgent({
+      const agentFn = enhance ? orchestratorAgentEnhance : orchestratorAgent;
+      const decision = await agentFn({
         currentAbc,
         originalAbc,
+        abcFilePath,
         musicalContext,
         genres,
         workHistory,
@@ -442,6 +625,10 @@ export async function orchestratePostProcessing(options) {
       // Invoke the agent orchestrator selected
       let newAbc;
 
+      if (!decision.agent) {
+        throw new Error(`Orchestrator decision has action 'invoke' but missing 'agent' field`);
+      }
+
       if (decision.agent === 'composition') {
         newAbc = await modifyMusicWithAgent({
           currentAbc,
@@ -462,6 +649,8 @@ export async function orchestratePostProcessing(options) {
           abc: currentAbc,
           directive: decision.directive,
         });
+      } else {
+        throw new Error(`Unknown agent type: ${decision.agent}. Valid agents: composition, ornamentation, midi-expression`);
       }
 
       // Write this iteration to disk immediately as an intermediate checkpoint
