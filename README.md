@@ -26,23 +26,23 @@ It's built as a training data generator for audio ML, but the output is genuinel
 
 ## Hear It
 
-**Stochastic Voltage** — Xenakis × Lightning Bolt
+**[Stochastic Voltage](https://agrathwohl.github.io/mediocre/media/stochastic-voltage-1767426307965.webm)** — Xenakis × Lightning Bolt
 
 <video src="https://agrathwohl.github.io/mediocre/media/stochastic-voltage-1767426307965.webm" controls></video>
 
-**Ionisation Infinitum: Noise Architecture for Orchestral Machines** — Varèse × Merzbow
+**[Ionisation Infinitum: Noise Architecture for Orchestral Machines](https://agrathwohl.github.io/mediocre/media/ionisation-infinitum-noise-architecture-for-orches-1771959392556.webm)** — Varèse × Merzbow
 
 <video src="https://agrathwohl.github.io/mediocre/media/ionisation-infinitum-noise-architecture-for-orches-1771959392556.webm" controls></video>
 
-**Viennese Glitch Waltz** — Strauss × Oneohtrix Point Never
+**[Viennese Glitch Waltz](https://agrathwohl.github.io/mediocre/media/viennese-glitch-waltz-1768854783329.webm)** — Strauss × Oneohtrix Point Never
 
 <video src="https://agrathwohl.github.io/mediocre/media/viennese-glitch-waltz-1768854783329.webm" controls></video>
 
-**Ride of the Hypercore Valkyries** — Wagner × Speedcore
+**[Ride of the Hypercore Valkyries](https://agrathwohl.github.io/mediocre/media/ride-of-the-hypercore-valkyries-1767583620798.webm)** — Wagner × Speedcore
 
 <video src="https://agrathwohl.github.io/mediocre/media/ride-of-the-hypercore-valkyries-1767583620798.webm" controls></video>
 
-**Partchcore Genesis** — Harry Partch × Happy Hardcore
+**[Partchcore Genesis](https://agrathwohl.github.io/mediocre/media/partchcore-genesis-1767859136656.webm)** — Harry Partch × Happy Hardcore
 
 <video src="https://agrathwohl.github.io/mediocre/media/partchcore-genesis-1767859136656.webm" controls></video>
 
