@@ -2,7 +2,7 @@
 
 # MEDIOCRE-MUSIC
 
-**An AI that composes music by fusing genres that should never be combined.**
+**An AI tool for generating unique, cutting-edge musical compositions via hybridization.**
 
 ![](./screenshot.png)
 
@@ -103,17 +103,17 @@ nix-shell -p abcmidi abcm2ps ghostscript timidity fluidsynth sox ffmpeg
 
 ## Key Flags
 
-| Flag | What it does |
-|------|-------------|
-| `-C` | Classical composers/genres to fuse from |
-| `-M` | Modern artists/genres to fuse from |
-| `-s` | Style description |
-| `--sequential` | Enable multi-agent orchestration loop |
-| `--max-iterations N` | How many refinement cycles (default: 5) |
-| `--interactive` | Pause at each iteration for human control |
-| `--stream-text` | Watch the composition being written in real time |
-| `-c N` | Generate N compositions |
-| `--model <id>` | Use a different model (works with `--proxy-url` + `--api-key` for any provider) |
+| Flag                 | What it does                                                                    |
+| -------------------- | ------------------------------------------------------------------------------- |
+| `-C`                 | Classical composers/genres to fuse from                                         |
+| `-M`                 | Modern artists/genres to fuse from                                              |
+| `-s`                 | Style description                                                               |
+| `--sequential`       | Enable multi-agent orchestration loop                                           |
+| `--max-iterations N` | How many refinement cycles (default: 5)                                         |
+| `--interactive`      | Pause at each iteration for human control                                       |
+| `--stream-text`      | Watch the composition being written in real time                                |
+| `-c N`               | Generate N compositions                                                         |
+| `--model <id>`       | Use a different model (works with `--proxy-url` + `--api-key` for any provider) |
 
 ---
 
