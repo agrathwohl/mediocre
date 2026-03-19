@@ -6272,5 +6272,166 @@
     "pdfSrc": "media/ionisation-infinitum-noise-architecture-for-orches-1771959392556-score.pdf",
     "abcFile": "Varese_x_Merzbow-score1-1771958691329.abc",
     "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)"
+  },
+  {
+    "id": "analog-quantum-flux-1773932798748",
+    "title": "Analog Quantum Flux",
+    "composer": "AI Composer",
+    "key": "Cmin",
+    "meter": "7/8",
+    "tempo": "140",
+    "genre": null,
+    "classicalGenre": null,
+    "modernGenre": null,
+    "style": null,
+    "instruments": null,
+    "analysis": null,
+    "timestamp": "2026-03-19T15:06:38.748Z",
+    "mediaSrc": "media/analog-quantum-flux-1773932798748.webm",
+    "pdfSrc": "media/analog-quantum-flux-1773932798748-score.pdf",
+    "abcFile": "Subotnick_x_Aphex Twin-modified-final-1768243373747.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)",
+    "sections": [
+      {
+        "numeral": "I",
+        "title": "New Section - Pre-Introduction Ambient Texture",
+        "startTime": 0
+      },
+      {
+        "numeral": "II",
+        "title": "New Section - Gradual Timbral Development",
+        "startTime": 36
+      },
+      {
+        "numeral": "III",
+        "title": "New Section - Expanding Sonic Palette",
+        "startTime": 72
+      },
+      {
+        "numeral": "IV",
+        "title": "New Section - Subotnick Microtonal Elements",
+        "startTime": 108
+      },
+      {
+        "numeral": "V",
+        "title": "Introduction - Ambient Texture",
+        "startTime": 144
+      },
+      {
+        "numeral": "VI",
+        "title": "Section A - Glitchy Melodic Theme",
+        "startTime": 180
+      },
+      {
+        "numeral": "VII",
+        "title": "Section B - Modular Texture with Rhythmic Complexity",
+        "startTime": 216
+      },
+      {
+        "numeral": "VIII",
+        "title": "Section C - Microtonal Exploration",
+        "startTime": 252
+      },
+      {
+        "numeral": "IX",
+        "title": "New Section - Complex Polyrhythmic Exploration",
+        "startTime": 288
+      },
+      {
+        "numeral": "X",
+        "title": "New Section - Complex Polyrhythmic Exploration (continued)",
+        "startTime": 324
+      },
+      {
+        "numeral": "XI",
+        "title": "Section D - Granular Transformation",
+        "startTime": 360
+      },
+      {
+        "numeral": "XII",
+        "title": "Section D - Granular Transformation (continued)",
+        "startTime": 396
+      },
+      {
+        "numeral": "XIII",
+        "title": "New Section - Aphex Twin Breakbeat Programming",
+        "startTime": 432
+      },
+      {
+        "numeral": "XIV",
+        "title": "New Section - Aphex Twin Breakbeat Programming (continued)",
+        "startTime": 468
+      },
+      {
+        "numeral": "XV",
+        "title": "New Section - Algorithmic Transformations",
+        "startTime": 504
+      },
+      {
+        "numeral": "XVI",
+        "title": "New Section - Algorithmic Transformations (continued)",
+        "startTime": 540
+      },
+      {
+        "numeral": "XVII",
+        "title": "Section E - Complex Polyrhythms and Glitch Elements",
+        "startTime": 576
+      },
+      {
+        "numeral": "XVIII",
+        "title": "Section E - Complex Polyrhythms and Glitch Elements (continued)",
+        "startTime": 612
+      },
+      {
+        "numeral": "XIX",
+        "title": "Section F - Timbral Modulation and Spectral Processing",
+        "startTime": 648
+      },
+      {
+        "numeral": "XX",
+        "title": "Section F - Timbral Modulation and Spectral Processing (continued)",
+        "startTime": 684
+      },
+      {
+        "numeral": "XXI",
+        "title": "Section G - Climax",
+        "startTime": 720
+      },
+      {
+        "numeral": "XXII",
+        "title": "Section G - Climax (continued)",
+        "startTime": 756
+      },
+      {
+        "numeral": "XXIII",
+        "title": "New Section - Extended Climax",
+        "startTime": 792
+      },
+      {
+        "numeral": "XXIV",
+        "title": "New Section - Extended Climax (continued)",
+        "startTime": 828
+      },
+      {
+        "numeral": "XXV",
+        "title": "Section H - Resolution",
+        "startTime": 864
+      },
+      {
+        "numeral": "XXVI",
+        "title": "Section H - Resolution (continued)",
+        "startTime": 900
+      },
+      {
+        "numeral": "XXVII",
+        "title": "New Section - Extended Resolution",
+        "startTime": 936
+      },
+      {
+        "numeral": "XXVIII",
+        "title": "New Section - Extended Resolution (continued)",
+        "startTime": 972
+      }
+    ]
   }
 ]
