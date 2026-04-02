@@ -14,7 +14,7 @@ import { convertToMidi } from './commands/convert-midi.js';
 import { convertToPdf } from './commands/convert-pdf.js';
 import { convertToWav } from './commands/convert-wav.js';
 import { processEffects } from './commands/process-effects.js';
-import { buildDataset } from './commands/build-dataset.js';
+import { buildDatasetML, validateDatasetCommand, datasetInfoCommand } from './commands/build-dataset.js';
 import { listCompositions, displayCompositionInfo, createMoreLikeThis } from './commands/manage-dataset.js';
 import { modifyComposition, runModifyValidationLoop } from './commands/modify-composition.js';
 import { modifyMxmlComposition } from './commands/modify-mxml-composition.js';
@@ -35,6 +35,11 @@ import { validateAbcCommand } from './commands/validate-abc.js';
 import { resumeSession } from './commands/resume-session.js';
 import { compareIterations } from './commands/compare-iterations.js';
 import { listCheckpointsForPath, CheckpointManager } from './control/checkpoint-manager.js';
+import { generateTemplate } from './commands/generate-template.js';
+import { compose } from './commands/compose.js';
+import { resolveMirrorFile } from './utils/abc-mirror.js';
+import { evolve } from './commands/evolve.js';
+import { setAnthropicConfig, setLlamaServer, setAbc2midiBinary, getAbc2midiBinary } from './utils/llm-client.js';
 
 // ES module path resolution
 const __filename = fileURLToPath(import.meta.url);
@@ -44,7 +49,31 @@ const __dirname = dirname(__filename);
 program
   .name('mediocre')
   .description('CLI tool for generating synthetic music compositions for AI training datasets')
-  .version('0.1.2');
+  .version('0.1.2')
+  .option('--model <id>', 'Custom model ID for all AI agents')
+  .option('--proxy-url <url>', 'Custom base URL for Anthropic API proxy')
+  .option('--api-key <key>', 'Custom API key for Anthropic')
+  .option('--llama-server <url>', 'Use a local llama-server (OpenAI-compatible API) instead of Anthropic (e.g. http://localhost:8001/v1)')
+  .option('--abc2midi <path>', 'Path to a custom abc2midi binary (e.g. for Pneuma fork)');
+
+program.hook('preAction', (thisCommand) => {
+  const { model, proxyUrl, apiKey, llamaServer, abc2midi } = thisCommand.opts();
+  if (abc2midi) {
+    setAbc2midiBinary(abc2midi);
+  }
+  if (llamaServer) {
+    setLlamaServer(llamaServer);
+    if (model) setAnthropicConfig({ model });
+    return;
+  }
+  if (Boolean(proxyUrl) !== Boolean(apiKey)) {
+    console.error('Error: --proxy-url and --api-key must be provided together.');
+    process.exit(1);
+  }
+  if (model || proxyUrl) {
+    setAnthropicConfig({ model, baseURL: proxyUrl, apiKey });
+  }
+});
 
 // Add commands
 program
@@ -90,6 +119,7 @@ program
   .option('--no-object', 'Use text output mode instead of structured object mode (default: object mode)')
   .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
   .option('--interactive', 'Enable human-in-the-loop interactive mode for sequential enhancement')
+  .option('--instructions <text>', 'Hard compositional requirements applied throughout the entire generation pipeline (e.g. "use only grand piano and drums")')
   .option('--midi', 'Run abc2midi on generated ABC files (enabled by default)', true)
   .option('--no-midi', 'Skip abc2midi conversion')
   .action(async (options) => {
@@ -197,6 +227,99 @@ program
       console.log(`\nGenerated ${allFiles.length} composition(s) total`);
     } catch (error) {
       console.error('Error generating compositions:', error);
+    }
+  });
+
+program
+  .command('template')
+  .description('Generate a structure file from a formal template for pipeline composition')
+  .requiredOption('--form <type>', 'Form type: ritual, stack-overflow, source-transfer, accumulative')
+  .option('--key <key>', 'Key signature (e.g. Dmin, Ddor, Am, K:none)', 'Ddor')
+  .option('--meter <meter>', 'Time signature (e.g. 7/8, 5/4, 11/8)', '7/8')
+  .option('--note-len <len>', 'Base note length (e.g. 1/8, 1/16)', '1/8')
+  .option('--tempo <bpm>', 'Tempo in BPM', '152')
+  .option('--bars <n>', 'Total bar count', '64')
+  .option('--voices <preset>', 'Voice preset: medieval, orchestral, electronic, chamber, industrial, baroque', 'orchestral')
+  .option('--drumarc <arc>', 'Drum timbral arc: exploration, sparse-to-dense, skin-metal-wood, decay', 'exploration')
+  .option('--exit-strategy <type>', 'Exit strategy for accumulative form: reverse, selective, collapse', 'reverse')
+  .option('--entry-interval <n>', 'Bars between voice entries (accumulative form)', '8')
+  .option('--source-a <desc>', 'Source A description (source-transfer form)')
+  .option('--source-b <desc>', 'Source B description (source-transfer form)')
+  .option('--push-bars <n>', 'Push phase bars (stack-overflow form)', '32')
+  .option('--pneuma <preset>', 'Pneuma temporal humanization: none, subtle, organic, drunk, ritual, mechanical', 'organic')
+  .option('--instruments <list>', 'Comma-separated list of instruments (e.g. "violin,cello,church organ,warm pad")')
+  .option('--enhanced', 'Enable abc2midi-llm fork directives (ENSEMBLE, SPATIAL, ARTICULATE, TRANSFORM). Requires --abc2midi pointed at the fork.')
+  .option('-o, --output <directory>', 'Output directory', config.get('outputDir'))
+  .option('--filename <name>', 'Output filename')
+  .action(async (options) => {
+    try {
+      await generateTemplate(options);
+    } catch (error) {
+      console.error('Error generating template:', error);
+    }
+  });
+
+program
+  .command('compose <template>')
+  .description('Fill a template structure file with LLM-generated content')
+  .option('--dry-run', 'Parse template and show slots without generating')
+  .option('--slot <n>', 'Fill only slot N (for testing)')
+  .option('--skip-validation', 'Skip abc2midi validation')
+  .option('-o, --output <file>', 'Output filename (default: <template>-composed.abc)')
+  .action(async (templatePath, options) => {
+    try {
+      await compose(templatePath, {
+        dryRun: options.dryRun,
+        slotNumber: options.slot ?? null,
+        output: options.output,
+        skipValidation: options.skipValidation,
+      });
+    } catch (error) {
+      console.error('Error composing:', error);
+    }
+  });
+
+program
+  .command('mirror <file>')
+  .description('Resolve %%MIRROR directives in an ABC file (splice material from other compositions)')
+  .option('-o, --output <file>', 'Output filename (default: overwrite in place)')
+  .action(async (filePath, options) => {
+    try {
+      const { operations, errors } = await resolveMirrorFile(filePath, options.output);
+      if (operations === 0) {
+        console.log('No %%MIRROR directives found.');
+      } else {
+        console.log(`✓ Resolved ${operations} MIRROR directive(s) → ${options.output || filePath}`);
+      }
+      if (errors.length > 0) {
+        errors.forEach(e => console.warn(`  ⚠️ ${e}`));
+      }
+    } catch (error) {
+      console.error('Error resolving mirrors:', error);
+    }
+  });
+
+program
+  .command('evolve <abc-file>')
+  .description('Evolutionary selection: render N variations with different seeds, score segments via QA, assemble the best. Requires abc2midi-llm fork with -seed support.')
+  .option('-n, --renders <n>', 'Number of seed variations to render', '20')
+  .option('--segment-bars <n>', 'Bars per evaluation segment', '8')
+  .option('--top <n>', 'Show top N results in output', '5')
+  .option('--keep-renders', 'Keep individual render MIDI and ABC files')
+  .option('--skip-qa', 'Skip LLM scoring — use content density as proxy (fast)')
+  .option('-o, --output <file>', 'Output filename for evolved ABC')
+  .action(async (abcFile, options) => {
+    try {
+      await evolve(abcFile, {
+        renders: parseInt(options.renders),
+        segmentBars: parseInt(options.segmentBars),
+        topN: parseInt(options.top),
+        keepRenders: options.keepRenders,
+        skipQa: options.skipQa,
+        output: options.output,
+      });
+    } catch (error) {
+      console.error('Error in evolution:', error);
     }
   });
 
@@ -356,17 +479,61 @@ program
     }
   });
 
-program
+const datasetCmd = program
   .command('dataset')
-  .description('Build dataset from generated files')
-  .option('-d, --directory <directory>', 'Input directory', config.get('outputDir'))
-  .option('-o, --output <directory>', 'Output directory', config.get('datasetDir'))
+  .description('ML dataset operations (build, validate, info)');
+
+datasetCmd
+  .command('build')
+  .description('Build ML-ready JSONL dataset from composition corpus')
+  .option('-i, --input <directory>', 'Input directory with compositions', config.get('outputDir'))
+  .option('-o, --output <directory>', 'Output directory for dataset', 'dataset')
+  .option('-q, --quality <score>', 'Minimum QA score threshold (0-10)', '0')
+  .option('--tier <tier>', 'Filter by quality tier: gold, silver, bronze')
+  .option('--tasks <types>', 'Task types (comma-separated): genre_generation,description_to_music,music_to_description,parameter_generation,continuation')
+  .option('--variants <n>', 'Instruction variants per task type', '1')
+  .option('--no-deduplicate', 'Skip deduplication')
+  .option('--train-ratio <ratio>', 'Train split ratio', '0.9')
+  .option('--val-ratio <ratio>', 'Validation split ratio', '0.05')
+  .option('--test-ratio <ratio>', 'Test split ratio', '0.05')
+  .option('--version <version>', 'Dataset version string', '1.0.0')
+  .option('--no-card', 'Skip dataset card generation')
+  .option('--dry-run', 'Preview without writing files')
+  .option('--max-samples <n>', 'Limit total compositions processed')
+  .option('--stage <stage>', 'Prefer stage: final, modified, combined, score1')
+  .option('--seed <n>', 'Random seed for splits', '42')
   .action(async (options) => {
     try {
-      const outputDir = await buildDataset(options);
-      console.log(`Dataset built successfully at ${outputDir}`);
+      await buildDatasetML(options);
     } catch (error) {
-      console.error('Error building dataset:', error);
+      console.error('Error building dataset:', error.message);
+      process.exit(1);
+    }
+  });
+
+datasetCmd
+  .command('validate')
+  .description('Validate existing JSONL dataset for schema compliance')
+  .argument('[path]', 'Dataset directory', 'dataset')
+  .action(async (datasetPath) => {
+    try {
+      await validateDatasetCommand({ path: datasetPath });
+    } catch (error) {
+      console.error('Error validating dataset:', error.message);
+      process.exit(1);
+    }
+  });
+
+datasetCmd
+  .command('info')
+  .description('Display dataset statistics')
+  .argument('[path]', 'Dataset directory', 'dataset')
+  .action(async (datasetPath) => {
+    try {
+      await datasetInfoCommand({ path: datasetPath });
+    } catch (error) {
+      console.error('Error reading dataset info:', error.message);
+      process.exit(1);
     }
   });
 
@@ -466,7 +633,7 @@ program
       if (options.midi && modifiedFile) {
         const midiFile = modifiedFile.replace(/\.abc$/, '.mid');
         try {
-          await execa('abc2midi', [modifiedFile, '-o', midiFile]);
+          await execa(getAbc2midiBinary(), [modifiedFile, '-o', midiFile]);
           console.log(`🎵 MIDI generated: ${midiFile}`);
           // Extract stems for the modified composition
           const stemResult = await extractMidiStems(modifiedFile);
@@ -631,7 +798,7 @@ program
         for (const abcFile of files) {
           try {
             const midiFile = abcFile.replace(/\.abc$/, '.mid');
-            await execa('abc2midi', [abcFile, '-o', midiFile]);
+            await execa(getAbc2midiBinary(), [abcFile, '-o', midiFile]);
             console.log(`  ✅ ${path.basename(abcFile)} → MIDI`);
             // Extract stems for each successfully created MIDI
             const stemResult = await extractMidiStems(abcFile);

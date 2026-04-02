@@ -165,6 +165,7 @@ export async function generateAbc(options) {
   const requestedInstruments = options.instruments || '';
   const sequentialMode = options.sequentialMode || false;
   const useCustomSoundfonts = options.soundfonts || false;
+  const userInstructions = options.instructions || '';
   
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
@@ -268,7 +269,8 @@ export async function generateAbc(options) {
           recordLabel: recordLabel,
           producer: producer,
           instruments: requestedInstruments,
-          useStreaming: options.useStreaming || false
+          useStreaming: options.useStreaming || false,
+          userInstructions,
         });
 
         abcNotation = generationResult.abcNotation;
@@ -302,6 +304,7 @@ export async function generateAbc(options) {
               producer,
               instruments: requestedInstruments,
               style,
+              userInstructions,
             }
           );
 
@@ -310,6 +313,7 @@ export async function generateAbc(options) {
             classicalGenre: genreComponents.classical,
             modernGenre: genreComponents.modern,
             genreResearch,
+            userInstructions,
           });
           const agentArgs = {
             genre: creativeGenreName || genre,
@@ -323,6 +327,7 @@ export async function generateAbc(options) {
             instruments: requestedInstruments,
             genreResearch,
             drumPrescription,
+            userInstructions,
           };
           // Retry once on SIGSEGV — a fresh generation often avoids whatever caused the crash
           try {
@@ -374,7 +379,8 @@ export async function generateAbc(options) {
             recordLabel: recordLabel,
             producer: producer,
             instruments: requestedInstruments,
-            useStreaming: options.useStreaming || false
+            useStreaming: options.useStreaming || false,
+            userInstructions,
           });
         }
       }
@@ -529,7 +535,10 @@ ${description.analysis}`;
               maxIterations: options.maxIterations || 10,
               selectedSoundfonts: selectedSoundfonts || null,
               drumPrescription,
+              customSystemPrompt,
               gateController,
+              objectMode: options.objectMode !== false,
+              userInstructions,
             });
 
             if (gateController) gateController.close();
@@ -566,6 +575,12 @@ ${description.analysis}`;
       console.log(`Generated ${abcFilePath}`);
     } catch (error) {
       console.error(`Error generating composition ${i+1}:`, error.message || error);
+      const rootError = error.lastError || error;
+      if (rootError.statusCode !== undefined) console.error('  HTTP status:', rootError.statusCode);
+      if (rootError.url) console.error('  URL:', rootError.url);
+      if (rootError.responseBody) console.error('  Response body:', rootError.responseBody);
+      if (rootError.cause) console.error('  Cause:', rootError.cause);
+      if (error.errors?.length > 1) console.error('  All attempt errors:', error.errors.map(e => e.message || e));
       if (saveProcessLog && processLog) {
         try {
           processLog.status = 'failed';

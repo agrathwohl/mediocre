@@ -5,25 +5,21 @@
  */
 
 import { ToolLoopAgent, Output, stepCountIs } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { searchSoundfontCatalogTool, extractInstrumentsTool } from '../shared/tools.js';
 import { createStepLogger } from '../shared/utils.js';
 import { BANNED_SOUNDFONTS } from '../../utils/soundfont-tools.js';
 import { saveCustomTimidityConfig } from '../../utils/claude.js';
+import { getAnthropic, getModel } from '../../utils/llm-client.js';
 
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-/**
- * TiMidity Config Agent
- * Uses Haiku with structured output — fast, cheap, targeted soundfont selection
- */
-export const timidityConfigAgent = new ToolLoopAgent({
-  model: anthropic('claude-haiku-4-5-20251001', {
-    cacheControl: { type: 'ephemeral', ttl: '1h' },
-  }),
+let _timidityConfigAgent = null;
+function getTimidityConfigAgent() {
+  if (!_timidityConfigAgent) {
+    const anthropic = getAnthropic();
+    _timidityConfigAgent = new ToolLoopAgent({
+      model: anthropic(getModel('claude-haiku-4-5-20251001'), {
+        cacheControl: { type: 'ephemeral', ttl: '1h' },
+      }),
 
   instructions: `You are a TiMidity soundfont arranger. Your job is to select and ORDER soundfonts for TiMidity playback.
 
@@ -69,7 +65,10 @@ ${BANNED_SOUNDFONTS.join(', ')}`,
 
   stopWhen: stepCountIs(12),
   toolChoice: 'auto',
-});
+    });
+  }
+  return _timidityConfigAgent;
+}
 
 /**
  * Select and arrange soundfonts for TiMidity, then generate the config file
@@ -110,7 +109,7 @@ Steps:
 4. Search for "${modernGenre}" style soundfonts
 5. Return your final ordered soundfont list`;
 
-  const { output } = await timidityConfigAgent.generate({
+  const { output } = await getTimidityConfigAgent().generate({
     prompt,
     onStepFinish: stepLogger,
   });

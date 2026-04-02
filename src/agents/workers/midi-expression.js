@@ -11,12 +11,8 @@
  */
 
 import { streamText } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
-
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { getAnthropic, getModel } from '../../utils/llm-client.js';
 
 /**
  * Add MIDI expression to ABC notation
@@ -26,7 +22,8 @@ const anthropic = createAnthropic({
  * @returns {Promise<string>} Enhanced ABC with MIDI expression
  */
 export async function addMidiExpression(options) {
-  const { abc, directive } = options;
+  const anthropic = getAnthropic();
+  const { abc, directive, customSystemPrompt = null } = options;
 
   console.log('\n🎹 MIDI Expression Worker executing...');
   console.log(`   Directive: ${directive}`);
@@ -34,11 +31,11 @@ export async function addMidiExpression(options) {
   const systemPrompt = `You are an expert in MIDI expression, dynamics, and electronic music production.
 You have access to the complete abc2midi %%MIDI extension set and should use it fully.
 
-${ABC2MIDI_REFERENCE}`;
+${ABC2MIDI_REFERENCE}${customSystemPrompt ? '\n\n## EXTENDED DIRECTIVE SET\n' + customSystemPrompt : ''}`;
 
   try {
     const result = streamText({
-      model: anthropic('claude-sonnet-4-6'),
+      model: anthropic(getModel('claude-sonnet-4-6')),
       system: systemPrompt,
       experimental_providerMetadata: {
         anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } },

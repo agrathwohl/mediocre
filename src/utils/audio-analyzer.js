@@ -77,9 +77,10 @@ export class AudioAnalyzer {
    * @private
    */
   async _getAudioDuration() {
+    const soxBin = process.env.SOX_BIN || 'sox';
     try {
       const { stdout } = await execAsync(
-        `sox "${this.audioFile}" -n stat 2>&1 | grep "Length" | awk '{print $3}'`
+        `${soxBin} "${this.audioFile}" -n stat 2>&1 | grep "Length" | awk '{print $3}'`
       );
       const duration = parseFloat(stdout.trim());
       return isNaN(duration) ? 30 : duration;
@@ -136,6 +137,7 @@ export class AudioAnalyzer {
    * @private
    */
   async _extractWithAudiowaveform() {
+    const audiowaveformBin = process.env.AUDIOWAVEFORM_BIN || 'audiowaveform';
     await fs.promises.mkdir(this.cacheDir, { recursive: true });
 
     const tempJsonPath = path.join(this.cacheDir || '/tmp', `waveform-${Date.now()}.json`);
@@ -144,7 +146,7 @@ export class AudioAnalyzer {
       // audiowaveform outputs JSON with peak data
       // --pixels-per-second controls resolution (samples per second)
       await execAsync(
-        `audiowaveform -i "${this.audioFile}" -o "${tempJsonPath}" --pixels-per-second ${this.sampleRate} --bits 8`
+        `${audiowaveformBin} -i "${this.audioFile}" -o "${tempJsonPath}" --pixels-per-second ${this.sampleRate} --bits 8`
       );
 
       const waveformData = JSON.parse(await fs.promises.readFile(tempJsonPath, 'utf8'));
@@ -178,10 +180,11 @@ export class AudioAnalyzer {
    * @private
    */
   async _extractWithFFmpeg() {
+    const ffmpegBin = process.env.FFMPEG_BIN || 'ffmpeg';
     // CRITICAL: FFmpeg outputs filter metadata to stderr, not stdout!
     // We must use 2>&1 to redirect stderr to stdout so we can capture it
     const { stdout } = await execAsync(
-      `ffmpeg -i "${this.audioFile}" -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.Peak_level:file=-" -f null - 2>&1 | grep "Peak_level" | cut -d'=' -f2`
+      `${ffmpegBin} -i "${this.audioFile}" -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.Peak_level:file=-" -f null - 2>&1 | grep "Peak_level" | cut -d'=' -f2`
     );
 
     return stdout.split('\n')
@@ -201,9 +204,10 @@ export class AudioAnalyzer {
    * @private
    */
   async _extractWithSox() {
+    const soxBin = process.env.SOX_BIN || 'sox';
     // Get audio duration first
     const { stdout: durationOutput } = await execAsync(
-      `sox "${this.audioFile}" -n stat 2>&1 | grep "Length" | awk '{print $3}'`
+      `${soxBin} "${this.audioFile}" -n stat 2>&1 | grep "Length" | awk '{print $3}'`
     );
     const duration = parseFloat(durationOutput.trim()) || 30;
 
@@ -224,7 +228,7 @@ export class AudioAnalyzer {
       for (let i = startIdx; i < endIdx; i++) {
         const startTime = i * sampleInterval;
         const endTime = startTime + sampleInterval;
-        soxCommand += `sox "${this.audioFile}" -n trim ${startTime} =${endTime} stat 2>&1 | grep "Maximum amplitude" | awk '{print $3}' && `;
+        soxCommand += `${soxBin} "${this.audioFile}" -n trim ${startTime} =${endTime} stat 2>&1 | grep "Maximum amplitude" | awk '{print $3}' && `;
       }
       soxCommand = soxCommand.slice(0, -4); // Remove last " && "
 

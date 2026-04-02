@@ -8,11 +8,11 @@ export * from './shared/tools.js';
 export * from './shared/utils.js';
 
 // Individual agents will be exported as they're implemented
-export { titleAgent, ensureUniqueTitleWithAgent } from './title/index.js';
+export { ensureUniqueTitleWithAgent } from './title/index.js';
 export { compositionAgent, generateMusicWithAgent } from './composition/index.js';
-export { qaAgent, reviewCompositionWithAgent, generateWithQA } from './qa/index.js';
-export { soundfontAgent, selectSoundfontsWithAgent } from './soundfont/index.js';
-export { timidityConfigAgent, arrangeSoundfontsAndGenerateConfig } from './timidity-config/index.js';
+export { reviewCompositionWithAgent, generateWithQA } from './qa/index.js';
+export { selectSoundfontsWithAgent } from './soundfont/index.js';
+export { arrangeSoundfontsAndGenerateConfig } from './timidity-config/index.js';
 
 /**
  * Agent availability flags

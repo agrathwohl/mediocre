@@ -38,8 +38,11 @@ export class PreviewPlayer {
     try {
       await writeFile(tmpAbc, abcContent, 'utf-8');
 
+      const abc2midiBin = process.env.ABC2MIDI_BIN || 'abc2midi';
+      const timidityBin = process.env.TIMIDITY_BIN || 'timidity';
+
       console.error(chalk.dim('  Converting ABC to MIDI...'));
-      const abc2midiResult = await execa('abc2midi', [tmpAbc, '-o', tmpMidi], {
+      const abc2midiResult = await execa(abc2midiBin, [tmpAbc, '-o', tmpMidi], {
         reject: false,
       });
 
@@ -70,7 +73,7 @@ export class PreviewPlayer {
       console.error(chalk.dim('  Launching TiMidity++ (space=pause  ←→=seek  +/-=vol  q=quit)'));
 
       try {
-        await execa('timidity', args, {
+        await execa(timidityBin, args, {
           stdio: 'inherit',
           reject: false,
         });
@@ -83,7 +86,7 @@ export class PreviewPlayer {
 
       const errObj = /** @type {Error & {code?: string}} */ (err);
       if (errObj.code === 'ENOENT') {
-        const missing = errObj.message.includes('abc2midi') ? 'abc2midi' : 'timidity';
+        const missing = errObj.message.includes(abc2midiBin) ? abc2midiBin : timidityBin;
         console.error(chalk.red(`  ${missing} not found. Install it to use preview.`));
       } else {
         console.error(chalk.red(`  Preview failed: ${errObj.message}`));

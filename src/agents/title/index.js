@@ -5,24 +5,19 @@
  */
 
 import { ToolLoopAgent, tool, stepCountIs } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { checkTitleExistsTool } from '../shared/tools.js';
 import { extractDoneResult, createStepLogger } from '../shared/utils.js';
+import { getAnthropic, getModel } from '../../utils/llm-client.js';
 
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-/**
- * Title Generation Agent
- * Uses Claude Haiku (fast, cheap) for this simple task
- * Features: Prompt caching, fast speed mode
- */
-export const titleAgent = new ToolLoopAgent({
-  model: anthropic('claude-haiku-4-5-20251001', {
-    cacheControl: { type: 'ephemeral', ttl: '1h' }, // Cache system prompt (1h)
-  }),
+let _titleAgent = null;
+function getTitleAgent() {
+  if (!_titleAgent) {
+    const anthropic = getAnthropic();
+    _titleAgent = new ToolLoopAgent({
+      model: anthropic(getModel('claude-haiku-4-5-20251001'), {
+        cacheControl: { type: 'ephemeral', ttl: '1h' },
+      }),
 
   instructions: `You are a creative title generator for music compositions.
 
@@ -64,7 +59,10 @@ Workflow:
   ],
 
   toolChoice: 'required', // Force tool use at every step
-});
+    });
+  }
+  return _titleAgent;
+}
 
 /**
  * Generate a unique title using the title agent
@@ -78,7 +76,7 @@ export async function ensureUniqueTitleWithAgent(genre, initialTitle = null) {
     : `Generate a unique, creative title for a ${genre} composition.`;
 
   try {
-    const result = await titleAgent.generate({
+    const result = await getTitleAgent().generate({
       prompt,
       onStepFinish: createStepLogger('TitleAgent'),
     });

@@ -5,17 +5,13 @@
  */
 
 import { ToolLoopAgent, Output, stepCountIs, streamText } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { validateAbcTool } from '../shared/tools.js';
 import { createStepLogger } from '../shared/utils.js';
 import { validateAbcNotation, cleanAbcNotation } from '../../utils/claude.js';
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
 import { formatDrumKitForPrompt } from '../drum-arranger/gm-percussion-reference.js';
-
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { getAnthropic, getModel, supportsContextManagement } from '../../utils/llm-client.js';
 
 /**
  * Assemble structured ABC notation into proper format
@@ -272,6 +268,7 @@ function enforcePercVoiceNotes(abcText) {
  * @returns {ToolLoopAgent}
  */
 function createCompositionAgent(options = {}) {
+  const anthropic = getAnthropic();
   const { drumMapTable = null } = options;
 
   // Dynamic drum instructions based on drum arranger's selection
@@ -302,7 +299,7 @@ ONLY use these GM numbers in drum-related midiExtensions: ${drumMapTable.map(m =
     : 'GM drum number 35-81 to map to';
 
   return new ToolLoopAgent({
-    model: anthropic('claude-sonnet-4-6', {
+    model: anthropic(getModel('claude-sonnet-4-6'), {
       cacheControl: { type: 'ephemeral', ttl: '1h' },
     }),
 
@@ -542,6 +539,7 @@ ${percSection}
  * @returns {Promise<string>} Generated ABC notation
  */
 export async function generateMusicWithAgent(options) {
+  const anthropic = getAnthropic();
   const {
     genre,
     classicalGenre,
@@ -554,6 +552,7 @@ export async function generateMusicWithAgent(options) {
     instruments = '',
     genreResearch = null,
     drumPrescription = null,
+    userInstructions = '',
   } = options;
 
   // Build drum constraints from drum arranger's selection
@@ -570,9 +569,13 @@ export async function generateMusicWithAgent(options) {
     ? `\n## DRUM NOTATION ASSIGNMENTS (use these %%MIDI drummap directives in your drum voice)\n${drumMapTable.map(m => `  %%MIDI drummap ${m.abcNote} ${m.gm}   → ${m.abcNote} = ${m.name} [${m.role}]`).join('\n')}\nWrite MUSICAL drum patterns using these mapped notes — different rhythms per section, fills at transitions!\n`
     : '';
 
+  const instructionsBlock = userInstructions
+    ? `\n## ⚠️ HARD REQUIREMENTS — NON-NEGOTIABLE\nThe following requirements OVERRIDE all other considerations. You MUST comply fully:\n${userInstructions}\nDo NOT deviate from these requirements for any reason.\n`
+    : '';
+
   // Build comprehensive user prompt with all requirements
   const userPrompt = `Generate a ${genre} composition that fuses ${classicalGenre} and ${modernGenre}.
-${genreResearch ? `## GENRE RESEARCH (read this first — it determines what you MUST include)
+${instructionsBlock}${genreResearch ? `## GENRE RESEARCH (read this first — it determines what you MUST include)
 ${genreResearch}
 ` : ''}${drumKitSection}${drumMapSection}Style: ${style}
 Guidelines:
@@ -624,22 +627,24 @@ Remember: NO BLANK LINES between voice sections or elements!`;
       console.log(`✅ Composition generated [object]: ${output.title} (${output.voices.length} voice(s))`);
     } else {
       const result = streamText({
-        model: anthropic('claude-sonnet-4-6', { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
+        model: anthropic(getModel('claude-sonnet-4-6'), { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
         system: buildTextModeSystemPrompt(drumMapTable),
         prompt: userPrompt,
         providerOptions: {
           anthropic: {
             thinking: { type: 'disabled' },
-            contextManagement: {
-              edits: [
-                {
-                  type: 'clear_tool_uses_20250919',
-                  trigger: { type: 'input_tokens', value: 20000 },
-                  keep: { type: 'tool_uses', value: 2 },
-                  clearToolInputs: true,
-                },
-              ],
-            },
+            ...(supportsContextManagement() && {
+              contextManagement: {
+                edits: [
+                  {
+                    type: 'clear_tool_uses_20250919',
+                    trigger: { type: 'input_tokens', value: 20000 },
+                    keep: { type: 'tool_uses', value: 2 },
+                    clearToolInputs: true,
+                  },
+                ],
+              },
+            }),
           },
         },
       });
@@ -753,6 +758,7 @@ Remember: NO BLANK LINES between voice sections or elements!`;
  * @returns {Promise<string>} Modified ABC notation
  */
 export async function modifyMusicWithAgent(options) {
+  const anthropic = getAnthropic();
   const {
     currentAbc,
     modificationDirective,
@@ -763,6 +769,8 @@ export async function modifyMusicWithAgent(options) {
     objectMode = false,
     _isCorrection = false,
     drumPrescription = null,
+    userInstructions = '',
+    customSystemPrompt = null,
   } = options;
 
   // Build drum constraints from drum arranger's selection
@@ -781,9 +789,13 @@ ${qaFeedback.recommendations?.filter(r => r.priority === 'high').map(r => `- [${
 Medium priority issues:
 ${qaFeedback.recommendations?.filter(r => r.priority === 'medium').map(r => `- [${r.category}] ${r.action}`).join('\n') || 'None'}` : '';
 
+  const modifyInstructionsBlock = userInstructions
+    ? `\n## ⚠️ HARD REQUIREMENTS — NON-NEGOTIABLE\nThese requirements MUST be maintained throughout all modifications:\n${userInstructions}\n`
+    : '';
+
   const userPrompt = objectMode
     ? `You are modifying an existing ${genre} composition (${classicalGenre} x ${modernGenre}).
-
+${modifyInstructionsBlock}
 ## MODIFICATION DIRECTIVE
 ${modificationDirective}
 ${qaSection}
@@ -802,7 +814,7 @@ Return the COMPLETE modified composition as structured output.
 
 Remember: NO BLANK LINES between voice sections or elements!`
     : `You are modifying an existing ${genre} composition (${classicalGenre} x ${modernGenre}).
-
+${modifyInstructionsBlock}
 ## MODIFICATION DIRECTIVE
 ${modificationDirective}
 ${qaSection}
@@ -836,22 +848,24 @@ Output ONLY the COMPLETE modified ABC notation — no markdown fences, no explan
       console.log(`✅ Composition modified [object]: ${output.title}`);
     } else {
       const modResult = streamText({
-        model: anthropic('claude-sonnet-4-6', { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
-        system: buildTextModeSystemPrompt(drumMapTable),
+        model: anthropic(getModel('claude-sonnet-4-6'), { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
+        system: buildTextModeSystemPrompt(drumMapTable) + (customSystemPrompt ? '\n\n## EXTENDED DIRECTIVE SET\n' + customSystemPrompt : ''),
         prompt: userPrompt,
         providerOptions: {
           anthropic: {
             thinking: { type: 'disabled' },
-            contextManagement: {
-              edits: [
-                {
-                  type: 'clear_tool_uses_20250919',
-                  trigger: { type: 'input_tokens', value: 20000 },
-                  keep: { type: 'tool_uses', value: 2 },
-                  clearToolInputs: true,
-                },
-              ],
-            },
+            ...(supportsContextManagement() && {
+              contextManagement: {
+                edits: [
+                  {
+                    type: 'clear_tool_uses_20250919',
+                    trigger: { type: 'input_tokens', value: 20000 },
+                    keep: { type: 'tool_uses', value: 2 },
+                    clearToolInputs: true,
+                  },
+                ],
+              },
+            }),
           },
         },
       });

@@ -5,24 +5,19 @@
  */
 
 import { ToolLoopAgent, Output, stepCountIs } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { validateAbcTool, readAbcFileTool } from '../shared/tools.js';
 import { createStepLogger } from '../shared/utils.js';
+import { getAnthropic, getModel, supportsContextManagement } from '../../utils/llm-client.js';
 
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-/**
- * QA Agent
- * Uses Claude Sonnet with structured output for targeted insights
- * Features: Multi-aspect validation, detailed issue tracking, specific recommendations
- */
-export const qaAgent = new ToolLoopAgent({
-  model: anthropic('claude-sonnet-4-6', {
-    cacheControl: { type: 'ephemeral', ttl: '1h' },
-  }),
+let _qaAgent = null;
+function getQaAgent() {
+  if (!_qaAgent) {
+    const anthropic = getAnthropic();
+    _qaAgent = new ToolLoopAgent({
+      model: anthropic(getModel('claude-sonnet-4-6'), {
+        cacheControl: { type: 'ephemeral', ttl: '1h' },
+      }),
 
   instructions: `You are a music composition quality assurance expert.
 Your task is to review ABC notation compositions for quality, completeness, and authenticity.
@@ -135,7 +130,10 @@ Provide detailed, actionable assessment with specific issues and recommendations
 
   stopWhen: stepCountIs(5),
   toolChoice: 'auto',
-});
+    });
+  }
+  return _qaAgent;
+}
 
 /**
  * Review a composition with the QA agent
@@ -154,6 +152,8 @@ export async function reviewCompositionWithAgent(options) {
     classicalGenre,
     modernGenre,
     drumPrescription = null,
+    userInstructions = '',
+    customSystemPrompt = null,
   } = options;
 
   if (!abcFilePath && !abcNotation) {
@@ -182,22 +182,32 @@ Call validate_abc with the abcNotation above to check for technical errors first
       + 'Any %%MIDI drum directive using GM numbers NOT in this list is a CRITICAL technical issue.';
   }
 
+  if (userInstructions) {
+    prompt += `\n\n## ⚠️ HARD REQUIREMENTS (check compliance)\nThe following user requirements MUST be fully satisfied. Flag any violation as a high-priority issue:\n${userInstructions}`;
+  }
+
+  if (customSystemPrompt) {
+    prompt += `\n\n## ADDITIONAL DIRECTIVE CONTEXT\nThe composition was generated with the following extended directive set. Evaluate whether these directives are present and well-configured:\n${customSystemPrompt}`;
+  }
+
   try {
-    const { output: assessment } = await qaAgent.generate({
+    const { output: assessment } = await getQaAgent().generate({
       prompt,
       onStepFinish: createStepLogger('QA-Agent'),
       providerOptions: {
         anthropic: {
-          contextManagement: {
-            edits: [
-              {
-                type: 'clear_tool_uses_20250919',
-                trigger: { type: 'input_tokens', value: 15000 },
-                keep: { type: 'tool_uses', value: 2 },
-                clearToolInputs: true,
-              },
-            ],
-          },
+          ...(supportsContextManagement() && {
+            contextManagement: {
+              edits: [
+                {
+                  type: 'clear_tool_uses_20250919',
+                  trigger: { type: 'input_tokens', value: 15000 },
+                  keep: { type: 'tool_uses', value: 2 },
+                  clearToolInputs: true,
+                },
+              ],
+            },
+          }),
         },
       },
     });

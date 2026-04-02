@@ -1,11 +1,7 @@
 import { generateText, Output } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { getPercussionReference, GM_PERCUSSION } from './gm-percussion-reference.js';
-
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { getAnthropic, getModel } from '../../utils/llm-client.js';
 
 const drumKitSchema = z.object({
   noDrums: z.boolean().describe('Set to true ONLY when BOTH genres are inherently non-percussive (e.g. ambient, drone, sacred minimalism, meditation music, certain chamber music). When true, drumKit must be an empty array.'),
@@ -30,14 +26,15 @@ const drumKitSchema = z.object({
  * @param {string} [options.genreResearch] - Genre research text from the research agent
  * @returns {Promise<{drumKit: Array<{gm: number, name: string, role: string}>, patternGuidance: string, reasoning: string}>}
  */
-export async function selectDrumKit({ classicalGenre, modernGenre, genreResearch = null }) {
+export async function selectDrumKit({ classicalGenre, modernGenre, genreResearch = null, userInstructions = '' }) {
+  const anthropic = getAnthropic();
   const percussionRef = getPercussionReference();
 
   const prompt = `You are a percussion specialist selecting drum sounds for a ${classicalGenre} \u00d7 ${modernGenre} genre fusion composition.
 
 ${genreResearch ? `## GENRE RESEARCH (context about what this fusion requires)
 ${genreResearch}
-` : ''}## CRITICAL: DRUMLESS GENRES
+` : ''}${userInstructions ? `## ⚠️ HARD USER REQUIREMENTS\nThe following user requirements MUST be respected. If they prohibit drums or percussion entirely (e.g. "piano only", "no drums", "strings only"), set noDrums to true and return an empty drumKit:\n${userInstructions}\n\n` : ''}## CRITICAL: DRUMLESS GENRES
 Some genre fusions are inherently non-percussive. If BOTH the classical and modern genre are predominantly drumless or ambient in nature, set noDrums to true and return an empty drumKit.
 
 Examples of drumless fusions:
@@ -47,7 +44,7 @@ Examples of drumless fusions:
 - Micropolyphony × drone (e.g. Ligeti × Éliane Radigue)
 - Furniture music × ambient piano (e.g. Satie × Harold Budd)
 
-If ONE genre clearly uses drums (e.g. trap, drill, techno, rock) — select drums. Only go drumless when BOTH genres are non-percussive.
+If ONE genre clearly uses drums (e.g. trap, drill, techno, rock) — select drums. Only go drumless when BOTH genres are non-percussive. However, HARD USER REQUIREMENTS (above) always take precedence over genre defaults.
 
 ## YOUR TASK
 Study the complete GM percussion map below. Select the sounds that are APPROPRIATE for this specific genre fusion — OR decide this fusion should be drumless.
@@ -63,7 +60,7 @@ ${percussionRef}`;
 
   try {
     const { output: result } = await generateText({
-      model: anthropic('claude-haiku-4-5-20251001', {
+      model: anthropic(getModel('claude-haiku-4-5-20251001'), {
         cacheControl: { type: 'ephemeral', ttl: '1h' },
       }),
       output: Output.object({ schema: drumKitSchema }),

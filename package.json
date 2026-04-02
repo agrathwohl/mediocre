@@ -39,7 +39,10 @@
   "license": "MIT",
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.44",
+    "@ai-sdk/openai": "^3.0.49",
+    "abc-parser": "^0.0.1",
     "abcjs": "^6.6.1",
+    "abcls": "^0.1.0",
     "ai": "^6.0.86",
     "chalk": "^5.3.0",
     "commander": "^11.1.0",

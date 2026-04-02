@@ -3,14 +3,11 @@
  * Common tools used across multiple agents
  */
 
+import { readFile } from 'fs/promises';
 import { tool } from 'ai';
 import { z } from 'zod';
 import { validateAbcNotation } from '../../utils/claude.js';
-import fs from 'fs/promises';
-
-// Cache the soundfont index
-let soundfontIndex = null;
-const SOUNDFONT_INDEX_PATH = '/home/gwohl/code/mediocre/soundfonts/soundfont_index.json';
+import { loadSoundFontIndex } from '../../utils/soundfont-tools.js';
 
 /**
  * Instrument synonym map for fuzzy matching.
@@ -128,17 +125,6 @@ const GM_PROGRAM_NAMES = {
 };
 
 /**
- * Load soundfont index (cached)
- */
-async function loadSoundfontIndex() {
-  if (!soundfontIndex) {
-    const data = await fs.readFile(SOUNDFONT_INDEX_PATH, 'utf-8');
-    soundfontIndex = JSON.parse(data);
-  }
-  return soundfontIndex;
-}
-
-/**
  * Validate ABC notation syntax and structure
  * Used by: Composition Agent, QA Agent, Ornamentation Agent, MIDI Extensions Agent
  */
@@ -151,7 +137,7 @@ export const validateAbcTool = tool({
   execute: async ({ abcNotation, filePath }) => {
     let notation = abcNotation;
     if (filePath && !notation) {
-      notation = await fs.readFile(filePath, 'utf-8');
+      notation = await readFile(filePath, 'utf-8');
     }
     if (!notation) {
       return { isValid: false, issues: ['No notation provided — pass abcNotation or filePath'], issueCount: 1, warnings: [], warningCount: 0, recommendations: 'Provide abcNotation or filePath' };
@@ -186,7 +172,7 @@ export const readAbcFileTool = tool({
     filePath: z.string().describe('Path to the .abc file to read'),
   }),
   execute: async ({ filePath }) => {
-    const content = await fs.readFile(filePath, 'utf-8');
+    const content = await readFile(filePath, 'utf-8');
     return { content, byteLength: Buffer.byteLength(content, 'utf-8') };
   },
 });
@@ -276,7 +262,7 @@ export const searchSoundfontCatalogTool = tool({
     presetsPerResult: z.number().optional().describe('Maximum matching presets to show per soundfont (default 5)'),
   }),
   execute: async ({ keywords, limit = 20, presetsPerResult = 5 }) => {
-    const index = await loadSoundfontIndex();
+    const index = await loadSoundFontIndex();
     const { directTerms, synonymTerms } = expandWithSynonyms(keywords);
 
     const results = index.soundfonts
@@ -387,7 +373,7 @@ export const getSoundfontDetailsTool = tool({
     bankFilter: z.number().optional().describe('Only return presets in this bank number. 0 = melodic instruments, 128 = percussion/drums.'),
   }),
   execute: async ({ filename, programFilter, bankFilter }) => {
-    const index = await loadSoundfontIndex();
+    const index = await loadSoundFontIndex();
     const sf = index.soundfonts.find(s =>
       s.filename === filename || s.filename.toLowerCase() === filename.toLowerCase()
     );
@@ -468,7 +454,7 @@ export const checkProgramCoverageTool = tool({
     maxPerProgram: z.number().optional().describe('Maximum soundfonts to return per program (default 5)'),
   }),
   execute: async ({ programs, soundfonts: sfFilter, maxPerProgram = 5 }) => {
-    const index = await loadSoundfontIndex();
+    const index = await loadSoundFontIndex();
 
     let candidates = index.soundfonts;
     if (sfFilter && sfFilter.length > 0) {

@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import { execa } from 'execa';
+import { discoverCompositionFiles } from '../dataset/discovery.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,7 +58,6 @@ export async function sortByLength(directory = config.get('outputDir'), extensio
           '-of', 'default=noprint_wrappers=1:nokey=1', filePath
         ]);
         const duration = parseFloat(stdout.trim());
-        console.log('DURATION!', duration)
         const stats = getFileStats(filePath);
         return { ...stats, duration };
       } catch (error) {
@@ -132,69 +132,54 @@ export function filterByComposition(compositionName, directory = config.get('out
 
 /**
  * Gets all related files for a music piece (ABC, MIDI, WAV, description)
+ * Uses robust glob-based discovery instead of fragile string manipulation
+ * 
  * @param {string} baseFilename - Base filename without extension
  * @param {string} directory - Directory to search (defaults to output dir)
  * @returns {Object} Object containing all related files and metadata
  */
 export function getMusicPieceInfo(baseFilename, directory = config.get('outputDir')) {
   // Extract base name without ANY extension if a full filename is provided
-  // Strip off the extension completely and any trailing digits from the Unix timestamp
   if (baseFilename.includes('.')) {
     baseFilename = baseFilename.substring(0, baseFilename.indexOf('.'));
   }
 
-  // CRITICALLY IMPORTANT: remove the last digit from the timestamp
-  // Example: convert chorale_x_experimental-score1-17446030330691 to chorale_x_experimental-score1-1744603033069
-  if (baseFilename.match(/-score\d+-\d+\d$/)) {
-    baseFilename = baseFilename.slice(0, -1);
-  }
+  // Use robust glob-based discovery instead of fragile string manipulation
+  // This handles all naming variations in the corpus:
+  // - ABC: {base}.abc or {base}.fixed.abc
+  // - MIDI: {base}.mid or {base}1.mid or {base}.abc.mid
+  // - WAV: {base}.mid.wav or {base}1.mid.wav
+  const discovered = discoverCompositionFiles(baseFilename, directory);
 
   const files = {};
 
-  // Find ABC notation file
-  const abcPath = path.join(directory, `${baseFilename}.abc`);
-  if (fs.existsSync(abcPath)) {
-    files.abc = {
-      path: abcPath,
-      content: fs.readFileSync(abcPath, 'utf8')
-    };
+  // Use discovered files
+  if (discovered.abc) {
+    files.abc = discovered.abc;
   }
 
-  // Find MIDI file - should be ${basename}1.mid
-  const midiPath = path.join(directory, `${baseFilename}1.mid`);
-  if (fs.existsSync(midiPath)) {
-    files.midi = [{
-      path: midiPath,
-      stats: getFileStats(midiPath)
-    }];
+  if (discovered.fixedAbc) {
+    files.fixedAbc = discovered.fixedAbc;
   }
 
-  // Find WAV file - should be ${basename}1.mid.wav
-  const wavPath = path.join(directory, `${baseFilename}1.mid.wav`);
-  if (fs.existsSync(wavPath)) {
-    files.wav = [{
-      path: wavPath,
-      stats: getFileStats(wavPath)
-    }];
+  // Use discovered MIDI files (may be multiple)
+  if (discovered.midi.length > 0) {
+    files.midi = discovered.midi;
   }
 
-  // Find description file (JSON) - should match exactly basename_description.json
-  // Example: xenakis_x_experimental-score1-1744603280663_description.json
-  const descPath = path.join(directory, `${baseFilename}_description.json`);
-  if (fs.existsSync(descPath)) {
-    files.description = {
-      path: descPath,
-      content: JSON.parse(fs.readFileSync(descPath, 'utf8'))
-    };
+  // Use discovered WAV files (may be multiple)
+  if (discovered.wav.length > 0) {
+    files.wav = discovered.wav;
   }
 
-  // Find markdown file - should be ${basename}.md
-  const mdPath = path.join(directory, `${baseFilename}.md`);
-  if (fs.existsSync(mdPath)) {
-    files.markdown = {
-      path: mdPath,
-      content: fs.readFileSync(mdPath, 'utf8')
-    };
+  // Use discovered description
+  if (discovered.description) {
+    files.description = discovered.description;
+  }
+
+  // Use discovered markdown
+  if (discovered.markdown) {
+    files.markdown = discovered.markdown;
   }
 
   // Extract genre information

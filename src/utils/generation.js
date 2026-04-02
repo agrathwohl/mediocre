@@ -1,5 +1,5 @@
 import { generateText, streamText } from "ai";
-import { getAnthropic, stripMarkdownCodeFences } from "./llm-client.js";
+import { getAnthropic, getModel, stripMarkdownCodeFences } from "./llm-client.js";
 import { cleanAbcNotation } from "./validation.js";
 import { ensureUniqueTitle } from "./title-utils.js";
 import { selectSoundfontsWithClaude, SOUNDFONT_PALETTE_INFO } from "./soundfonts.js";
@@ -19,7 +19,7 @@ export async function generateMusicWithClaude(options) {
   const producer = options.producer || "";
   const requestedInstruments = options.instruments || "";
 
-  const model = myAnthropic("claude-sonnet-4-6");
+  const model = myAnthropic(getModel("claude-sonnet-4-6"));
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt =
@@ -146,10 +146,16 @@ ${SOUNDFONT_PALETTE_INFO}
 
 The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. We do not need a bunch of music that sounds like stuff already out there. We want to see what YOU, the artificial intelligence, think is most interesting about these gerne hybrids.`;
 
+  const userInstructions = options.userInstructions || '';
+
   // Use custom user prompt if provided, otherwise use the default
-  const userPrompt =
+  const baseUserPrompt =
     options.customUserPrompt ||
     `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? " Include a dedicated solo section for the lead instrument." : ""}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? ` Your composition MUST include at minimum these instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors.`;
+
+  const userPrompt = userInstructions
+    ? `${baseUserPrompt}\n\n## ⚠️ HARD REQUIREMENTS — NON-NEGOTIABLE\nThe following requirements OVERRIDE all other considerations. You MUST comply fully:\n${userInstructions}\nDo NOT deviate from these requirements for any reason.`
+    : baseUserPrompt;
 
   // Generate the ABC notation
   const messages = [
@@ -276,7 +282,7 @@ Use ONLY the supported and well-tested ABC notation with limited abc2midi extens
 
 export async function modifyCompositionWithClaude(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-sonnet-4-6");
+  const model = myAnthropic(getModel("claude-sonnet-4-6"));
 
   const abcNotation = options.abcNotation;
   const instructions = options.instructions;
@@ -460,8 +466,7 @@ Your modifications should respect both the user's instructions and the musical i
 
 export async function generateDescription(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-sonnet-4-6");
-  // const model = myAnthropic("claude-sonnet-4-6");
+  const model = myAnthropic(getModel("claude-sonnet-4-6"));
   const abcNotation = options.abcNotation;
   const genre = options.genre || "Classical_x_Contemporary";
   const classicalGenre = options.classicalGenre || "Classical";
@@ -525,7 +530,7 @@ Organize your analysis into these sections:
 
 export async function evaluateCompositionCompleteness(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-sonnet-4-6");
+  const model = myAnthropic(getModel("claude-sonnet-4-6"));
 
   const abcNotation = options.abcNotation;
   const genre = options.genre || "Classical_x_Contemporary";
@@ -622,7 +627,7 @@ Respond with JSON only. Be DEMANDING.`;
 
 export async function addLyricsWithClaude(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-sonnet-4-6");
+  const model = myAnthropic(getModel("claude-sonnet-4-6"));
 
   const abcNotation = options.abcNotation;
   const lyricsPrompt = options.lyricsPrompt;
@@ -712,7 +717,7 @@ export async function generateMusicXmlWithClaude(options) {
   const requestedInstruments = options.instruments || "";
 
   // ALWAYS use Claude Sonnet 4.5 for MusicXML generation
-  const model = myAnthropic("claude-sonnet-4-6");
+  const model = myAnthropic(getModel("claude-sonnet-4-6"));
 
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt =
@@ -834,7 +839,7 @@ export async function generateMusicXmlDescription(options) {
   const style = options.style || "standard";
 
   // ALWAYS use Claude Sonnet 4.5 for MusicXML description
-  const model = myAnthropic("claude-sonnet-4-6");
+  const model = myAnthropic(getModel("claude-sonnet-4-6"));
 
   const systemPrompt = `You are a music critic and analyst specializing in hybrid genre compositions.
 Analyze the provided MusicXML notation and create a detailed description of the composition.
@@ -896,7 +901,7 @@ Provide your analysis in the specified JSON format.`;
 
 export async function modifyMusicXmlComposition(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-sonnet-4-6");
+  const model = myAnthropic(getModel("claude-sonnet-4-6"));
 
   const musicXml = options.musicXml;
   const instructions = options.instructions;
@@ -1022,7 +1027,7 @@ Your modifications should respect both the user's instructions and the musical i
 
 export async function evaluateMusicXmlCompleteness(options) {
   const myAnthropic = getAnthropic();
-  const model = myAnthropic("claude-sonnet-4-6");
+  const model = myAnthropic(getModel("claude-sonnet-4-6"));
 
   const musicXml = options.musicXml;
   const genre = options.genre || "Classical_x_Contemporary";

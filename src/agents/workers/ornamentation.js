@@ -11,13 +11,9 @@
  */
 
 import { streamText } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { validateAbcNotation } from '../../utils/claude.js';
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
-
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { getAnthropic, getModel } from '../../utils/llm-client.js';
 
 /**
  * Add ornamentation to ABC notation
@@ -27,7 +23,8 @@ const anthropic = createAnthropic({
  * @returns {Promise<string>} Enhanced ABC with ornaments
  */
 export async function addOrnamentation(options) {
-  const { abc, directive } = options;
+  const anthropic = getAnthropic();
+  const { abc, directive, customSystemPrompt = null } = options;
 
   console.log('\n🎵 Ornamentation Worker executing...');
   console.log(`   Directive: ${directive}`);
@@ -51,11 +48,11 @@ export async function addOrnamentation(options) {
 7. Focus on melodic lines (treble voices), not bass or accompaniment
 8. You may also use %%MIDI gracedivider and %%MIDI trim/expand for articulation shaping
 
-${ABC2MIDI_REFERENCE}`;
+${ABC2MIDI_REFERENCE}${customSystemPrompt ? '\n\n## EXTENDED DIRECTIVE SET\n' + customSystemPrompt : ''}`;
 
   try {
     const result = streamText({
-      model: anthropic('claude-sonnet-4-6'),
+      model: anthropic(getModel('claude-sonnet-4-6')),
       system: systemPrompt,
       experimental_providerMetadata: {
         anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } },

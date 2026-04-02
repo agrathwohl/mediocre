@@ -10,7 +10,6 @@
  */
 
 import { streamText, generateText, Output, stepCountIs } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { modifyMusicWithAgent } from '../composition/index.js';
 import { readAbcFileTool } from '../shared/tools.js';
@@ -21,10 +20,7 @@ import { validateAbcNotation } from '../../utils/claude.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { buildSessionData } from '../../control/session-persistence.js';
-
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { getAnthropic, getModel, supportsContextManagement } from '../../utils/llm-client.js';
 
 /**
  * Orchestrator decision schema
@@ -49,6 +45,7 @@ const orchestratorDecisionSchema = z.object({
  * Makes strategic decisions about post-processing based on full context
  */
 export async function orchestratorAgent(options) {
+  const anthropic = getAnthropic();
   const {
     currentAbc,
     originalAbc,
@@ -63,6 +60,7 @@ export async function orchestratorAgent(options) {
     priorSession = null,
     abc2midiWarnings = [],  // Timing warnings from last iteration's validation
     abc2midiErrors = [],    // Hard errors from last iteration's validation
+    userInstructions = '',
   } = options;
 
   // Check if we've hit max iterations
@@ -101,8 +99,12 @@ ${priorSession.iterations.map(iter =>
 ).join('\n')}
 ` : ''}` : '';
 
+  const instructionsBlock = userInstructions
+    ? `\n## ⚠️ HARD REQUIREMENTS — ABSOLUTE NON-NEGOTIABLE\nThese user requirements MUST be preserved in every iteration. Any directive you issue MUST explicitly remind the composition agent to maintain these requirements:\n${userInstructions}\nBefore declaring "done", verify the composition fully complies with every requirement above.\n`
+    : '';
+
   const prompt = `You are the orchestrator for a music composition post-processing pipeline.
-${complaintBlock}
+${complaintBlock}${instructionsBlock}
 ## YOUR ROLE
 You synthesize QA feedback, musical history context, and work history to decide what to do next.
 You can invoke:
@@ -165,7 +167,7 @@ Analyze the current state and decide:
 
 ${iteration === 0 ? `
 ## FIRST ITERATION GUIDANCE
-This is the first iteration. Use your knowledge of the genres to decide what this piece most needs.
+The foundation composition already exists and has been saved to disk — it is described in MUSICAL CONTEXT above. Do NOT instruct the composition agent to create or compose a new piece from scratch. Your job is to ENHANCE the existing composition. Unless there are unresolved abc2midi errors, start with ornamentation or MIDI expression improvements appropriate to the genre.
 ` : ''}
 
 Consider:
@@ -182,7 +184,7 @@ Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "imp
 
   try {
     const stream = streamText({
-      model: anthropic('claude-sonnet-4-6'),
+      model: anthropic(getModel('claude-sonnet-4-6')),
       output: Output.object({ schema: orchestratorDecisionSchema }),
       messages: [
         {
@@ -193,21 +195,23 @@ Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "imp
       providerOptions: {
         anthropic: {
           cacheControl: { type: 'ephemeral', ttl: '1h' },
-          contextManagement: {
-            edits: [
-              {
-                type: 'compact_20260112',
-                trigger: { type: 'input_tokens', value: 50000 },
-                instructions: 'Summarize iteration history preserving: agent decisions, QA scores, directive outcomes, error patterns, abc2midi validation results',
-              },
-              {
-                type: 'clear_tool_uses_20250919',
-                trigger: { type: 'input_tokens', value: 30000 },
-                keep: { type: 'tool_uses', value: 3 },
-                clearAtLeast: { type: 'input_tokens', value: 5000 },
-              },
-            ],
-          },
+          ...(supportsContextManagement() && {
+            contextManagement: {
+              edits: [
+                {
+                  type: 'compact_20260112',
+                  trigger: { type: 'input_tokens', value: 50000 },
+                  instructions: 'Summarize iteration history preserving: agent decisions, QA scores, directive outcomes, error patterns, abc2midi validation results',
+                },
+                {
+                  type: 'clear_tool_uses_20250919',
+                  trigger: { type: 'input_tokens', value: 30000 },
+                  keep: { type: 'tool_uses', value: 3 },
+                  clearAtLeast: { type: 'input_tokens', value: 5000 },
+                },
+              ],
+            },
+          }),
         },
       },
     });
@@ -310,6 +314,7 @@ export async function orchestratorAgentEnhance(options) {
     priorSession = null,
     abc2midiWarnings = [],
     abc2midiErrors = [],
+    userInstructions = '',
   } = options;
 
   if (iteration >= maxIterations) {
@@ -322,7 +327,7 @@ export async function orchestratorAgentEnhance(options) {
     };
   }
 
-  const anthropic = createAnthropic({});
+  const anthropic = getAnthropic();
   const context = buildOrchestratorContext({ musicalContext, workHistory, qaFeedback, iteration });
 
   const complaintBlock = userComplaint ? `
@@ -338,12 +343,16 @@ Total prior iterations: ${priorSession.totalIterations}
 Prior final verdict: ${priorSession.finalVerdict} | ${priorSession.finalSummary || ''}
 ` : ''}` : '';
 
+  const enhanceInstructionsBlock = userInstructions
+    ? `\n## ⚠️ HARD REQUIREMENTS — ABSOLUTE NON-NEGOTIABLE\nThese user requirements MUST be preserved in every iteration. Any directive you issue MUST explicitly remind the composition agent to maintain these requirements:\n${userInstructions}\nBefore declaring "done", verify the composition fully complies with every requirement above.\n`
+    : '';
+
   const filePath = iteration === 0
     ? abcFilePath
     : abcFilePath.replace(/\.abc$/i, `_iter${iteration}.abc`);
 
   const prompt = `You are the orchestrator for a music composition post-processing pipeline.
-${complaintBlock}
+${complaintBlock}${enhanceInstructionsBlock}
 ## YOUR ROLE
 You synthesize QA feedback, musical history context, and work history to decide what to do next.
 You can invoke:
@@ -402,7 +411,7 @@ Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "imp
 
   try {
     const result = await generateText({
-      model: anthropic('claude-sonnet-4-6'),
+      model: anthropic(getModel('claude-sonnet-4-6')),
       tools: { read_abc_file: readAbcFileTool },
       output: Output.object({ schema: orchestratorDecisionSchema }),
       stopWhen: stepCountIs(7),
@@ -521,11 +530,14 @@ export async function orchestratePostProcessing(options) {
     maxIterations: configMaxIterations = 10,
     selectedSoundfonts = null,
     drumPrescription = null,
+    customSystemPrompt = null,
     userComplaint: initialUserComplaint = null,
     priorSession = null,
     gateController = null,
     resumeState = null,
     enhance = false,
+    objectMode = true,
+    userInstructions = '',
   } = options;
 
   let maxIterations = configMaxIterations;
@@ -585,6 +597,7 @@ export async function orchestratePostProcessing(options) {
         priorSession,
         abc2midiWarnings: lastAbc2midiWarnings,
         abc2midiErrors: lastAbc2midiErrors,
+        userInstructions,
       });
 
       // Clear userComplaint after it's been consumed by the orchestrator
@@ -638,16 +651,21 @@ export async function orchestratePostProcessing(options) {
           classicalGenre: genres.classical,
           modernGenre: genres.modern,
           drumPrescription,
+          objectMode,
+          userInstructions,
+          customSystemPrompt,
         });
       } else if (decision.agent === 'ornamentation') {
         newAbc = await addOrnamentation({
           abc: currentAbc,
           directive: decision.directive,
+          customSystemPrompt,
         });
       } else if (decision.agent === 'midi-expression') {
         newAbc = await addMidiExpression({
           abc: currentAbc,
           directive: decision.directive,
+          customSystemPrompt,
         });
       } else {
         throw new Error(`Unknown agent type: ${decision.agent}. Valid agents: composition, ornamentation, midi-expression`);
@@ -679,6 +697,8 @@ export async function orchestratePostProcessing(options) {
         classicalGenre: genres.classical,
         modernGenre: genres.modern,
         drumPrescription,
+        userInstructions,
+        customSystemPrompt,
       });
 
       // Calculate average score

@@ -5,24 +5,20 @@
  */
 
 import { ToolLoopAgent, Output, stepCountIs } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { exploreSoundFontsForComposition } from '../../utils/soundfont-tools.js';
 import { searchSoundfontCatalogTool, getSoundfontDetailsTool, checkProgramCoverageTool } from '../shared/tools.js';
 import { createStepLogger } from '../shared/utils.js';
+import { getAnthropic, getModel } from '../../utils/llm-client.js';
 
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-/**
- * Soundfont Selection Agent
- * Uses Haiku with structured output for fast, reliable soundfont selection
- */
-export const soundfontAgent = new ToolLoopAgent({
-  model: anthropic('claude-haiku-4-5-20251001', {
-    cacheControl: { type: 'ephemeral', ttl: '1h' },
-  }),
+let _soundfontAgent = null;
+function getSoundfontAgent() {
+  if (!_soundfontAgent) {
+    const anthropic = getAnthropic();
+    _soundfontAgent = new ToolLoopAgent({
+      model: anthropic(getModel('claude-haiku-4-5-20251001'), {
+        cacheControl: { type: 'ephemeral', ttl: '1h' },
+      }),
 
   instructions: `You are a music producer selecting soundfonts for compositions.
 
@@ -87,7 +83,10 @@ Categorize selections by purpose for clarity.`,
 
   stopWhen: stepCountIs(10),
   toolChoice: 'auto',
-});
+    });
+  }
+  return _soundfontAgent;
+}
 
 /**
  * Select soundfonts using the agent
@@ -148,7 +147,7 @@ Select 15-30 soundfonts with:
 4. Categorized by purpose for clarity`;
 
   try {
-    const { output: selection } = await soundfontAgent.generate({
+    const { output: selection } = await getSoundfontAgent().generate({
       prompt,
       onStepFinish: createStepLogger('SoundfontAgent'),
     });

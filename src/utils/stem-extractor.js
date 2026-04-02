@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execa } from 'execa';
+import { getAbc2midiBinary } from './llm-client.js';
 
 
 /**
@@ -41,7 +42,7 @@ export async function extractMidiStems(abcFilePath, outputDir = null) {
       await fs.promises.writeFile(voiceAbcPath, voiceAbc);
 
       try {
-        const result = await execa('abc2midi', [voiceAbcPath, '-o', voiceMidiPath], {
+        const result = await execa(getAbc2midiBinary(), [voiceAbcPath, '-o', voiceMidiPath], {
           timeout: 30000,
           reject: false,
         });

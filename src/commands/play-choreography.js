@@ -72,8 +72,9 @@ async function loadChoreography(choreographyPath) {
  * @returns {boolean} True if audiowaveform is available
  */
 async function hasAudiowaveform() {
+  const bin = process.env.AUDIOWAVEFORM_BIN || 'audiowaveform';
   try {
-    await execa('which', ['audiowaveform']);
+    await execa('which', [bin]);
     return true;
   } catch {
     return false;
@@ -88,13 +89,14 @@ async function hasAudiowaveform() {
  */
 async function analyzeAudio(audioPath, sampleRate = 30) {
   if (!(await hasAudiowaveform())) {
-    throw new Error('audiowaveform not found. Install with: nix-shell -p audiowaveform');
+    throw new Error('audiowaveform not found. Set AUDIOWAVEFORM_BIN or install audiowaveform.');
   }
+  const audiowaveformBin = process.env.AUDIOWAVEFORM_BIN || 'audiowaveform';
   return new Promise((resolve, reject) => {
     // Use audiowaveform to get amplitude data
     const pixels = Math.ceil(44100 * 60 / sampleRate); // Estimate for 60s max, will adjust
-    
-    const proc = spawn('audiowaveform', [
+
+    const proc = spawn(audiowaveformBin, [
       '-i', audioPath,
       '--pixels-per-second', sampleRate.toString(),
       '--output-format', 'json',
@@ -263,13 +265,14 @@ async function startScreenRecording(audioFile, outputDir = './recordings') {
     '-o', recordingOutputFile  // Output file
   ];
 
-  const recorderProcess = spawn('gpu-screen-recorder', recorderArgs);
+  const gpuRecorderBin = process.env.GPU_SCREEN_RECORDER_BIN || 'gpu-screen-recorder';
+  const recorderProcess = spawn(gpuRecorderBin, recorderArgs);
   const logStream = fs.createWriteStream(logFile, { flags: 'a' });
 
-  logStream.write(`=== gpu-screen-recorder started at ${new Date().toISOString()} ===\n`);
+  logStream.write(`=== ${gpuRecorderBin} started at ${new Date().toISOString()} ===\n`);
   logStream.write(`Window: portal (user will select window)\n`);
   logStream.write(`Audio device: ${audioDevice}\n`);
-  logStream.write(`Command: gpu-screen-recorder ${recorderArgs.join(' ')}\n\n`);
+  logStream.write(`Command: ${gpuRecorderBin} ${recorderArgs.join(' ')}\n\n`);
 
   console.log(chalk.gray(`   🪟 Desktop portal - select the terminal window`));
   console.log(chalk.gray(`   🔊 Audio: ${audioDevice}`));
@@ -478,7 +481,7 @@ export async function playChoreography(options) {
   }
 
   // Start audio playback with mpv
-  const mpv = spawn('mpv', [
+  const mpv = spawn(process.env.MPV_BIN || 'mpv', [
     audio,
     '--no-video',
     '--really-quiet',

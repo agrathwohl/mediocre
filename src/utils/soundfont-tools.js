@@ -16,7 +16,9 @@ const SOUNDFONT_DIR = '/home/gwohl/code/mediocre/soundfonts/500-soundfonts-full-
  * DO NOT USE THESE UNDER ANY CIRCUMSTANCES
  */
 export const BANNED_SOUNDFONTS = [
-  'ColomboGMGS2.sf2',  // CRASHES TIMIDITY - vlist[32] overflow
+  'ColomboGMGS2.sf2',                        // CRASHES TIMIDITY - vlist[32] overflow
+  'DSoundFont Gaming Edition (3.51).sf2',    // 1.4 GB - causes OOM segfault
+  'The Fairy Tale Bank 2.sf2',               // 1.1 GB - causes OOM segfault
 ];
 
 /**
@@ -129,7 +131,12 @@ export async function loadSoundFontIndex() {
 
   try {
     const indexContent = await fs.readFile(SOUNDFONT_INDEX_PATH, 'utf8');
-    cachedIndex = JSON.parse(indexContent);
+    const raw = JSON.parse(indexContent);
+    // Strip soundfonts > 200 MB — TiMidity OOM-segfaults when total loaded
+    // data is too high; individual files over this threshold are primary culprits.
+    const MAX_SIZE = 200 * 1024 * 1024;
+    raw.soundfonts = raw.soundfonts.filter(sf => sf.size <= MAX_SIZE);
+    cachedIndex = raw;
     return cachedIndex;
   } catch (error) {
     if (error.code === 'ENOENT') {

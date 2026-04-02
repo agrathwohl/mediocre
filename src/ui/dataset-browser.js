@@ -910,7 +910,7 @@ export async function createDatasetBrowser(options = {}) {
       timeDisplay.setContent('00:00 / 00:00');
       
       // Create a new MPV instance with path detection
-      const mpvPath = process.env.MPV_PATH || 'mpv'; // Use environment variable or default
+      const mpvPath = process.env.MPV_BIN || 'mpv';
       mpvPlayer = new mpv({
         audio_only: true,
         auto_restart: false,

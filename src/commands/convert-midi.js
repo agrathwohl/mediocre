@@ -70,11 +70,13 @@ async function convertFile(inputPath, outputPath) {
   try {
     console.log(`Converting ${inputPath} to ${outputPath}`);
     
+    const abc2midiBin = process.env.ABC2MIDI_BIN || 'abc2midi';
+
     // Check if abc2midi is installed
     try {
-      await execa('which', ['abc2midi']);
+      await execa('which', [abc2midiBin]);
     } catch (error) {
-      throw new Error('abc2midi not found. Please install abcmidi package.');
+      throw new Error(`${abc2midiBin} not found. Set ABC2MIDI_BIN or install abcmidi.`);
     }
     
     // Read the ABC file
@@ -96,7 +98,7 @@ async function convertFile(inputPath, outputPath) {
 
       try {
         // reject:false — abc2midi exits non-zero on warnings even when it produced valid MIDI
-        await execa('abc2midi', [tempPath, '-o', outputPath], { reject: false });
+        await execa(abc2midiBin, [tempPath, '-o', outputPath], { reject: false });
         console.log(`Converted fixed version of ${inputPath} to ${outputPath}`);
       } finally {
         // Always clean up temp file regardless of conversion result
@@ -106,7 +108,7 @@ async function convertFile(inputPath, outputPath) {
     }
     
     // If no issues, convert the original file
-    await execa('abc2midi', [inputPath, '-o', outputPath], { reject: false });
+    await execa(abc2midiBin, [inputPath, '-o', outputPath], { reject: false });
     
     console.log(`Converted ${inputPath} to ${outputPath}`);
   } catch (error) {

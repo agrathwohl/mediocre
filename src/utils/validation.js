@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { execa } from "execa";
 import { parse as parseMusicXml } from "musicxml-io";
+import { getAbc2midiBinary } from "./llm-client.js";
 
 export async function validateAbcNotation(abcNotation) {
   const result = {
@@ -16,7 +17,7 @@ export async function validateAbcNotation(abcNotation) {
   await fs.promises.writeFile(tempFile, abcNotation);
 
   try {
-    const { stdout, stderr, signal, exitCode } = await execa('abc2midi', [tempFile, '-c'], { reject: false });
+    const { stdout, stderr, signal, exitCode } = await execa(getAbc2midiBinary(), [tempFile, '-c'], { reject: false });
 
     const crashed = signal === 'SIGSEGV' || signal === 'SIGABRT' || (exitCode !== null && exitCode > 128);
     if (crashed) {
@@ -123,7 +124,7 @@ export function cleanAbcNotation(abcNotation) {
 export async function validateWithAbc2Midi(abcFilePath) {
   const tempMidiPath = abcFilePath.replace(".abc", "_validation_temp.mid");
   try {
-    const result = await execa('abc2midi', [abcFilePath, '-o', tempMidiPath], {
+    const result = await execa(getAbc2midiBinary(), [abcFilePath, '-o', tempMidiPath], {
       timeout: 30000,
       reject: false,
     });

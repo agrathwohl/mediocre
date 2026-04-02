@@ -1,146 +1,102 @@
-import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { config } from '../utils/config.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { buildDatasetPipeline, validateDataset, datasetInfo } from '../dataset/pipeline.js';
 
 /**
- * Build dataset from generated files
- * @param {Object} options - Command options
- * @param {string} [options.directory] - Input directory
- * @param {string} [options.output] - Output directory
- * @returns {Promise<string>} Path to the generated dataset
+ * Build ML-ready JSONL dataset from composition corpus.
+ *
+ * Replaces the old file-copy approach with a full pipeline:
+ * discover → enrich → filter → instruct → dedup → split → write JSONL.
+ *
+ * @param {Object} options - CLI options from Commander
  */
-export async function buildDataset(options) {
-  const inputDir = options.directory || config.get('outputDir');
-  const outputDir = options.output || config.get('datasetDir');
-  
-  // Ensure the output directory exists
-  await fs.promises.mkdir(outputDir, { recursive: true });
-  
-  try {
-    console.log(`Building dataset from ${inputDir} to ${outputDir}...`);
-    
-    // Collect all relevant files (.abc, .mid, .wav, .pdf)
-    const files = await fs.promises.readdir(inputDir);
-    const datasetFiles = {
-      abc: [],
-      midi: [],
-      wav: [],
-      pdf: [],
-      json: []
-    };
-    
-    for (const file of files) {
-      const filePath = path.join(inputDir, file);
-      const fileStats = await fs.promises.stat(filePath);
-      
-      if (fileStats.isDirectory()) {
-        continue;
-      }
-      
-      if (file.endsWith('.abc')) {
-        datasetFiles.abc.push(filePath);
-      } else if (file.endsWith('.mid')) {
-        datasetFiles.midi.push(filePath);
-      } else if (file.endsWith('.wav')) {
-        datasetFiles.wav.push(filePath);
-      } else if (file.endsWith('.pdf')) {
-        datasetFiles.pdf.push(filePath);
-      } else if (file.endsWith('.json')) {
-        datasetFiles.json.push(filePath);
-      }
-    }
-    
-    console.log(`Found ${datasetFiles.abc.length} ABC files, ${datasetFiles.midi.length} MIDI files, ${datasetFiles.wav.length} WAV files, ${datasetFiles.pdf.length} PDF files, ${datasetFiles.json.length} JSON files`);
-    
-    // Create metadata file
-    const metadata = {
-      timestamp: new Date().toISOString(),
-      files: {
-        abc: datasetFiles.abc.map(file => path.basename(file)),
-        midi: datasetFiles.midi.map(file => path.basename(file)),
-        wav: datasetFiles.wav.map(file => path.basename(file)),
-        pdf: datasetFiles.pdf.map(file => path.basename(file)),
-        json: datasetFiles.json.map(file => path.basename(file))
-      },
-      pairs: []
-    };
-    
-    // Build pairs of related files (abc-mid-wav-pdf-json)
-    const baseNames = new Set();
-    
-    // Extract base names without extensions and without suffixes like -reverb, -delay, etc.
-    for (const file of [...datasetFiles.abc, ...datasetFiles.midi, ...datasetFiles.wav, ...datasetFiles.pdf]) {
-      let baseName = path.basename(file).split('.')[0];
-      
-      // Remove effect suffixes
-      baseName = baseName.replace(/-(?:reverb|delay|distortion|all)$/, '');
-      
-      baseNames.add(baseName);
-    }
-    
-    // For each base name, find all associated files
-    for (const baseName of baseNames) {
-      const pair = {
-        baseName,
-        abc: datasetFiles.abc
-          .filter(file => path.basename(file).startsWith(baseName))
-          .map(file => path.basename(file)),
-        midi: datasetFiles.midi
-          .filter(file => path.basename(file).startsWith(baseName))
-          .map(file => path.basename(file)),
-        wav: datasetFiles.wav
-          .filter(file => path.basename(file).startsWith(baseName) || path.basename(file).startsWith(`${baseName}-`))
-          .map(file => path.basename(file)),
-        pdf: datasetFiles.pdf
-          .filter(file => path.basename(file).startsWith(baseName))
-          .map(file => path.basename(file)),
-        json: datasetFiles.json
-          .filter(file => path.basename(file).startsWith(baseName))
-          .map(file => path.basename(file))
-      };
-      
-      metadata.pairs.push(pair);
-    }
-    
-    // Write metadata file
-    const metadataPath = path.join(outputDir, 'metadata.json');
-    await fs.promises.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
-    
-    // Copy all files to the dataset directory
-    for (const category of ['abc', 'midi', 'wav', 'pdf', 'json']) {
-      for (const file of datasetFiles[category]) {
-        const destPath = path.join(outputDir, path.basename(file));
-        await fs.promises.copyFile(file, destPath);
-      }
-    }
-    
-    console.log(`Dataset built successfully at ${outputDir}`);
-    return outputDir;
-  } catch (error) {
-    throw new Error(`Failed to build dataset: ${error.message}`);
-  }
+export async function buildDatasetML(options) {
+  const inputDir = options.input || config.get('outputDir');
+  const outputDir = options.output || path.join(process.cwd(), 'dataset');
+
+  const taskTypes = options.tasks
+    ? options.tasks.split(',').map(t => t.trim())
+    : undefined;
+
+  const result = await buildDatasetPipeline({
+    inputDir,
+    outputDir,
+    minQualityScore: options.quality ? parseFloat(options.quality) : 0,
+    qualityTier: options.tier || null,
+    taskTypes,
+    variantsPerTask: options.variants ? parseInt(options.variants, 10) : 1,
+    deduplicate: options.deduplicate !== false,
+    trainRatio: options.trainRatio ? parseFloat(options.trainRatio) : 0.9,
+    valRatio: options.valRatio ? parseFloat(options.valRatio) : 0.05,
+    testRatio: options.testRatio ? parseFloat(options.testRatio) : 0.05,
+    version: options.version || '1.0.0',
+    generateCard: options.card !== false,
+    dryRun: options.dryRun || false,
+    maxCompositions: options.maxSamples ? parseInt(options.maxSamples, 10) : undefined,
+    preferredStage: options.stage || null,
+    seed: options.seed ? parseInt(options.seed, 10) : 42,
+  });
+
+  return result;
 }
 
-// If called directly from the command line
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const args = process.argv.slice(2);
-  const options = {
-    directory: args[0] || config.get('outputDir'),
-    output: args[1] || config.get('datasetDir')
-  };
-  
-  (async () => {
-    try {
-      const outputDir = await buildDataset(options);
-      console.log(`Dataset built successfully at ${outputDir}`);
-      process.exit(0);
-    } catch (error) {
-      console.error('Error:', error);
-      process.exit(1);
+/**
+ * Validate an existing JSONL dataset for schema compliance and data integrity.
+ * @param {Object} options - CLI options
+ */
+export async function validateDatasetCommand(options) {
+  const datasetDir = options.path || path.join(process.cwd(), 'dataset');
+  const result = await validateDataset(datasetDir);
+
+  if (result.valid) {
+    console.log('\n✅ Dataset is valid');
+  } else {
+    console.log('\n❌ Dataset has issues:');
+    for (const issue of result.issues) {
+      console.log(`  • ${issue}`);
     }
-  })();
+  }
+
+  return result;
+}
+
+/**
+ * Display dataset statistics.
+ * @param {Object} options - CLI options
+ */
+export async function datasetInfoCommand(options) {
+  const datasetDir = options.path || path.join(process.cwd(), 'dataset');
+  const info = await datasetInfo(datasetDir);
+
+  console.log(`\nDataset: ${datasetDir}`);
+  console.log(`Version: ${info.version || 'unknown'}`);
+  console.log(`Total Samples: ${info.totalSamples.toLocaleString()}`);
+
+  if (info.splits) {
+    console.log('\nSplits:');
+    for (const [name, count] of Object.entries(info.splits)) {
+      const pct = ((count / info.totalSamples) * 100).toFixed(1);
+      console.log(`  ${name}: ${count.toLocaleString()} (${pct}%)`);
+    }
+  }
+
+  if (info.genres && info.genres.length > 0) {
+    console.log(`\nGenres: ${info.genres.length} unique`);
+    const top10 = info.genres.slice(0, 10);
+    for (const { genre, count } of top10) {
+      console.log(`  ${genre}: ${count}`);
+    }
+    if (info.genres.length > 10) {
+      console.log(`  ... and ${info.genres.length - 10} more`);
+    }
+  }
+
+  if (info.taskTypes) {
+    console.log('\nTask Types:');
+    for (const [type, count] of Object.entries(info.taskTypes)) {
+      console.log(`  ${type}: ${count.toLocaleString()}`);
+    }
+  }
+
+  return info;
 }

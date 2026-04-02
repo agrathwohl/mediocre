@@ -11,11 +11,7 @@
  */
 
 import { generateText } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { getAnthropic, getModel } from '../../utils/llm-client.js';
 
 /**
  * Research the musical characteristics of both genres and assess
@@ -32,9 +28,16 @@ const anthropic = createAnthropic({
  * @returns {Promise<string>}      - Musical characteristics briefing
  */
 export async function researchGenresForComposition(classicalGenre, modernGenre, flags = {}) {
+  const anthropic = getAnthropic();
   console.log(`🔍 Researching genre characteristics: ${classicalGenre} × ${modernGenre}...`);
 
-  const { solo, recordLabel, producer, instruments, style } = flags;
+  const { solo, recordLabel, producer, instruments, style, userInstructions } = flags;
+
+  const instructionsBlock = userInstructions ? `
+## ⚠️ HARD USER REQUIREMENTS
+The following requirements are absolute and override genre conventions. When describing essential instruments, percussion, and structure for this fusion, you MUST account for these constraints:
+${userInstructions}
+` : '';
 
   const flagsBlock = (solo || recordLabel || producer || instruments || style) ? `
 ## CLI FLAGS FROM USER
@@ -44,11 +47,11 @@ For each flag, assess: Does this COMPLEMENT the genre hybrid (lean into it) or C
 ` : '';
 
   const { text } = await generateText({
-    model: anthropic('claude-haiku-4-5-20251001', {
+    model: anthropic(getModel('claude-haiku-4-5-20251001'), {
       cacheControl: { type: 'ephemeral', ttl: '1h' },
     }),
     prompt: `You are a musicologist briefing a composer who is about to write a hybrid of "${classicalGenre}" and "${modernGenre}".
-
+${instructionsBlock}
 Write a dense, factual briefing covering BOTH genres. For each genre, answer:
 
 1. DEFINING ELEMENTS: What specific sonic characteristics make this genre instantly recognizable?

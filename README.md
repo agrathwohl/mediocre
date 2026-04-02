@@ -114,6 +114,71 @@ nix-shell -p abcmidi abcm2ps ghostscript timidity fluidsynth sox ffmpeg
 | `--stream-text`      | Watch the composition being written in real time                                |
 | `-c N`               | Generate N compositions                                                         |
 | `--model <id>`       | Use a different model (works with `--proxy-url` + `--api-key` for any provider) |
+| `--llama-server <url>` | Use a local LLM via OpenAI-compatible API instead of Anthropic (e.g. `http://localhost:8001/v1`) |
+| `--abc2midi <path>`  | Path to a custom abc2midi binary (see [abc2midi-llm fork](#abc2midi-llm-fork) below) |
+| `--instruments <list>` | Comma-separated instruments for template composition (e.g. `"sitar,tabla,fretless bass"`) |
+
+---
+
+## Local Model Support
+
+mediocre-music works with any OpenAI-compatible local inference server (llama.cpp, vLLM, etc.):
+
+```bash
+mediocre generate \
+  -g "bartok_x_venetian_snares" \
+  --llama-server http://localhost:8001/v1 \
+  --abc2midi ~/.local/bin/abc2midi \
+  --sequential --stream-text
+```
+
+No API key needed. The `--llama-server` flag switches all LLM calls from Anthropic to your local endpoint. Works with `generate`, `compose`, and all agent-based commands.
+
+---
+
+## Template Pipeline
+
+Generate structured compositions by first creating a formal template, then filling it with LLM-generated content:
+
+```bash
+# Create a 192-bar ritual form template
+mediocre template --form ritual --key Ddor --meter 7/8 --bars 192 \
+  --instruments "shakuhachi,koto,erhu,fretless bass" \
+  --pneuma organic
+
+# Fill the template with LLM content
+mediocre compose template-ritual.abc \
+  --llama-server http://localhost:8001/v1 \
+  --abc2midi ~/.local/bin/abc2midi
+```
+
+Available forms: `ritual`, `stack-overflow`, `source-transfer`, `accumulative`. Each generates a scaffold with pre-written structural voices (drums, drones), content slots for the LLM to fill, and temporal humanization directives.
+
+---
+
+## abc2midi-llm Fork
+
+For the best results, use our [abc2midi-llm fork](https://github.com/agrathwohl/abc2midi-llm) which adds seven directives designed for LLM-generated music:
+
+| Directive | What it does |
+|-----------|-------------|
+| `%%PNEUMA` | Biological timing — note onset jitter, sinusoidal breathing tempo, cumulative drift, free time, rubato |
+| `%%ENSEMBLE` | Inter-voice micro-timing offsets so independently generated voices sound like musicians playing together |
+| `%%BREATH` | Automatic rest insertion at phrase boundaries — the piece breathes |
+| `%%GRAVITY` | Phrase-level weight — heavier openings, lighter middles, stretched endings |
+| `%%ARTICULATE` | Context-aware note length — repeated notes shortened, leaps lengthened, phrase endings sustained |
+| `%%SPATIAL` | Millisecond-scale delays between voice groups simulating physical distance |
+| `%%TRANSFORM` | Cross-voice algorithmic transformation — retrograde, inversion, fragmentation, pitch shift, time scale |
+
+Point mediocre-music at the fork with `--abc2midi`:
+
+```bash
+mediocre generate -g "messiaen_x_burial" \
+  --system-prompt prompts/pneuma-system-prompt.txt \
+  --abc2midi /path/to/abc2midi-llm/abc2midi
+```
+
+The template pipeline automatically includes these directives via `--pneuma` presets (`subtle`, `organic`, `drunk`, `ritual`, `mechanical`).
 
 ---
 

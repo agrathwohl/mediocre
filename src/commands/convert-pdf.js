@@ -69,28 +69,31 @@ async function convertFile(inputPath, outputPath) {
   try {
     console.log(`Converting ${inputPath} to ${outputPath}`);
     
+    const abcm2psBin = process.env.ABCM2PS_BIN || 'abcm2ps';
+    const ps2pdfBin = process.env.PS2PDF_BIN || 'ps2pdf';
+
     // Check if abcm2ps is installed
     try {
-      await execa('which', ['abcm2ps']);
+      await execa('which', [abcm2psBin]);
     } catch (error) {
-      throw new Error('abcm2ps not found. Please install abcm2ps package.');
+      throw new Error(`${abcm2psBin} not found. Set ABCM2PS_BIN or install abcm2ps.`);
     }
-    
+
     // Check if ps2pdf is installed
     try {
-      await execa('which', ['ps2pdf']);
+      await execa('which', [ps2pdfBin]);
     } catch (error) {
-      throw new Error('ps2pdf not found. Please install ghostscript package.');
+      throw new Error(`${ps2pdfBin} not found. Set PS2PDF_BIN or install ghostscript.`);
     }
     
     // Generate a temporary PS file
     const tempPsFile = path.join(config.get('tempDir'), path.basename(inputPath, '.abc') + '.ps');
     
     // Convert ABC to PS using abcm2ps
-    await execa('abcm2ps', [inputPath, '-O', tempPsFile]);
-    
+    await execa(abcm2psBin, [inputPath, '-O', tempPsFile]);
+
     // Convert PS to PDF using ps2pdf
-    await execa('ps2pdf', [tempPsFile, outputPath]);
+    await execa(ps2pdfBin, [tempPsFile, outputPath]);
     
     // Clean up the temporary PS file
     await fs.promises.unlink(tempPsFile);

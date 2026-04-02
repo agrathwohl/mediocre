@@ -89,11 +89,13 @@ async function convertFile(inputPath, outputPath, soundfontSelection = null) {
 async function convertFileWithTiMidity(inputPath, outputPath) {
   console.log('   Using TiMidity for conversion...');
 
+  const timidityBin = process.env.TIMIDITY_BIN || 'timidity';
+
   // Check if timidity is installed
   try {
-    await execa('which', ['timidity']);
+    await execa('which', [timidityBin]);
   } catch (error) {
-    throw new Error('timidity not found. Please install timidity package.');
+    throw new Error(`${timidityBin} not found. Set TIMIDITY_BIN or install timidity.`);
   }
 
   // Auto-detect custom TiMidity config (written by timidity-config agent)
@@ -109,7 +111,7 @@ async function convertFileWithTiMidity(inputPath, outputPath) {
   }
 
   // Convert MIDI to WAV using timidity
-  await execa('timidity', [
+  await execa(timidityBin, [
     ...(hasCustomConfig ? ['-c', configPath] : []),
     inputPath,
     '-Ow',

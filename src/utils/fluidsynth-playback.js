@@ -14,6 +14,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { execa } from 'execa';
+import { getAbc2midiBinary } from './llm-client.js';
 
 const SOUNDFONT_DIR = '/home/gwohl/code/mediocre/soundfonts/500-soundfonts-full-gm-sets';
 
@@ -113,12 +114,13 @@ export class FluidSynthPlayback {
     // Output to WAV
     args.push('-F', outputWav);
 
-    console.log(`   ▶️  Running: fluidsynth ${args.slice(0, 5).join(' ')} ... (${this.loadedSoundfonts.length} soundfonts)`);
+    const fluidsynthBin = process.env.FLUIDSYNTH_BIN || 'fluidsynth';
+    console.log(`   ▶️  Running: ${fluidsynthBin} ${args.slice(0, 5).join(' ')} ... (${this.loadedSoundfonts.length} soundfonts)`);
     const startTime = Date.now();
 
     try {
       // Run fluidsynth CLI
-      await execa('fluidsynth', args);
+      await execa(fluidsynthBin, args);
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       console.log(`   ✅ Rendered in ${duration}s`);
@@ -180,7 +182,7 @@ export async function convertAbcToWavWithFluidSynth(abcPath, soundfontSelection,
   console.log('\n📝 Step 1: Converting ABC to MIDI...');
 
   try {
-    await execa('abc2midi', [abcPath, '-o', midiPath]);
+    await execa(getAbc2midiBinary(), [abcPath, '-o', midiPath]);
     console.log(`   ✅ Generated: ${path.basename(midiPath)}`);
   } catch (error) {
     throw new Error(`abc2midi failed: ${error.message}`);
