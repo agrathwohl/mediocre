@@ -16,29 +16,174 @@ import { resolveMirrors } from '../utils/abc-mirror.js';
 import { execa } from 'execa';
 
 /**
- * Extract note content from an LLM response — strip headers, directives, voice declarations.
- * @param {string} text - Raw LLM output
- * @returns {string} Just the note content lines
+ * Parse multi-voice ABC output and extract content for each voice.
+ * @param {string} text - Raw LLM output with multiple voices
+ * @param {Array} targetVoices - Array of voice IDs to extract
+ * @returns {Object} Map of voiceId → content
  */
-function extractNoteContent(text) {
+function parseMultiVoiceAbc(text, targetVoices) {
   const lines = text.split('\n');
-  const notes = [];
+  const voices = {};
+  let currentVoice = null;
+  let currentContent = [];
+
   for (const line of lines) {
     const t = line.trim();
     if (!t) continue;
-    // Include lines that contain ABC note characters (A-G, a-g, or z for rests)
-    // with bar separators (|) — this IS music content
-    if (/[A-Ga-gz]/.test(t) && /[|]/.test(t)) {
-      // But skip lines that are clearly headers/directives/prose
+
+    // Detect voice declaration: V:1, [V:2], V:soprano, [V:bass name="Bass"]
+    const voiceMatch = t.match(/^\[?V:(\w+)/);
+    if (voiceMatch) {
+      // Save previous voice if any
+      if (currentVoice !== null && currentContent.length > 0) {
+        voices[currentVoice] = currentContent.join(' ').replace(/\s+/g, ' ').trim();
+      }
+      // Start new voice
+      currentVoice = voiceMatch[1];
+      currentContent = [];
+      continue;
+    }
+
+    // Skip headers, directives, comments, markdown, thinking tags
+    if (/^[XTMLQKCZW]:/.test(t)) continue;
+    if (t.startsWith('%%')) continue;
+    if (t.startsWith('[M:') || t.startsWith('[K:') || t.startsWith('[Q:')) continue;
+    if (t.startsWith('```')) continue;
+    if (t.startsWith('%')) continue;
+    if (t.startsWith('Q:')) continue;
+    if (t.startsWith('<think>') || t.startsWith('</think>')) continue;
+
+    // Skip prose
+    if (/^[A-Z][a-z]{3,}/.test(t) && !/[|]/.test(t)) continue;
+
+    // Collect note content for current voice
+    if (currentVoice !== null && /[A-Ga-gz]/.test(t)) {
+      currentContent.push(t);
+    }
+  }
+
+  // Save last voice
+  if (currentVoice !== null && currentContent.length > 0) {
+    voices[currentVoice] = currentContent.join(' ').replace(/\s+/g, ' ').trim();
+  }
+
+  // Match voices to target voice IDs
+  const result = {};
+  for (const targetId of targetVoices) {
+    const targetStr = String(targetId);
+    // Try exact match
+    if (voices[targetStr]) {
+      result[targetId] = voices[targetStr];
+      continue;
+    }
+    // Try numeric match (V:voice1 matches target 1)
+    for (const [voiceId, content] of Object.entries(voices)) {
+      const numMatch = voiceId.match(/\d+/);
+      if (numMatch && numMatch[0] === targetStr) {
+        result[targetId] = content;
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Extract note content from an LLM response.
+ * The fine-tuned model generates complete multi-voice ABC compositions regardless of system prompt.
+ * This function parses the output and extracts ONLY the target voice's content.
+ *
+ * @param {string} text - Raw LLM output (may contain multiple voices)
+ * @param {number|string} targetVoice - Voice ID we're filling (e.g., 1, 2, "1", "soprano")
+ * @returns {string} Just the note content lines for the target voice
+ */
+function extractNoteContent(text, targetVoice) {
+  const lines = text.split('\n');
+
+  // Parse the multi-voice ABC output into voice sections
+  const voices = [];
+  let currentVoice = null;
+  let currentContent = [];
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) continue;
+
+    // Detect voice declaration: V:1, [V:2], V:soprano, [V:bass name="Bass"]
+    const voiceMatch = t.match(/^\[?V:(\w+)/);
+    if (voiceMatch) {
+      // Save previous voice if any
+      if (currentVoice !== null) {
+        voices.push({ id: currentVoice, content: currentContent.join(' ') });
+      }
+      // Start new voice
+      currentVoice = voiceMatch[1];
+      currentContent = [];
+      continue;
+    }
+
+    // Skip headers, directives, comments, markdown
+    if (/^[XTMLQKCZW]:/.test(t)) continue;
+    if (t.startsWith('%%')) continue;
+    if (t.startsWith('[M:') || t.startsWith('[K:') || t.startsWith('[Q:')) continue;
+    if (t.startsWith('```')) continue;
+    if (t.startsWith('%')) continue;
+    if (t.startsWith('Q:')) continue;
+
+    // Skip prose
+    if (/^[A-Z][a-z]{3,}/.test(t) && !/[|]/.test(t)) continue;
+
+    // Collect note content for current voice
+    if (currentVoice !== null && /[A-Ga-gz]/.test(t)) {
+      currentContent.push(t);
+    }
+  }
+
+  // Save last voice
+  if (currentVoice !== null) {
+    voices.push({ id: currentVoice, content: currentContent.join(' ') });
+  }
+
+  // If no voices were parsed, fall back to extracting all note content
+  if (voices.length === 0) {
+    const notes = [];
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t) continue;
       if (/^[XTMLQKCZW]:/.test(t)) continue;
       if (t.startsWith('%%')) continue;
       if (t.startsWith('V:') || t.startsWith('[V:')) continue;
+      if (t.startsWith('[M:') || t.startsWith('[K:') || t.startsWith('[Q:')) continue;
       if (t.startsWith('```')) continue;
       if (t.startsWith('%')) continue;
-      notes.push(t);
+      if (t.startsWith('Q:')) continue;
+      if (/^[A-Z][a-z]{3,}/.test(t) && !/[|]/.test(t)) continue;
+      if (/[A-Ga-gz]/.test(t)) {
+        notes.push(t);
+      }
     }
+    const result = notes.join(' ').replace(/\s+/g, ' ').trim();
+    return result;
   }
-  return notes.join('\n');
+
+  // Find the voice that matches targetVoice
+  // Try exact match first (V:1 matches targetVoice "1")
+  const targetStr = String(targetVoice);
+  let targetContent = voices.find(v => v.id === targetStr);
+
+  // If no exact match, try numeric match (V:voice1 matches targetVoice 1)
+  if (!targetContent) {
+    targetContent = voices.find(v => v.id.match(/\d+/) && v.id.match(/\d+/)[0] === targetStr);
+  }
+
+  // If still no match, use the first voice (fallback)
+  if (!targetContent && voices.length > 0) {
+    targetContent = voices[0];
+  }
+
+  const result = targetContent ? targetContent.content : '';
+  return result.replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -51,6 +196,33 @@ function countBars(noteContent) {
 }
 
 /**
+ * Group slots by their bar range (section).
+ * Slots covering the same bar range belong to the same section.
+ * @param {Array} slots - Array of slot objects
+ * @returns {Array} Array of section objects {startBar, endBar, slots}
+ */
+function groupSlotsBySection(slots) {
+  const sectionMap = new Map();
+
+  for (const slot of slots) {
+    // Extract bar range from instruction (e.g., "V1 bars 1-16")
+    const match = slot.instruction.match(/bars?\s+(\d+)-(\d+)/);
+    if (!match) continue;
+
+    const startBar = parseInt(match[1]);
+    const endBar = parseInt(match[2]);
+    const key = `${startBar}-${endBar}`;
+
+    if (!sectionMap.has(key)) {
+      sectionMap.set(key, { startBar, endBar, slots: [] });
+    }
+    sectionMap.get(key).slots.push(slot);
+  }
+
+  return Array.from(sectionMap.values()).sort((a, b) => a.startBar - b.startBar);
+}
+
+/**
  * Build the prompt for filling a single content slot.
  * @param {Object} slot - Parsed slot from template
  * @param {Object} template - Full parsed template
@@ -59,15 +231,13 @@ function countBars(noteContent) {
  */
 function buildSlotPrompt(slot, template, filledSoFar) {
   const { M, L, Q, K } = template.headers;
-  const voice = template.voices.find(v => v.id === slot.voice);
-  const instrument = voice ? voice.name : 'instrument';
-  const program = voice ? voice.program : 0;
 
-  let prompt = `Instruction: Generate ABC notation matching this description.\n`;
-  prompt += `Input: Compose ${slot.barCount} bars for voice ${slot.voice} (${instrument}, program ${program}). `;
-  prompt += `${K}, ${M}, L:${L}, ${Q ? Q.replace('1/4=', '') + ' BPM' : ''}.\n\n`;
-  prompt += `${slot.instruction}\n\n`;
-  prompt += `Write ${slot.barCount} bars. ${template.unitsPerBar} ${L} notes per bar.\n`;
+  let prompt = `${slot.instruction}\n\n`;
+  prompt += `${K}, ${M}, L:${L}, ${Q ? Q.replace('1/4=', '') + ' BPM' : ''}. Exactly ${slot.barCount} bars, ${template.unitsPerBar} units per bar.\n`;
+  if (template.instruments) {
+    prompt += `Instruments in this piece: ${template.instruments}.\n`;
+  }
+  prompt += `\nOutput ${slot.barCount} bars of note content separated by | for this single voice. Use dynamics, articulations, and expressive marks. No headers, no voice declarations.\n`;
 
   // Add context from previously filled voices
   const contextVoices = [];
@@ -96,6 +266,119 @@ function buildSlotPrompt(slot, template, filledSoFar) {
 }
 
 /**
+ * Fill an entire section (all voices for a bar range) in one LLM call.
+ * @param {Object} section - Section object {startBar, endBar, slots}
+ * @param {Object} template - Parsed template
+ * @param {Map} filledSoFar - Already filled voice content
+ * @param {string} rawDir - Directory to save raw output
+ * @returns {Promise<Object|null>} Map of voiceId → content, or null on failure
+ */
+export async function fillSection(section, template, filledSoFar, rawDir) {
+  const provider = getAnthropic();
+  const modelId = getModel('claude-sonnet-4-6');
+
+  // Build section prompt — include ALL voice instructions for this bar range
+  const { M, L, Q, K } = template.headers;
+  let prompt = `Compose bars ${section.startBar}-${section.endBar} for ALL voices.\n\n`;
+  prompt += `${K}, ${M}, L:${L}, ${Q ? Q.replace('1/4=', '') + ' BPM' : ''}. ${section.slots[0].barCount} bars, ${template.unitsPerBar} units per bar.\n`;
+  if (template.instruments) {
+    prompt += `Instruments: ${template.instruments}.\n`;
+  }
+  prompt += `\nVoice instructions:\n`;
+
+  for (const slot of section.slots) {
+    const voice = template.voices.find(v => v.id === slot.voice);
+    const voiceName = voice ? voice.name : `V:${slot.voice}`;
+    prompt += `\n${voiceName} (V:${slot.voice}): ${slot.instruction}\n`;
+  }
+
+  prompt += `\nGenerate complete ABC notation for ALL ${section.slots.length} voices for this section. Include voice declarations (V:1, V:2, etc.) and note content for each voice.\n`;
+
+  // Add context from previously filled sections
+  const contextVoices = [];
+  for (const [vid, content] of filledSoFar) {
+    const v = template.voices.find(vv => vv.id === vid);
+    const name = v ? v.name : vid;
+    contextVoices.push(`${name} (V:${vid}, previous sections):\n${content.slice(-500)}`); // last 500 chars for context
+  }
+  if (contextVoices.length > 0) {
+    const context = contextVoices.slice(-3).join('\n\n');
+    prompt += `\nPREVIOUS SECTIONS (for continuity):\n${context}\n`;
+  }
+
+  // System prompt — let the model generate full multi-voice sections
+  let systemPrompt = `You are a music composition AI specializing in hybrid genre fusions.
+
+Generate complete multi-voice ABC notation sections. Include:
+- Voice declarations: V:1, V:2, V:3, etc.
+- Note content for each voice with proper bar separators |
+- Dynamics (!pp!, !mf!, !ff!), articulations, grace notes, chords
+
+Output ONLY raw ABC notation. No commentary, no markdown, no explanations.`;
+
+  if (template.directives.length > 0) {
+    systemPrompt += `\n\nThis piece uses temporal humanization directives:\n${template.directives.join('\n')}`;
+  }
+
+  try {
+    const { text, usage } = await generateText({
+      model: provider(modelId),
+      system: systemPrompt,
+      prompt,
+      maxTokens: 8000, // larger for multi-voice sections
+      temperature: 0.7,
+    });
+
+    // Save raw output
+    if (rawDir) {
+      const rawPath = path.join(rawDir, `section-bars${section.startBar}-${section.endBar}.txt`);
+      await fs.promises.writeFile(rawPath, text);
+    }
+
+    // Parse multi-voice output
+    const voiceContent = parseMultiVoiceAbc(text, section.slots.map(s => s.voice));
+
+    // Post-process each voice
+    const processed = {};
+    for (const [voiceId, content] of Object.entries(voiceContent)) {
+      if (!content.trim()) continue;
+
+      // Cleanup
+      const { cleaned, fixes } = cleanupAbc(content, { unitsPerBar: template.unitsPerBar });
+      if (fixes.length > 0) {
+        console.log(`    🔧 V:${voiceId}: ${fixes.length} auto-fixes`);
+      }
+
+      // Check bar count and normalize
+      let notes = cleaned;
+      const slot = section.slots.find(s => String(s.voice) === String(voiceId));
+      if (slot) {
+        const bars = countBars(notes);
+        if (bars < slot.barCount) {
+          const restBar = `z${template.unitsPerBar}`;
+          const padding = Array(slot.barCount - bars).fill(restBar).join(' | ');
+          notes = notes.trimEnd();
+          if (!notes.endsWith('|')) notes += ' |';
+          notes += ' ' + padding + ' |';
+        } else if (bars > slot.barCount) {
+          const barArray = notes.split('|').filter(b => b.trim());
+          notes = barArray.slice(0, slot.barCount).join(' | ') + ' |';
+        }
+      }
+
+      processed[voiceId] = notes;
+      const tok = usage ? Math.round(usage.totalTokens / section.slots.length) : 0;
+      console.log(`    ✓ V:${voiceId}: ${countBars(notes)} bars, ${notes.length}c, ~${tok} tok`);
+    }
+
+    return Object.keys(processed).length > 0 ? processed : null;
+  } catch (err) {
+    console.error(`    ✗ Section bars ${section.startBar}-${section.endBar} failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * Fill a single content slot by calling the LLM.
  * @param {Object} slot - Parsed slot
  * @param {Object} template - Parsed template
@@ -108,15 +391,19 @@ export async function fillSlot(slot, template, filledSoFar, rawDir) {
   const modelId = getModel('claude-sonnet-4-6');
   const prompt = buildSlotPrompt(slot, template, filledSoFar);
 
-  // Build system prompt dynamically from template content
-  let systemPrompt = `You are a music composition AI specializing in hybrid genre fusions. Output ONLY raw ABC notation compatible with abc2midi. No prose, no commentary, no markdown.`;
+  // Build system prompt — single-voice content for an existing template
+  let systemPrompt = `You are a music composition AI specializing in hybrid genre fusions.
 
-  if (template.instruments) {
-    systemPrompt += `\n\nINSTRUMENTS: The composition uses these instruments: ${template.instruments}. Assign appropriate GM MIDI program numbers for each.`;
-  }
+OUTPUT FORMAT: Raw ABC note content ONLY — bars separated by |
+DO NOT output: headers (X:, T:, M:, L:, Q:, K:), voice declarations (V:), %%MIDI directives, markdown, prose, commentary, or blank lines.
+
+You are filling ONE voice in an existing multi-voice piece. Output ONLY the note lines for that voice.
+Use dynamics (!pp!, !mf!, !ff!, !fff!), articulations, grace notes, chords ([CEG]), and expressive marks freely.
+Fill EVERY bar with active musical content — no empty bars unless the instruction says SILENCE.
+Write musically: varied rhythms, interesting intervals, dynamic shaping, phrase structure.`;
 
   if (template.directives.length > 0) {
-    systemPrompt += `\n\nThis composition uses the following abc2midi directives (already placed in the template header — you do NOT need to emit these, just be aware the piece uses temporal humanization):\n${template.directives.join('\n')}`;
+    systemPrompt += `\n\nThis piece uses temporal humanization directives:\n${template.directives.join('\n')}`;
   }
 
   try {
@@ -134,10 +421,10 @@ export async function fillSlot(slot, template, filledSoFar, rawDir) {
       await fs.promises.writeFile(rawPath, text);
     }
 
-    // Extract note content
-    let notes = extractNoteContent(text);
+    // Extract note content for the target voice
+    let notes = extractNoteContent(text, slot.voice);
     if (!notes.trim()) {
-      console.warn(`  ⚠️ Slot ${slot.index} returned no usable note content`);
+      console.warn(`  ⚠️ Slot ${slot.index} returned no usable note content for V:${slot.voice}`);
       return null;
     }
 
@@ -251,29 +538,38 @@ export async function compose(templatePath, options = {}) {
     console.log(`\n🎯 Filling only slot ${slotNumber}`);
   }
 
-  // Fill slots sequentially
-  console.log(`\n🎼 Filling ${slotsToFill.length} content slots...`);
+  // Group slots by bar range (section)
+  const sections = groupSlotsBySection(slotsToFill);
+  console.log(`\n🎼 Filling ${sections.length} sections (${slotsToFill.length} total voice slots)...`);
+
   const slotContent = new Map();
   const filledVoiceContent = new Map(template.filledContent); // start with pre-written
 
-  for (const slot of slotsToFill) {
-    console.log(`\n  [${slot.index}/${template.slots.length - 1}] V:${slot.voice} — ${slot.instruction.slice(0, 60)}...`);
+  for (const section of sections) {
+    console.log(`\n  📍 Section: bars ${section.startBar}-${section.endBar} (${section.slots.length} voices)`);
 
-    let content = await fillSlot(slot, template, filledVoiceContent, rawDir);
-    // Retry up to 2 times on failure — a missing voice is catastrophic
-    if (!content) {
-      console.log(`    ⟳ Retrying slot ${slot.index}...`);
-      content = await fillSlot(slot, template, filledVoiceContent, rawDir);
+    let sectionContent = await fillSection(section, template, filledVoiceContent, rawDir);
+    // Retry up to 2 times on failure
+    if (!sectionContent) {
+      console.log(`    ⟳ Retrying section bars ${section.startBar}-${section.endBar}...`);
+      sectionContent = await fillSection(section, template, filledVoiceContent, rawDir);
     }
-    if (!content) {
-      console.log(`    ⟳ Final retry slot ${slot.index}...`);
-      content = await fillSlot(slot, template, filledVoiceContent, rawDir);
+    if (!sectionContent) {
+      console.log(`    ⟳ Final retry section bars ${section.startBar}-${section.endBar}...`);
+      sectionContent = await fillSection(section, template, filledVoiceContent, rawDir);
     }
-    if (content) {
-      slotContent.set(slot.index, content);
-      // Update context for subsequent slots
-      const existing = filledVoiceContent.get(slot.voice) || '';
-      filledVoiceContent.set(slot.voice, existing + (existing ? '\n' : '') + content);
+
+    if (sectionContent) {
+      // Assign content to each voice slot
+      for (const [voiceId, content] of Object.entries(sectionContent)) {
+        const slot = section.slots.find(s => String(s.voice) === String(voiceId));
+        if (slot && content) {
+          slotContent.set(slot.index, content);
+          // Update context
+          const existing = filledVoiceContent.get(slot.voice) || '';
+          filledVoiceContent.set(slot.voice, existing + (existing ? '\n' : '') + content);
+        }
+      }
     }
   }
 

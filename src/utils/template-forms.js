@@ -306,8 +306,8 @@ ${pneumaDirectives ? pneumaDirectives + '\n' : ''}${ensembleDirectives ? ensembl
         // Content slot for the LLM to fill
         let instruction;
         if (phase === 1) instruction = `${name} enters. Modal, stepwise, breathing. Key: ${key}.`;
-        else if (phase === 2) instruction = `${name} develops. Wider range. Ornaments. mf.`;
-        else if (phase === 3) instruction = `${name} at peak intensity. Widest range. fff.`;
+        else if (phase === 2) instruction = `${name} melodic development. Arpeggios and sustained phrases. mf.`;
+        else if (phase === 3) instruction = `${name} climax. Dense harmonies and bold melodic gestures. fff.`;
         else if (phase === 4) instruction = `${name} fragments. Increasing rests. pp. Dissolving.`;
         else instruction = `${name} content.`;
 
@@ -479,7 +479,7 @@ V:5 name="Drums" clef=perc
         abc += `% PRE-WRITTEN: silence — only lead + harmony in section 1\n`;
         abc += `${restBars(barsPerSection, upb)} |\n`;
       } else {
-        abc += `% CONTENT SLOT: V${v} section ${s + 1} — ${infiltrationNotes[s]}.\n`;
+        abc += `% CONTENT SLOT: V${v} bars ${start}-${end} — ${infiltrationNotes[s]}.\n`;
         abc += `${restBars(barsPerSection, upb)} |\n`;
       }
     }
@@ -591,11 +591,11 @@ V:5 name="Drums" clef=perc
     abc += `[V:${v}]\n`;
     if (exitStrategy === 'reverse') {
       const exitAfter = (numVoices - v) * Math.floor(exitBars / numVoices);
-      abc += `% CONTENT SLOT: V${v} exits after ${exitAfter} bars (reverse order — last in, first out).\n`;
+      abc += `% CONTENT SLOT: V${v} exits after ${exitAfter} bars (reverse order).\n`;
     } else if (exitStrategy === 'collapse') {
-      abc += `% CONTENT SLOT: V${v} — all voices stop simultaneously at bar ${bars}.\n`;
+      abc += `% CONTENT SLOT: V${v} all voices stop simultaneously.\n`;
     } else {
-      abc += `% CONTENT SLOT: V${v} exit — conductor decides when this voice drops.\n`;
+      abc += `% CONTENT SLOT: V${v} selective exit, conductor decides.\n`;
     }
     abc += `${restBars(exitBars, upb)} |\n`;
   }
