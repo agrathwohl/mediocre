@@ -6452,5 +6452,24 @@
     "pdfSrc": "media/micropolyphonic-breakcore-1775107201623-score.pdf",
     "abcFile": "bartok_x_venetian_snares-score1-1775106916531.abc",
     "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)"
+  },
+  {
+    "id": "wagner-x-squarepusher-1775658732579",
+    "title": "Wagner x Squarepusher",
+    "composer": "Fusion",
+    "key": "C",
+    "meter": "4/4",
+    "tempo": "60",
+    "genre": null,
+    "classicalGenre": null,
+    "modernGenre": null,
+    "style": null,
+    "instruments": null,
+    "analysis": null,
+    "timestamp": "2026-04-08T14:32:12.579Z",
+    "mediaSrc": "media/wagner-x-squarepusher-1775658732579.webm",
+    "pdfSrc": "media/wagner-x-squarepusher-1775658732579-score.pdf",
+    "abcFile": "Wagner_x_Squarepusher-score1-1775372617121_1.abc",
+    "timidityCfg": "GeneralUser GS v1.471.sf2, FluidR3 GM + GS.sf2, Phoenix GS GM2 (02-11-2021 Update).sf2, Phoenix XG.sf2, Yamaha S-YXG50_0.2.1.2.sf2, GM SFX Bank.sf2, SGM-128 v1.17.sf2, FMSynthesis1.40.sf2, OPL-3_FM_128M.sf2, RetroHybrid_V1.1.sf2... (41 total)"
   }
 ]
