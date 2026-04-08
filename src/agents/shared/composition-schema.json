@@ -1,0 +1,201 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ABC Composition Structured Output",
+  "description": "Schema for structured ABC notation output used by the composition agent and drum specialist agent. The assembler (assembleAbcNotation) converts this object into valid ABC notation text.",
+  "type": "object",
+  "required": ["referenceNumber", "title", "meter", "defaultNoteLength", "key", "voices"],
+  "properties": {
+    "referenceNumber": {
+      "type": "number",
+      "description": "ABC reference number (e.g., 1). Emitted as X:1"
+    },
+    "title": {
+      "type": "string",
+      "description": "Composition title. Emitted as T:{title}"
+    },
+    "meter": {
+      "type": "string",
+      "description": "Time signature (e.g., '4/4', '3/4', '6/8', '7/8'). Emitted as M:{meter}"
+    },
+    "defaultNoteLength": {
+      "type": "string",
+      "description": "Default note length (e.g., '1/8', '1/4', '1/16'). Emitted as L:{defaultNoteLength}"
+    },
+    "key": {
+      "type": "string",
+      "description": "Key signature (e.g., 'C', 'Dm', 'G major', 'Amin'). Emitted as K:{key}"
+    },
+    "composer": {
+      "type": "string",
+      "description": "Composer attribution. Emitted as C:{composer}"
+    },
+    "tempo": {
+      "type": "string",
+      "description": "Tempo marking (e.g., '1/4=120', '1/4=160'). Emitted as Q:{tempo}"
+    },
+    "midiExtensions": {
+      "type": "array",
+      "description": "Global MIDI extensions emitted after headers, before voice declarations. Each entry becomes a %%MIDI or %% directive line.",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Set MIDI instrument program for a channel. Emitted as: %%MIDI program [channel] {program}",
+            "required": ["type", "program"],
+            "properties": {
+              "type": { "const": "program" },
+              "channel": {
+                "type": "number",
+                "description": "MIDI channel 1-16. If omitted, uses current melody channel."
+              },
+              "program": {
+                "type": "number",
+                "description": "General MIDI program number 0-127."
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Inline repeating drum pattern. Emitted as: %%MIDI drum {pattern} {programs...} {velocities...}",
+            "required": ["type", "pattern", "programs", "velocities"],
+            "properties": {
+              "type": { "const": "drum" },
+              "pattern": {
+                "type": "string",
+                "description": "Drum hit/rest pattern. ONLY characters d (hit) and z (rest), no spaces or numbers. Example: 'dzdzdzdz' (4 hits)."
+              },
+              "programs": {
+                "type": "array",
+                "items": { "type": "number" },
+                "description": "GM drum numbers (35-81), exactly one per 'd' character in pattern."
+              },
+              "velocities": {
+                "type": "array",
+                "items": { "type": "number" },
+                "description": "Hit velocities (0-127), exactly one per 'd' character in pattern."
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Guitar chord accompaniment instrument. Emitted as: %%MIDI gchord {instrument}",
+            "required": ["type", "instrument"],
+            "properties": {
+              "type": { "const": "gchord" },
+              "instrument": {
+                "type": "number",
+                "description": "GM program 0-127 for chord accompaniment voice."
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Map an ABC note letter to a GM percussion sound on channel 10. Emitted as: %%MIDI drummap {note} {midiPitch}",
+            "required": ["type", "note", "midiPitch"],
+            "properties": {
+              "type": { "const": "drummap" },
+              "note": {
+                "type": "string",
+                "description": "ABC note letter to map (e.g., C, D, E, F, G, A, B, c, d, e, f, g, a, b)."
+              },
+              "midiPitch": {
+                "type": "number",
+                "description": "GM percussion MIDI number (35-81) to assign to this note letter."
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Enable inline drum pattern playback. Emitted as: %%MIDI drumon",
+            "required": ["type"],
+            "properties": {
+              "type": { "const": "drumon" }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Disable inline drum pattern playback. Emitted as: %%MIDI drumoff",
+            "required": ["type"],
+            "properties": {
+              "type": { "const": "drumoff" }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Select MIDI channel for melody voice. Emitted as: %%MIDI channel {channel}",
+            "required": ["type", "channel"],
+            "properties": {
+              "type": { "const": "channel" },
+              "channel": {
+                "type": "number",
+                "description": "MIDI channel 1-16."
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "abc2midi-llm fork directive. Emitted as: %%{directive}",
+            "required": ["type", "directive"],
+            "properties": {
+              "type": { "const": "forkDirective" },
+              "directive": {
+                "type": "string",
+                "description": "Full directive line without %% prefix. Families: PNEUMA (humanize/heartbeat/drift/free/rubato), ENSEMBLE (offset/jitter), BREATH (auto/bars/after/off), GRAVITY (phrase/weight/agogic/off), DYNAMICS (curve/transition/attack/off), SPECTRAL (tilt/cc/off), SPATIAL (group/delay), TRANSFORM (source/retrograde/invert/invertaxis/fragment/pitchshift/timescale/delay/off), SHADOW (source/mode/probability/transpose/delay/invertmotion/intervallock/off). Examples: 'DYNAMICS curve exponential', 'ENSEMBLE jitter 5', 'BREATH auto 15', 'GRAVITY phrase 8', 'GRAVITY weight 1.15 1.0 0.95 0.85', 'SPATIAL group A voices 1,2', 'SPATIAL delay A B 10'."
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "voices": {
+      "type": "array",
+      "description": "Musical voices/parts. At least 1 required. Each becomes a [V:{id}] section in the ABC output.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "notes"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Voice ID (e.g., '1', 'melody', 'bass', 'drums'). Emitted in voice header as [V:{id}]."
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable voice name. Emitted in voice header as [V:{id} {name}]."
+          },
+          "clef": {
+            "type": "string",
+            "enum": ["treble", "bass", "alto", "tenor", "treble+8", "treble-8", "bass+8", "bass-8", "perc"],
+            "description": "Musical clef. 'perc' auto-assigns MIDI channel 10. Emitted as clef={clef} in voice header."
+          },
+          "midiProgram": {
+            "type": "number",
+            "description": "GM instrument 0-127. Emitted as %%MIDI program {midiProgram} after voice header. Do NOT set on perc voices."
+          },
+          "forkDirectives": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Per-voice abc2midi-llm fork directives without %% prefix. Each emitted as %%{directive} after voice header. Examples: ['PNEUMA humanize 10', 'ENSEMBLE voice -5', 'ARTICULATE auto', 'SPECTRAL cc 74 0.5', 'TRANSFORM source 1', 'SHADOW source 1']."
+          },
+          "notes": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" } }
+            ],
+            "description": "ABC note content. Either a single string with | bar separators, or an array where each element is one measure (joined with | during assembly)."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

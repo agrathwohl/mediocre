@@ -60,7 +60,7 @@ ${ABC2MIDI_REFERENCE}${customSystemPrompt ? '\n\n## EXTENDED DIRECTIVE SET\n' + 
       messages: [
         {
           role: 'user',
-          content: `Add ornaments to the ABC notation following this directive:\n"${directive}"\n\n## CURRENT ABC NOTATION\n\`\`\`\n${abc}\n\`\`\`\n\nReturn the COMPLETE ABC notation with ornaments added. Return ONLY the ABC notation, no explanations.`,
+          content: `OUTPUT FORMAT: Raw ABC notation ONLY. No prose, no analysis, no commentary, no markdown fences. Your entire response must be valid ABC notation that abc2midi can compile. Any non-ABC text will destroy the file.\n\nAdd ornaments following this directive: "${directive}"\n\n${abc}`,
         },
       ],
     });

@@ -1,19 +1,42 @@
-/**
- * QA (Quality Assurance) Agent - AI SDK v6
- * Reviews composition quality, completeness, and genre fusion authenticity
- * Provides feedback and decides if revision is needed
- */
-
 import { ToolLoopAgent, Output, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { validateAbcTool, readAbcFileTool } from '../shared/tools.js';
 import { createStepLogger } from '../shared/utils.js';
-import { getAnthropic, getModel, supportsContextManagement } from '../../utils/llm-client.js';
+import { getAnthropic, getModel, supportsContextManagement, getAbc2midiBinary } from '../../utils/llm-client.js';
+import { FORK_DIRECTIVES_REFERENCE } from '../shared/fork-directives-reference.js';
 
 let _qaAgent = null;
+let _qaAgentForkAware = false;
+
 function getQaAgent() {
+  const usingFork = getAbc2midiBinary() !== 'abc2midi';
+
+  // Recreate if fork status changed since last creation
+  if (_qaAgent && _qaAgentForkAware !== usingFork) _qaAgent = null;
+
   if (!_qaAgent) {
     const anthropic = getAnthropic();
+    _qaAgentForkAware = usingFork;
+
+    const forkBlock = usingFork ? `
+
+FORK DIRECTIVE AWARENESS (CRITICAL):
+This composition was generated using the abc2midi-llm fork which supports EXTENDED directives beyond standard abc2midi.
+The following directives are VALID and RECOGNIZED by the fork binary — do NOT flag them as non-standard, unknown, or no-ops:
+- %%PNEUMA (humanize, heartbeat, drift, free, rubato) — temporal liberation / organic timing
+- %%ENSEMBLE (offset, jitter, voice) — inter-voice timing offset
+- %%BREATH (auto, bars, after, off) — automatic rest insertion
+- %%GRAVITY (phrase, weight, agogic, off) — phrase-level dynamics/timing weight
+- %%ARTICULATE (auto, repeated, leap, phraseend, staccato, off) — context-aware note length
+- %%DYNAMICS (curve, transition, attack, off) — smooth velocity interpolation between dynamic marks
+- %%SPECTRAL (tilt, cc, off) — velocity-dependent timbral shift via CC messages
+- %%SPATIAL (group, delay) — inter-group timing offset for spatial simulation
+- %%TRANSFORM (source, retrograde, invert, invertaxis, fragment, pitchshift, timescale, delay, off) — cross-voice algorithmic transformation. Target voices need NO placeholder notes — content is generated from source at render time.
+- %%SHADOW (source, mode, probability, transpose, delay, invertmotion, intervallock, off) — reactive voice following. Target voices need NO placeholder notes — content is generated from source at render time.
+
+IMPORTANT: %%TRANSFORM and %%SHADOW target voices are SUPPOSED to have no note content (or only rests). The fork binary generates their content algorithmically from the source voice at render time. A voice with %%TRANSFORM source N or %%SHADOW source N and empty/rest content is CORRECT behavior, NOT a bug. Do NOT flag these as "empty voices" or "voices with no content."
+` : '';
+
     _qaAgent = new ToolLoopAgent({
       model: anthropic(getModel('claude-sonnet-4-6'), {
         cacheControl: { type: 'ephemeral', ttl: '1h' },
@@ -21,7 +44,7 @@ function getQaAgent() {
 
   instructions: `You are a music composition quality assurance expert.
 Your task is to review ABC notation compositions for quality, completeness, and authenticity.
-
+${forkBlock}
 DRUM KIT COMPLIANCE:
 If a drum prescription is provided in the review prompt, you MUST validate that EVERY GM percussion number
 used in %%MIDI drum directives appears in the prescribed drum kit. Any unauthorized drum sound is a CRITICAL
@@ -71,22 +94,19 @@ Provide detailed, actionable assessment with specific issues and recommendations
 
   output: Output.object({
     schema: z.object({
-      // Overall verdict
       verdict: z.enum(['pass', 'fail', 'needs_revision']).describe('Overall quality verdict'),
 
-      // Scores (0-10 scale)
       scores: z.object({
         technical: z.number().describe('Technical quality score 0-10'),
         musical: z.number().describe('Musical quality score 0-10'),
-        fusion: z.number().describe('Genre fusion authenticity score 0-10 — both genres should be recognizably present per the recommended mixture strategy, not just one with surface decoration from the other'),
+        fusion: z.number().describe('Genre fusion authenticity score 0-10'),
         completeness: z.number().describe('Completeness score 0-10'),
-        duration: z.number().describe('Duration appropriateness score 0-10 — judged against this specific genre hybrid\'s needs, not a fixed time target'),
-        techniqueFidelity: z.number().describe('Technique fidelity score 0-10 — are the specific compositional methods (style fingerprints) of each genre authentically implemented? 0-3: fingerprints absent, 4-6: present but superficial, 7-10: authentically implemented'),
-        fusionStrategy: z.number().describe('Mixture strategy coherence score 0-10 — does the piece commit to a clear mixture strategy (clash/coexistence/distortion/trajectory)? 0-3: no strategy discernible, 4-6: partially executed, 7-10: coherent throughout'),
-        harmonicSophistication: z.number().describe('Harmonic sophistication score 0-10 — does the harmonic language go beyond simple triads? Consider chord vocabulary diversity, voice leading quality, cadential variety, harmonic rhythm'),
+        duration: z.number().describe('Duration appropriateness score 0-10'),
+        techniqueFidelity: z.number().describe('Technique fidelity score 0-10'),
+        fusionStrategy: z.number().describe('Mixture strategy coherence score 0-10'),
+        harmonicSophistication: z.number().describe('Harmonic sophistication score 0-10'),
       }),
 
-      // Detailed issues by category
       issues: z.object({
         technical: z.array(z.object({
           severity: z.enum(['critical', 'major', 'minor']),
@@ -107,10 +127,8 @@ Provide detailed, actionable assessment with specific issues and recommendations
         })).describe('Genre fusion problems'),
       }),
 
-      // Strengths
       strengths: z.array(z.string()).describe('What the composition does well'),
 
-      // Specific actionable recommendations
       recommendations: z.array(z.object({
         priority: z.enum(['high', 'medium', 'low']),
         category: z.enum(['technical', 'musical', 'fusion', 'completeness', 'duration']),
@@ -118,7 +136,6 @@ Provide detailed, actionable assessment with specific issues and recommendations
         expectedImprovement: z.string().describe('How this will improve the composition'),
       })).describe('Prioritized, actionable recommendations'),
 
-      // Summary feedback
       summary: z.string().describe('Brief overall assessment'),
     }),
   }),
@@ -135,15 +152,6 @@ Provide detailed, actionable assessment with specific issues and recommendations
   return _qaAgent;
 }
 
-/**
- * Review a composition with the QA agent
- * @param {Object} options - Review options
- * @param {string} options.abcNotation - ABC notation to review
- * @param {string} options.genre - Expected genre (e.g., "baroque_x_synthwave")
- * @param {string} options.classicalGenre - Classical component
- * @param {string} options.modernGenre - Modern component
- * @returns {Promise<Object>} QA assessment with verdict, scores, and feedback
- */
 export async function reviewCompositionWithAgent(options) {
   const {
     abcFilePath,
@@ -183,11 +191,11 @@ Call validate_abc with the abcNotation above to check for technical errors first
   }
 
   if (userInstructions) {
-    prompt += `\n\n## ⚠️ HARD REQUIREMENTS (check compliance)\nThe following user requirements MUST be fully satisfied. Flag any violation as a high-priority issue:\n${userInstructions}`;
+    prompt += `\n\n## HARD REQUIREMENTS (check compliance)\nThe following user requirements MUST be fully satisfied. Flag any violation as a high-priority issue:\n${userInstructions}`;
   }
 
   if (customSystemPrompt) {
-    prompt += `\n\n## ADDITIONAL DIRECTIVE CONTEXT\nThe composition was generated with the following extended directive set. Evaluate whether these directives are present and well-configured:\n${customSystemPrompt}`;
+    prompt += `\n\n## ADDITIONAL DIRECTIVE CONTEXT\nThe composition was generated with the following extended directive set. These directives are VALID and should be evaluated for quality of usage, not flagged as errors:\n${customSystemPrompt}`;
   }
 
   try {
@@ -212,7 +220,6 @@ Call validate_abc with the abcNotation above to check for technical errors first
       },
     });
 
-    // Display assessment
     console.log(`\n📊 QA Assessment: ${assessment.verdict.toUpperCase()}`);
     console.log(`   Technical: ${assessment.scores.technical}/10`);
     console.log(`   Musical: ${assessment.scores.musical}/10`);
@@ -223,7 +230,6 @@ Call validate_abc with the abcNotation above to check for technical errors first
     console.log(`   Mixture Strategy: ${assessment.scores.fusionStrategy}/10`);
     console.log(`   Harmonic Sophistication: ${assessment.scores.harmonicSophistication}/10`);
 
-    // Show issues if any
     const totalIssues = assessment.issues.technical.length +
       assessment.issues.musical.length +
       assessment.issues.fusion.length;
@@ -250,7 +256,6 @@ Call validate_abc with the abcNotation above to check for technical errors first
       }
     }
 
-    // Show recommendations
     if (assessment.recommendations.length > 0) {
       console.log('\n📝 Recommendations:');
       assessment.recommendations
@@ -273,14 +278,6 @@ Call validate_abc with the abcNotation above to check for technical errors first
   }
 }
 
-/**
- * Generate composition with QA validation loop
- * Wraps composition generation with automatic QA review
- * @param {Function} generateFn - Composition generation function
- * @param {Object} options - Generation options (passed to both generate and QA)
- * @param {number} [maxRetries=2] - Max generation attempts if QA fails
- * @returns {Promise<{abcNotation: string, assessment: Object}>}
- */
 export async function generateWithQA(generateFn, options, maxRetries = 2) {
   let attempts = 0;
   let lastError = null;
@@ -290,10 +287,8 @@ export async function generateWithQA(generateFn, options, maxRetries = 2) {
     console.log(`\n🎵 Generation attempt ${attempts}/${maxRetries}...`);
 
     try {
-      // Generate composition
       const abcNotation = await generateFn(options);
 
-      // Review with QA agent
       console.log('\n🔍 Running QA review...');
       const assessment = await reviewCompositionWithAgent({
         abcNotation,
@@ -302,7 +297,6 @@ export async function generateWithQA(generateFn, options, maxRetries = 2) {
         modernGenre: options.modernGenre,
       });
 
-      // Check verdict
       if (assessment.verdict === 'pass') {
         console.log('✅ QA PASSED - Composition approved!');
         return { abcNotation, assessment };
@@ -313,7 +307,6 @@ export async function generateWithQA(generateFn, options, maxRetries = 2) {
         continue;
       }
 
-      // Fail verdict or out of retries
       console.log('❌ QA FAILED - Composition did not meet quality standards');
       return { abcNotation, assessment };
 

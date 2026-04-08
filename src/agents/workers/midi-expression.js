@@ -12,7 +12,8 @@
 
 import { streamText } from 'ai';
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
-import { getAnthropic, getModel } from '../../utils/llm-client.js';
+import { FORK_DIRECTIVES_REFERENCE } from '../shared/fork-directives-reference.js';
+import { getAnthropic, getModel, getAbc2midiBinary } from '../../utils/llm-client.js';
 
 /**
  * Add MIDI expression to ABC notation
@@ -28,10 +29,13 @@ export async function addMidiExpression(options) {
   console.log('\n🎹 MIDI Expression Worker executing...');
   console.log(`   Directive: ${directive}`);
 
+  const usingFork = getAbc2midiBinary() !== 'abc2midi';
+  const forkSection = usingFork ? '\n\n' + FORK_DIRECTIVES_REFERENCE : '';
+
   const systemPrompt = `You are an expert in MIDI expression, dynamics, and electronic music production.
 You have access to the complete abc2midi %%MIDI extension set and should use it fully.
-
-${ABC2MIDI_REFERENCE}${customSystemPrompt ? '\n\n## EXTENDED DIRECTIVE SET\n' + customSystemPrompt : ''}`;
+${usingFork ? '\nYou are using the abc2midi-llm fork which supports additional directives for organic timing, phrase shaping, and algorithmic transformation. USE THEM — they are the primary tools for expressive MIDI output.\n' : ''}
+${ABC2MIDI_REFERENCE}${forkSection}${customSystemPrompt ? '\n\n## EXTENDED DIRECTIVE SET\n' + customSystemPrompt : ''}`;
 
   try {
     const result = streamText({
@@ -43,7 +47,7 @@ ${ABC2MIDI_REFERENCE}${customSystemPrompt ? '\n\n## EXTENDED DIRECTIVE SET\n' + 
       messages: [
         {
           role: 'user',
-          content: `Add MIDI expression to the ABC notation following this directive:\n"${directive}"\n\n## CURRENT ABC NOTATION\n\`\`\`\n${abc}\n\`\`\`\n\nReturn the COMPLETE ABC notation with expression added. Return ONLY the ABC notation, no explanations.`,
+          content: `OUTPUT FORMAT: Raw ABC notation ONLY. No prose, no analysis, no commentary, no markdown fences. Your entire response must be valid ABC notation that abc2midi can compile. Any non-ABC text will destroy the file.\n\nAdd MIDI expression following this directive: "${directive}"\n\n${abc}`,
         },
       ],
     });

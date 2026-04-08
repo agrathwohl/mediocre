@@ -11,7 +11,8 @@ import { createStepLogger } from '../shared/utils.js';
 import { validateAbcNotation, cleanAbcNotation } from '../../utils/claude.js';
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
 import { formatDrumKitForPrompt } from '../drum-arranger/gm-percussion-reference.js';
-import { getAnthropic, getModel, supportsContextManagement } from '../../utils/llm-client.js';
+import { getAnthropic, getModel, supportsContextManagement, getAbc2midiBinary } from '../../utils/llm-client.js';
+import { FORK_DIRECTIVES_REFERENCE } from '../shared/fork-directives-reference.js';
 
 /**
  * Assemble structured ABC notation into proper format
@@ -48,7 +49,7 @@ function computeRestBar(meter, defaultNoteLength) {
   }
 }
 
-function assembleAbcNotation(structured, options = {}) {
+export function assembleAbcNotation(structured, options = {}) {
   const lines = [];
 
   // Required headers
@@ -97,6 +98,9 @@ function assembleAbcNotation(structured, options = {}) {
         case 'channel':
           lines.push(`%%MIDI channel ${ext.channel}`);
           break;
+        case 'forkDirective':
+          lines.push(`%%${ext.directive}`);
+          break;
       }
     }
   }
@@ -114,6 +118,11 @@ function assembleAbcNotation(structured, options = {}) {
     }
     if (voice.midiProgram !== undefined) {
       lines.push(`%%MIDI program ${voice.midiProgram}`);
+    }
+    if (voice.forkDirectives) {
+      for (const dir of voice.forkDirectives) {
+        lines.push(`%%${dir}`);
+      }
     }
     // Safety net: perc voices WITHOUT drummap get all rests
     // (prevents unmapped notes playing as whistles/bongos on channel 10)
@@ -270,6 +279,7 @@ function enforcePercVoiceNotes(abcText) {
 function createCompositionAgent(options = {}) {
   const anthropic = getAnthropic();
   const { drumMapTable = null } = options;
+  const usingFork = getAbc2midiBinary() !== 'abc2midi';
 
   // Dynamic drum instructions based on drum arranger's selection
   let drumMapInstructions = '';
@@ -320,10 +330,7 @@ If no strategy is specified, default to COEXISTENCE.
 You will provide structured components that will be assembled into proper ABC notation automatically.
 Focus on the musical content - the formatting will be handled correctly.
 
-CRITICAL: Modern genres (synthwave, techno, electronic, industrial, breakcore, drum and bass, etc.) REQUIRE drums/percussion!
-For genre fusions with modern electronic/dance/rock elements, you MUST include a drum voice with clef="perc".
-
-DRUM VOICE RULES:
+${drumMapTable ? `DRUM VOICE (REQUIRED — the drum arranger has prescribed a kit for this fusion):
 - Always use clef: "perc" for the drum voice — this automatically assigns MIDI channel 10 (percussion)
 - Do NOT set midiProgram on a perc voice (channel 10 ignores program changes)
 - PRIMARY METHOD — Use 'drummap' midiExtensions to assign ABC notes to drum sounds, then write REAL notation:
@@ -333,19 +340,20 @@ DRUM VOICE RULES:
   - Use z for rests between hits
   - NEVER use note letters in a drum voice that don't have a drummap entry
 - ALTERNATIVE — Use the 'drum' midiExtension for a simple repeating pattern:
-  - Pattern: ONLY d=hit and z=rest, NO spaces, NO duration numbers (e.g., "dzdzdzdz" not "d2zd z2d")
+  - Pattern: ONLY d=hit and z=rest, NO spaces, NO duration numbers
   - programs array: EXACTLY one GM drum number per 'd' in the pattern
   - velocities array: EXACTLY one 0-127 value per 'd' in the pattern
   - Count your d's! If pattern is "dzdzdzdz" (4 d's), you need exactly 4 programs and 4 velocities
   - When using ONLY %%MIDI drum (no drummap), drum voice notes MUST be all rests (z)
 ${drumMapInstructions}
 
-Guidelines for other MIDI extensions:
-- Use 'program' to set instruments (0-127 General MIDI) for melodic voices
-- Use 'gchord' for guitar chord accompaniment
-- Use 'drumon'/'drumoff' to enable/disable drum patterns
+Create drum patterns appropriate for the specific genre fusion!` : `NO DRUMS — The drum arranger has determined this genre fusion should NOT have a drum kit voice.
+Do NOT include any voice with clef="perc". Do NOT include any drummap, drum, drumon, or drumoff midiExtensions.
+If the genre calls for percussion sounds (timpani, gongs, bells, tam-tam), use pitched percussion instruments via standard MIDI programs on melodic channels instead.`}
 
-IMPORTANT: Create drum patterns appropriate for the specific genre fusion!
+Guidelines for MIDI extensions:
+- Use 'program' to set instruments (0-127 General MIDI) for melodic voices
+- Use 'gchord' for guitar chord accompaniment${drumMapTable ? "\n- Use 'drumon'/'drumoff' to enable/disable drum patterns" : ''}
 
 TOOL USE: Do NOT call validate_abc before generating the composition. Generate the full composition first, then optionally use validate_abc to self-correct if you believe there may be errors.
 
@@ -366,7 +374,7 @@ ABC OCTAVE NOTATION (CRITICAL - DO NOT USE COMMAS):
 - Example valid notes: C, D, E F G A B c d e f g a b c' d' e'
 - Example INVALID (will cause errors): a, b, c, d, e, f, g,
 
-${ABC2MIDI_REFERENCE}`,
+${ABC2MIDI_REFERENCE}${usingFork ? '\n\n' + FORK_DIRECTIVES_REFERENCE + '\n\nYou MUST use fork directives for expressive output. Include global directives (DYNAMICS, BREATH, GRAVITY, ENSEMBLE, SPATIAL) as forkDirective entries in midiExtensions. Include per-voice directives (PNEUMA, ARTICULATE, SPECTRAL, ENSEMBLE voice, TRANSFORM, SHADOW) in each voice\'s forkDirectives array. These are ESSENTIAL — without them the MIDI output sounds mechanical and lifeless.' : ''}`,
 
     output: Output.object({
       schema: z.object({
@@ -410,6 +418,10 @@ ${ABC2MIDI_REFERENCE}`,
             type: z.literal('channel'),
             channel: z.number().describe('Melody channel 1-16'),
           }),
+          z.object({
+            type: z.literal('forkDirective'),
+            directive: z.string().describe('abc2midi-llm fork directive line without %% prefix. Families: PNEUMA (humanize/heartbeat/drift/free/rubato), ENSEMBLE (offset/jitter), BREATH (auto/bars/after/off), GRAVITY (phrase/weight/agogic/off), DYNAMICS (curve/transition/attack/off), SPECTRAL (tilt/cc/off), SPATIAL (group/delay), TRANSFORM (source/retrograde/invert/invertaxis/fragment/pitchshift/timescale/delay/off), SHADOW (source/mode/probability/transpose/delay/invertmotion/intervallock/off)'),
+          }),
         ])).optional().describe('MIDI extensions for instruments and effects'),
 
         // Voices
@@ -418,6 +430,7 @@ ${ABC2MIDI_REFERENCE}`,
           name: z.string().optional().describe('Voice name for readability'),
           clef: z.enum(['treble', 'bass', 'alto', 'tenor', 'treble+8', 'treble-8', 'bass+8', 'bass-8', 'perc']).optional().describe('Musical clef — use "perc" for drum/percussion voices (auto-assigns MIDI channel 10)'),
           midiProgram: z.number().optional().describe('MIDI instrument 0-127 for this voice'),
+          forkDirectives: z.array(z.string()).optional().describe('Per-voice abc2midi-llm fork directives without %% prefix, e.g. ["PNEUMA humanize 10", "ENSEMBLE voice -5", "ARTICULATE auto", "SPECTRAL cc 74 0.5", "TRANSFORM source 1", "SHADOW source 1"]'),
           notes: z.union([
             z.string(),
             z.array(z.string()),

@@ -16,6 +16,7 @@ import { readAbcFileTool } from '../shared/tools.js';
 import { reviewCompositionWithAgent } from '../qa/index.js';
 import { addOrnamentation } from '../workers/ornamentation.js';
 import { addMidiExpression } from '../workers/midi-expression.js';
+import { enhanceDrums } from '../workers/drum-specialist.js';
 import { validateAbcNotation } from '../../utils/claude.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -791,10 +792,77 @@ export async function orchestratePostProcessing(options) {
     }
   }
 
-  // Grab human directives from gate controller before closing
+  // ── POST-LOOP: Drum Specialist Pass ──
+  let drumSpecialistResult = null;
+  if (drumPrescription && (exitReason === 'done' || exitReason === 'max_iterations')) {
+    try {
+      console.log('\n🥁 Running drum specialist pass...');
+
+      const preDrumAbc = currentAbc;
+
+      let baselineQaResult = lastQaResult;
+      if (!baselineQaResult) {
+        console.log('   Running baseline QA for comparison...');
+        baselineQaResult = await reviewCompositionWithAgent({
+          abcFilePath: `${baseNoExt}_iter${iteration}.abc`,
+          genre: genres.hybrid,
+          classicalGenre: genres.classical,
+          modernGenre: genres.modern,
+          drumPrescription,
+          userInstructions,
+          customSystemPrompt,
+        });
+      }
+
+      const drumAbc = await enhanceDrums({
+        abc: currentAbc,
+        drumPrescription,
+        genres,
+        customSystemPrompt,
+      });
+
+      const drumIterPath = `${baseNoExt}_drums.abc`;
+      await fs.writeFile(drumIterPath, drumAbc);
+
+      console.log('\n🔍 Running QA on drum-enhanced version...');
+      const drumQaResult = await reviewCompositionWithAgent({
+        abcFilePath: drumIterPath,
+        genre: genres.hybrid,
+        classicalGenre: genres.classical,
+        modernGenre: genres.modern,
+        drumPrescription,
+        userInstructions,
+        customSystemPrompt,
+      });
+
+      const baselineScores = Object.values(baselineQaResult.scores);
+      const drumScores = Object.values(drumQaResult.scores);
+      const baselineAvg = baselineScores.reduce((sum, s) => sum + s, 0) / baselineScores.length;
+      const drumAvg = drumScores.reduce((sum, s) => sum + s, 0) / drumScores.length;
+
+      if (drumAvg >= baselineAvg) {
+        console.log(`\n✅ Drum specialist accepted (${baselineAvg.toFixed(1)} → ${drumAvg.toFixed(1)})`);
+        currentAbc = drumAbc;
+        lastQaResult = drumQaResult;
+        drumSpecialistResult = { accepted: true, preScore: baselineAvg, postScore: drumAvg };
+      } else {
+        console.log(`\n❌ Drum specialist rejected (${baselineAvg.toFixed(1)} → ${drumAvg.toFixed(1)})`);
+        const rejectedPath = `${baseNoExt}_drums_rejected.abc`;
+        await fs.writeFile(rejectedPath, drumAbc);
+        writtenPaths.push(rejectedPath);
+        console.log(`   Rejected version saved: ${path.basename(rejectedPath)}`);
+        drumSpecialistResult = { accepted: false, preScore: baselineAvg, postScore: drumAvg, rejectedPath };
+      }
+
+      await fs.unlink(drumIterPath).catch(() => {});
+    } catch (drumErr) {
+      console.error('⚠️  Drum specialist pass failed, keeping pre-drum version:', drumErr.message);
+      drumSpecialistResult = { accepted: false, error: drumErr.message };
+    }
+  }
+
   const humanDirectives = gateController ? gateController.getDirectives() : [];
   if (gateController) gateController.close();
-  // Write session log to disk using session-persistence for full resumable state
   const sessionLogPath = `${baseNoExt}_session.json`;
   const sessionState = {
     abcFilePath,
@@ -814,6 +882,7 @@ export async function orchestratePostProcessing(options) {
     humanDirectives,
     exitReason,
     writtenPaths,
+    drumSpecialistResult,
   };
   const sessionData = buildSessionData(sessionState);
   await fs.writeFile(sessionLogPath, JSON.stringify(sessionData, null, 2));
@@ -831,5 +900,6 @@ export async function orchestratePostProcessing(options) {
     iterations: iteration,
     writtenPaths,
     sessionLogPath,
+    drumSpecialistResult,
   };
 }
