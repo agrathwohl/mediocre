@@ -429,7 +429,6 @@ Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "imp
     try {
       decision = result.output;
     } catch (outputErr) {
-      // Log what the model actually returned for debugging
       console.error(`   Failed to extract structured output. Raw text: ${(result.text || '(empty)').slice(0, 500)}`);
       console.error(`   Steps: ${result.steps?.length || 0}`);
       throw outputErr;

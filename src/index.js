@@ -323,6 +323,7 @@ program
     }
   });
 
+
 program
   .command('generate-mxml')
   .description('Generate MusicXML notation files using Claude Sonnet 4.5')

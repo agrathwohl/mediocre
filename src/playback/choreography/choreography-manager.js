@@ -162,9 +162,6 @@ export class ChoreographyManager {
       this.cleanupActiveObjects();
     }
 
-    // Update terminal dimensions (in case of resize)
-    this.actionExecutor.updateTerminalDimensions();
-
     // Process timeline events
     const timelineResult = this.timelineProcessor.processTimeline(
       this.currentTime,

@@ -499,4 +499,10 @@ export async function evolve(abcFilePath, options = {}) {
   }
 
   console.log(`\n✨ Evolution complete — best segments from ${renderAbcs.length} parallel universes assembled!`);
+
+  return {
+    evolvedPath: outAbcPath,
+    reportPath,
+    selections,
+  };
 }
