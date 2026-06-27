@@ -1,7 +1,7 @@
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { getPercussionReference, GM_PERCUSSION } from './gm-percussion-reference.js';
-import { getAnthropic, getModel } from '../../utils/llm-client.js';
+import { getAnthropic, getModel, supportsAnthropicSamplingParams } from '../../utils/llm-client.js';
 
 const drumKitSchema = z.object({
   noDrums: z.boolean().describe('Set to true ONLY when BOTH genres are inherently non-percussive (e.g. ambient, drone, sacred minimalism, meditation music, certain chamber music). When true, drumKit must be an empty array.'),
@@ -59,13 +59,23 @@ Be GENEROUS with selections — include 8-20 sounds. The composition agent can c
 ${percussionRef}`;
 
   try {
-    const { output: result } = await generateText({
-      model: anthropic(getModel('claude-haiku-4-5-20251001'), {
-        cacheControl: { type: 'ephemeral', ttl: '1h' },
-      }),
-      output: Output.object({ schema: drumKitSchema }),
-      prompt,
-    });
+    let result;
+    const modelId = getModel('claude-haiku-4-5-20251001');
+    if (supportsAnthropicSamplingParams('claude-haiku-4-5-20251001')) {
+      const { output } = await generateText({
+        model: anthropic(modelId, { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
+        output: Output.object({ schema: drumKitSchema }),
+        prompt,
+      });
+      result = output;
+    } else {
+      const { text } = await generateText({
+        model: anthropic(modelId),
+        prompt: prompt + '\n\nRespond with a JSON object matching this schema: { noDrums: boolean, drumKit: [{gm: number, name: string, role: string}], patternGuidance: string, reasoning: string }',
+      });
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      result = JSON.parse(jsonMatch[0]);
+    }
 
     // If agent says no drums, respect it
     if (result.noDrums) {

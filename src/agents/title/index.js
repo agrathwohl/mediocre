@@ -8,7 +8,7 @@ import { ToolLoopAgent, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { checkTitleExistsTool } from '../shared/tools.js';
 import { extractDoneResult, createStepLogger } from '../shared/utils.js';
-import { getAnthropic, getModel } from '../../utils/llm-client.js';
+import { getAnthropic, getModel, supportsAnthropicSamplingParams } from '../../utils/llm-client.js';
 
 let _titleAgent = null;
 function getTitleAgent() {
@@ -58,7 +58,7 @@ Workflow:
     },
   ],
 
-  toolChoice: 'required', // Force tool use at every step
+  toolChoice: supportsAnthropicSamplingParams() ? 'required' : 'auto',
     });
   }
   return _titleAgent;

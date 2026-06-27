@@ -205,18 +205,26 @@ function groupSlotsBySection(slots) {
   const sectionMap = new Map();
 
   for (const slot of slots) {
-    // Extract bar range from instruction (e.g., "V1 bars 1-16")
-    const match = slot.instruction.match(/bars?\s+(\d+)-(\d+)/);
-    if (!match) continue;
-
-    const startBar = parseInt(match[1]);
-    const endBar = parseInt(match[2]);
-    const key = `${startBar}-${endBar}`;
-
-    if (!sectionMap.has(key)) {
-      sectionMap.set(key, { startBar, endBar, slots: [] });
+    // Try to extract explicit bar range from instruction (e.g., "V1 bars 1-16")
+    const rangeMatch = slot.instruction.match(/bars?\s+(\d+)-(\d+)/);
+    if (rangeMatch) {
+      const startBar = parseInt(rangeMatch[1]);
+      const endBar = parseInt(rangeMatch[2]);
+      const key = `${startBar}-${endBar}`;
+      if (!sectionMap.has(key)) {
+        sectionMap.set(key, { startBar, endBar, slots: [] });
+      }
+      sectionMap.get(key).slots.push(slot);
+      continue;
     }
-    sectionMap.get(key).slots.push(slot);
+
+    // Try to extract single bar entry point (e.g., "enters bar 1", "bar 1")
+    const entryMatch = slot.instruction.match(/bar\s+(\d+)/i);
+    const startBar = entryMatch ? parseInt(entryMatch[1]) : (slot.index || 0);
+    const endBar = startBar + (slot.barCount || 1) - 1;
+    // Each slot is its own section when no shared bar range is found
+    const key = `slot-${slot.index}`;
+    sectionMap.set(key, { startBar, endBar, slots: [slot] });
   }
 
   return Array.from(sectionMap.values()).sort((a, b) => a.startBar - b.startBar);
@@ -273,7 +281,7 @@ function buildSlotPrompt(slot, template, filledSoFar) {
  * @param {string} rawDir - Directory to save raw output
  * @returns {Promise<Object|null>} Map of voiceId → content, or null on failure
  */
-export async function fillSection(section, template, filledSoFar, rawDir) {
+export async function fillSection(section, template, filledSoFar, rawDir, { maxTokens = 4000, temperature = 0.7 } = {}) {
   const provider = getAnthropic();
   const modelId = getModel('claude-sonnet-4-6');
 
@@ -292,7 +300,8 @@ export async function fillSection(section, template, filledSoFar, rawDir) {
     prompt += `\n${voiceName} (V:${slot.voice}): ${slot.instruction}\n`;
   }
 
-  prompt += `\nGenerate complete ABC notation for ALL ${section.slots.length} voices for this section. Include voice declarations (V:1, V:2, etc.) and note content for each voice.\n`;
+  const voiceIds = section.slots.map(s => `V:${s.voice}`).join(', ');
+  prompt += `\nOutput ONLY voice sections — no file headers. Start immediately with ${voiceIds} followed by note content.\n`;
 
   // Add context from previously filled sections
   const contextVoices = [];
@@ -307,14 +316,15 @@ export async function fillSection(section, template, filledSoFar, rawDir) {
   }
 
   // System prompt — let the model generate full multi-voice sections
-  let systemPrompt = `You are a music composition AI specializing in hybrid genre fusions.
+  let systemPrompt = `You are a music composition AI. Generate ABC note content for multiple voices.
 
-Generate complete multi-voice ABC notation sections. Include:
-- Voice declarations: V:1, V:2, V:3, etc.
-- Note content for each voice with proper bar separators |
-- Dynamics (!pp!, !mf!, !ff!), articulations, grace notes, chords
+CRITICAL: Output ONLY voice sections. NO file headers (X:, T:, M:, L:, Q:, K:, C:). NO %%MIDI or %%PNEUMA directives. NO markdown.
 
-Output ONLY raw ABC notation. No commentary, no markdown, no explanations.`;
+Format exactly:
+V:[N]
+[note content with | bar separators]
+
+Use dynamics (!pp! !mf! !ff!), chords ([CEG]), articulations freely within notes.`;
 
   if (template.directives.length > 0) {
     systemPrompt += `\n\nThis piece uses temporal humanization directives:\n${template.directives.join('\n')}`;
@@ -325,8 +335,8 @@ Output ONLY raw ABC notation. No commentary, no markdown, no explanations.`;
       model: provider(modelId),
       system: systemPrompt,
       prompt,
-      maxTokens: 8000, // larger for multi-voice sections
-      temperature: 0.7,
+      maxOutputTokens: maxTokens,
+      temperature,
     });
 
     // Save raw output
@@ -336,7 +346,18 @@ Output ONLY raw ABC notation. No commentary, no markdown, no explanations.`;
     }
 
     // Parse multi-voice output
-    const voiceContent = parseMultiVoiceAbc(text, section.slots.map(s => s.voice));
+    let voiceContent = parseMultiVoiceAbc(text, section.slots.map(s => s.voice));
+
+    // If single-slot section and the model returned no match for the target voice,
+    // fall back to using whatever voice content was generated (model often outputs V:1 regardless).
+    if (section.slots.length === 1 && Object.keys(voiceContent).length === 0) {
+      const fallbackContent = parseMultiVoiceAbc(text, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+      const firstMatch = Object.values(fallbackContent)[0];
+      if (firstMatch) {
+        const targetVoice = section.slots[0].voice;
+        voiceContent = { [targetVoice]: firstMatch };
+      }
+    }
 
     // Post-process each voice
     const processed = {};
@@ -386,7 +407,7 @@ Output ONLY raw ABC notation. No commentary, no markdown, no explanations.`;
  * @param {string} rawDir - Directory to save raw output
  * @returns {Promise<string|null>} Generated note content, or null on failure
  */
-export async function fillSlot(slot, template, filledSoFar, rawDir) {
+export async function fillSlot(slot, template, filledSoFar, rawDir, { maxTokens = 4000, temperature = 0.7 } = {}) {
   const provider = getAnthropic();
   const modelId = getModel('claude-sonnet-4-6');
   const prompt = buildSlotPrompt(slot, template, filledSoFar);
@@ -411,8 +432,8 @@ Write musically: varied rhythms, interesting intervals, dynamic shaping, phrase 
       model: provider(modelId),
       system: systemPrompt,
       prompt,
-      maxTokens: 4000,
-      temperature: 0.7,
+      maxOutputTokens: maxTokens,
+      temperature,
     });
 
     // Save raw output
@@ -493,6 +514,8 @@ export async function compose(templatePath, options = {}) {
     slotNumber = null,
     output = null,
     skipValidation = false,
+    maxTokens = 4000,
+    temperature = 0.7,
   } = options;
 
   // Parse template
@@ -548,15 +571,16 @@ export async function compose(templatePath, options = {}) {
   for (const section of sections) {
     console.log(`\n  📍 Section: bars ${section.startBar}-${section.endBar} (${section.slots.length} voices)`);
 
-    let sectionContent = await fillSection(section, template, filledVoiceContent, rawDir);
+    const genOpts = { maxTokens, temperature };
+    let sectionContent = await fillSection(section, template, filledVoiceContent, rawDir, genOpts);
     // Retry up to 2 times on failure
     if (!sectionContent) {
       console.log(`    ⟳ Retrying section bars ${section.startBar}-${section.endBar}...`);
-      sectionContent = await fillSection(section, template, filledVoiceContent, rawDir);
+      sectionContent = await fillSection(section, template, filledVoiceContent, rawDir, genOpts);
     }
     if (!sectionContent) {
       console.log(`    ⟳ Final retry section bars ${section.startBar}-${section.endBar}...`);
-      sectionContent = await fillSection(section, template, filledVoiceContent, rawDir);
+      sectionContent = await fillSection(section, template, filledVoiceContent, rawDir, genOpts);
     }
 
     if (sectionContent) {

@@ -59,6 +59,14 @@ export async function validateAbcNotation(abcNotation) {
 }
 
 export function cleanAbcNotation(abcNotation) {
+  // Drop leading model reasoning before the X: tune header. Text-mode generation
+  // and self-correction passes sometimes emit chain-of-thought prose before the ABC,
+  // which crashes abc2midi (SIGSEGV) — nothing valid precedes the X: header.
+  const headerIndex = abcNotation.search(/^X:\s*\d/m);
+  if (headerIndex > 0) {
+    abcNotation = abcNotation.slice(headerIndex);
+  }
+
   let cleanedText = abcNotation
     .replace(/^```(?:abc|ABC|text)?\s*\n?/gm, "")
     .replace(/\n?```\s*$/gm, "")

@@ -38,6 +38,14 @@ The documentation site features playable audio, PDF scores, section navigation, 
   - [More Like This](#more-like-this)
   - [Mix and Match](#mix-and-match)
   - [Add Lyrics](#add-lyrics)
+- [Template Pipeline](#template-pipeline)
+  - [Generate Template](#generate-template)
+  - [Compose (Fill Template)](#compose-fill-template)
+  - [Evolve](#evolve)
+  - [Mirror](#mirror)
+- [Local Model Support](#local-model-support)
+- [abc2midi-llm Fork](#abc2midi-llm-fork)
+- [Dataset Commands](#dataset-commands)
 - [Multi-Agent Composition Pipeline](#multi-agent-composition-pipeline)
 - [Human-in-the-Loop Control](#human-in-the-loop-control)
 - [Choreography System](#choreography-system)
@@ -495,6 +503,450 @@ mediocre lyrics \
   --record-label "Transgressive" \
   --instruments "Voice,Synthesizer,808,Strings"
 ```
+
+---
+
+## Template Pipeline
+
+The template pipeline gives you structural control before LLM content generation. You create a formal scaffold first, then fill it with LLM-generated music. This separates composition structure from content, and pairs best with the `abc2midi-llm` fork for humanization directives.
+
+**Full workflow:**
+
+```bash
+# 1. Create a structural template (scaffold with empty slots)
+mediocre template --form ritual \
+  --key Dmin --meter 7/8 --bars 192 \
+  --instruments "prepared piano,fretless bass,taiko" \
+  --enhanced --pneuma organic --tempo 152
+
+# 2. Fill slots with LLM-generated content
+mediocre compose template-ritual.abc \
+  --llama-server http://localhost:8001/v1 \
+  --abc2midi /path/to/abc2midi-llm/abc2midi
+
+# 3. Evolutionary selection — render N seed variations, score, assemble best
+mediocre evolve template-ritual-composed.abc \
+  --abc2midi /path/to/abc2midi-llm/abc2midi \
+  --llama-server http://localhost:8001/v1 \
+  -n 50 --segment-bars 4
+```
+
+### Generate Template
+
+Generates a formal scaffold with pre-written structural voices (drums, drones, structural events), content slots for the LLM to fill, and optional temporal humanization directives.
+
+```bash
+mediocre template --form ritual \
+  --key Dmin --meter 7/8 --bars 192 \
+  --instruments "prepared piano,fretless bass,taiko,chamber organ" \
+  --enhanced --pneuma organic --voices orchestral --drumarc exploration \
+  --tempo 152
+
+mediocre template --form accumulative \
+  --key F#min --meter 5/4 --bars 256 \
+  --entry-interval 12 --exit-strategy collapse \
+  --enhanced --pneuma ritual
+
+mediocre template --form source-transfer \
+  --source-a "dense orchestral cluster chords" \
+  --source-b "sparse gamelan melody" \
+  --bars 128 --tempo 140
+
+mediocre template --form stack-overflow \
+  --push-bars 8 --bars 160 --meter 4/4
+```
+
+**Required:**
+
+| Flag | Options | Description |
+| ---- | ------- | ----------- |
+| `--form <type>` | `ritual`, `stack-overflow`, `source-transfer`, `accumulative` | Structural form |
+
+**Options:**
+
+| Flag | Default | Description |
+| ---- | ------- | ----------- |
+| `--key <key>` | `Ddor` | Key signature (e.g. `Dmin`, `Am`, `F#min`, `Ddor`, `K:none`) |
+| `--meter <meter>` | `7/8` | Time signature (e.g. `7/8`, `5/4`, `11/8`, `4/4`) |
+| `--bars <n>` | `64` | Total bar count (96–384 recommended) |
+| `--tempo <bpm>` | `152` | Tempo in BPM |
+| `--instruments <list>` | — | Comma-separated instrument names for content voices |
+| `--enhanced` | `false` | Emit abc2midi-llm humanization directives (`%%PNEUMA`, `%%BREATH`, etc.) |
+| `--pneuma <preset>` | `organic` | Temporal humanization preset: `subtle`, `organic`, `drunk`, `ritual`, `mechanical` |
+| `--voices <preset>` | `orchestral` | Voice arrangement preset: `medieval`, `orchestral`, `electronic`, `chamber`, `industrial`, `baroque` |
+| `--drumarc <arc>` | `exploration` | Drum timbral arc: `exploration`, `sparse-to-dense`, `skin-metal-wood`, `decay` |
+| `-o, --output <dir>` | `./output` | Output directory |
+| `--filename <name>` | — | Output filename override |
+
+**Form-specific options:**
+
+| Flag | Form | Description |
+| ---- | ---- | ----------- |
+| `--source-a <desc>` | source-transfer | Description of source material A |
+| `--source-b <desc>` | source-transfer | Description of source material B |
+| `--push-bars <n>` | stack-overflow | Bars per push phase |
+| `--entry-interval <n>` | accumulative | Bars between voice entries |
+| `--exit-strategy` | accumulative | How voices leave: `reverse`, `selective`, `collapse` |
+
+**Available forms:**
+
+- **`ritual`** — Sectional form with delineated ritual phases (invocation, development, climax, dissolution)
+- **`accumulative`** — Voices enter one by one at `--entry-interval` bars, then exit via `--exit-strategy`
+- **`source-transfer`** — Two contrasting sources A and B gradually merge across the piece
+- **`stack-overflow`** — Rhythmic and textural material accumulates in push phases until collapse
+
+**Humanization presets (`--pneuma`):**
+
+| Preset | Description |
+| ------ | ----------- |
+| `subtle` | Barely perceptible timing variation, studio musician feel |
+| `organic` | Natural human timing, breath-aware, default for most use |
+| `drunk` | Heavy swing, unstable pulse, delayed entries |
+| `ritual` | Slow drift, collective breathing, ceremonial weight |
+| `mechanical` | No humanization (disabled) |
+
+**Voice presets (`--voices`):**
+
+| Preset | Character |
+| ------ | --------- |
+| `orchestral` | Strings, woodwinds, brass, percussion |
+| `medieval` | Lute, vielle, psaltery, shawm |
+| `electronic` | Synthesizers, samplers, sequencers |
+| `chamber` | Piano, violin, cello, oboe |
+| `industrial` | Metal percussion, feedback, drones |
+| `baroque` | Harpsichord, basso continuo, recorders |
+
+---
+
+### Compose (Fill Template)
+
+Fills a template's content slots with LLM-generated ABC music. Each `%%SLOT` in the template is filled sequentially with a separate LLM call. The composed output retains all structural voices and humanization directives from the template.
+
+```bash
+# Fill all slots
+mediocre compose template-ritual.abc \
+  --llama-server http://localhost:8001/v1 \
+  --abc2midi /path/to/abc2midi-llm/abc2midi
+
+# Preview slots without generating
+mediocre compose template-ritual.abc --dry-run
+
+# Fill only a specific slot (for testing or retry)
+mediocre compose template-ritual.abc --slot 4 \
+  --llama-server http://localhost:8001/v1
+
+# Custom output file
+mediocre compose template.abc -o composed.abc
+```
+
+**Options:**
+
+| Flag | Default | Description |
+| ---- | ------- | ----------- |
+| `--dry-run` | `false` | Parse template and list slots without generating |
+| `--slot <n>` | — | Fill only slot N (1-indexed) |
+| `--skip-validation` | `false` | Skip abc2midi validation after each slot |
+| `--llama-server <url>` | — | Local inference server URL |
+| `--abc2midi <path>` | system `abc2midi` | Path to abc2midi binary (fork recommended) |
+| `-o, --output <file>` | `<template>-composed.abc` | Output filename |
+
+---
+
+### Evolve
+
+Evolutionary selection pipeline using the abc2midi-llm `-seed` and `-fragmap` flags. Renders N MIDI variations of the same ABC with different random seeds, scores each segment with an LLM, and assembles the best-scoring fragments into a single pristine-notation output.
+
+The result is the original ABC notation reassembled with optimal seed choices — no timing information baked in, fully editable, ready for further processing.
+
+```bash
+mediocre evolve composed.abc \
+  --abc2midi /path/to/abc2midi-llm/abc2midi \
+  --llama-server http://localhost:8001/v1 \
+  -n 50 --segment-bars 4
+
+# Quick test with fewer renders, no LLM scoring
+mediocre evolve composed.abc \
+  --abc2midi /path/to/abc2midi-llm/abc2midi \
+  -n 10 --skip-qa
+
+# Keep all render files for manual review
+mediocre evolve composed.abc \
+  --abc2midi /path/to/abc2midi-llm/abc2midi \
+  -n 20 --keep-renders --top 3
+```
+
+**Requires:** `abc2midi-llm` fork with `-seed` and `-fragmap` support.
+
+**Options:**
+
+| Flag | Default | Description |
+| ---- | ------- | ----------- |
+| `-n, --renders <n>` | `20` | Number of seed variations to render and compare |
+| `--segment-bars <n>` | `8` | Bars per evaluation segment |
+| `--top <n>` | `5` | Show top N results in output |
+| `--keep-renders` | `false` | Keep individual render MIDI/ABC files after completion |
+| `--skip-qa` | `false` | Skip LLM scoring (use note density as proxy metric) |
+| `--abc2midi <path>` | system `abc2midi` | Path to abc2midi-llm binary |
+| `--llama-server <url>` | — | Local inference server URL |
+| `-o, --output <file>` | `<input>-evolved.abc` | Output filename |
+
+---
+
+### Mirror
+
+Resolves `%%MIRROR` directives in ABC files. A mirror directive splices musical material from a referenced source file into the current piece at the specified location — enabling material reuse and cross-composition references without copy-paste.
+
+```bash
+mediocre mirror piece-with-mirrors.abc -o resolved.abc
+```
+
+**Options:**
+
+| Flag | Description |
+| ---- | ----------- |
+| `-o, --output <file>` | Output file (defaults to overwriting input) |
+
+---
+
+## Local Model Support
+
+mediocre-music supports any OpenAI-compatible local inference server (llama.cpp, vLLM, Ollama, text-generation-webui, etc.) via the `--llama-server` flag. This routes all LLM calls away from Anthropic to your local endpoint — no API key required.
+
+### Setup
+
+```bash
+# Start llama-server (llama.cpp example)
+llama-server \
+  --model /path/to/model-bf16.gguf \
+  --n-gpu-layers 99 \
+  --ctx-size 8192 \
+  --chat-template chatml \
+  --chat-template-kwargs '{"enable_thinking": false}' \
+  --temp 0.7 --top-p 0.95 --top-k 20 \
+  --repeat-penalty 1.15 --repeat-last-n 256 \
+  --port 8001
+
+# Use with any command
+mediocre generate -g "bartok_x_venetian_snares" \
+  --llama-server http://localhost:8001/v1 \
+  --sequential --stream-text
+```
+
+### Supported commands
+
+All generation commands route LLM calls through `--llama-server`:
+- `generate`, `modify`, `enhance`, `combine`, `mix-and-match`, `more-like-this`
+- `template`, `compose`, `evolve`
+- `timidity-config`, `validate-abc` (LLM-assisted mode)
+
+### Fine-tuned model config
+
+For best results with a fine-tuned ABC notation model:
+
+| Setting | Value | Reason |
+| ------- | ----- | ------ |
+| Quantization | BF16 only | Q4_K_M destroys creative output quality |
+| Flash attention | Disabled | Cuts output length 60–75% with no speed benefit |
+| KV cache quant | `-ctk q8_0 -ctv q8_0` | Good tradeoff for context efficiency |
+| Context size | `--ctx-size 32768` | Required for long compositions |
+| Thinking mode | Disabled | `--chat-template-kwargs '{"enable_thinking": false}'` |
+| Server mode | Single-request | All generation must be sequential |
+
+---
+
+## abc2midi-llm Fork
+
+For the best results with humanized, expressive MIDI output, use the [abc2midi-llm fork](https://github.com/agrathwohl/abc2midi-llm). It adds seven directives designed specifically for LLM-generated music, enabling biological timing, ensemble cohesion, phrasing, and cross-voice transformation — none of which exist in standard `abcmidi`.
+
+### Building the fork
+
+**With Nix (recommended)** — the repo includes a Nix flake that handles all dependencies automatically:
+
+```bash
+git clone https://github.com/agrathwohl/abc2midi-llm
+cd abc2midi-llm
+nix develop
+./configure
+make
+```
+
+**Without Nix** — requires a C compiler, GNU make, and autoconf:
+
+```bash
+git clone https://github.com/agrathwohl/abc2midi-llm
+cd abc2midi-llm
+./configure
+make
+```
+
+The `abc2midi` binary is built directly in the project root. Point mediocre-music at it:
+
+```bash
+mediocre generate -g "messiaen_x_burial" \
+  --system-prompt prompts/pneuma-system-prompt.txt \
+  --abc2midi /path/to/abc2midi-llm/abc2midi
+```
+
+The `template` command automatically emits these directives when `--enhanced` is passed.
+
+### Directives
+
+| Directive | What it does |
+| --------- | ------------ |
+| `%%PNEUMA` | Biological timing — note onset jitter, sinusoidal breathing tempo, cumulative drift, free time, rubato |
+| `%%ENSEMBLE` | Inter-voice micro-timing offsets so independently generated voices sound like musicians playing together |
+| `%%BREATH` | Automatic rest insertion at phrase boundaries — the piece breathes |
+| `%%GRAVITY` | Phrase-level weight — heavier openings, lighter middles, stretched endings |
+| `%%ARTICULATE` | Context-aware note length — repeated notes shortened, leaps lengthened, phrase endings sustained |
+| `%%SPATIAL` | Millisecond-scale delays between voice groups simulating physical distance |
+| `%%TRANSFORM` | Cross-voice algorithmic transformation — retrograde, inversion, fragmentation, pitch shift, time scale |
+
+Additionally, the fork adds:
+- `-seed <n>` — reproducible randomization for MIDI rendering
+- `-fragmap <file>` — fragment map JSON for lossless per-segment seed selection (used by `mediocre evolve`)
+
+### Directive Reference
+
+**`%%PNEUMA`**
+```abc
+%%PNEUMA humanize 15       % ±15 tick onset jitter
+%%PNEUMA heartbeat 0.04    % sinusoidal breathing at 0.04 amplitude
+%%PNEUMA drift 0.015       % cumulative random walk
+%%PNEUMA free start        % begin free time / rubato section
+%%PNEUMA free end
+%%PNEUMA rubato 1.0 1.1 0.95 1.05  % per-beat stretch factors
+```
+
+**`%%BREATH`**
+```abc
+%%BREATH auto 30           % micro-rests at bar lines, 30 ticks
+%%BREATH bars 4            % breathing every 4 bars
+%%BREATH after 480         % after notes exceeding 480 ticks
+```
+
+**`%%GRAVITY`**
+```abc
+%%GRAVITY phrase 4         % 4-bar phrase grouping
+%%GRAVITY weight 1.1 0.95 0.9 1.05  % velocity per bar in phrase
+%%GRAVITY agogic 1.05 1.0 0.98 1.08 % duration per bar in phrase
+```
+
+**`%%ARTICULATE`**
+```abc
+%%ARTICULATE auto          % all context-aware rules with defaults
+%%ARTICULATE repeated 0.85 % repeated note shortening factor
+%%ARTICULATE leap 1.1      % post-leap spacing factor
+%%ARTICULATE phraseend 1.15 % phrase-end sustain factor
+```
+
+**`%%ENSEMBLE` / `%%SPATIAL`**
+```abc
+%%ENSEMBLE offset 5        % global onset shift (ticks)
+%%ENSEMBLE voice 8         % per-voice constant offset
+%%SPATIAL group strings    % define voice group "strings"
+%%SPATIAL delay strings woodwinds 12  % 12ms delay between groups
+```
+
+**`%%TRANSFORM`**
+```abc
+%%TRANSFORM source 2       % read from voice 2
+%%TRANSFORM retrograde     % reverse notes
+%%TRANSFORM invert         % mirror pitches around axis
+%%TRANSFORM fragment 0.3   % drop 30% of notes probabilistically
+%%TRANSFORM pitchshift 7   % transpose 7 semitones
+%%TRANSFORM timescale 0.5  % halve all durations
+```
+
+---
+
+## Dataset Commands
+
+Build structured ML training datasets from your composition corpus.
+
+### `mediocre dataset build`
+
+```bash
+# Build with quality threshold
+mediocre dataset build \
+  -i ./output \
+  -o ./dataset-v1 \
+  --quality 7 \
+  --tasks "genre_generation,description_to_music,parameter_generation" \
+  --variants 3 \
+  --version 1.0.0
+
+# Dry run — preview without writing
+mediocre dataset build -i ./output --dry-run
+
+# Gold tier only, 90/5/5 split
+mediocre dataset build \
+  -i ./output --tier gold \
+  --train-ratio 0.9 --val-ratio 0.05 --test-ratio 0.05
+
+# Limit size for testing
+mediocre dataset build -i ./output --max-samples 100 --seed 42
+```
+
+**Core options:**
+
+| Flag | Default | Description |
+| ---- | ------- | ----------- |
+| `-i, --input <dir>` | `./output` | Input compositions directory |
+| `-o, --output <dir>` | `./dataset` | Output dataset directory |
+| `-q, --quality <score>` | `0` | Minimum QA score threshold (0–10) |
+| `--tier <tier>` | — | Filter by tier: `gold`, `silver`, `bronze` |
+
+**Dataset composition:**
+
+| Flag | Default | Description |
+| ---- | ------- | ----------- |
+| `--tasks <types>` | all | Task types (comma-separated): `genre_generation`, `description_to_music`, `parameter_generation` |
+| `--variants <n>` | `1` | Instruction variants per task (multiplies dataset size) |
+| `--train-ratio <f>` | `0.9` | Train split ratio |
+| `--val-ratio <f>` | `0.05` | Validation split ratio |
+| `--test-ratio <f>` | `0.05` | Test split ratio |
+| `--version <version>` | `1.0.0` | Dataset version string |
+| `--stage <stage>` | — | Prefer stage: `final`, `modified`, `combined`, `score1` |
+
+**Control:**
+
+| Flag | Description |
+| ---- | ----------- |
+| `--no-deduplicate` | Skip deduplication pass |
+| `--no-card` | Skip dataset card generation |
+| `--dry-run` | Preview without writing any files |
+| `--max-samples <n>` | Limit total input compositions |
+| `--seed <n>` | Random seed for reproducible splits (default: 42) |
+
+**Output files:**
+
+```
+dataset-v1/
+├── train.jsonl        # Training split
+├── validation.jsonl   # Validation split
+├── test.jsonl         # Test split
+└── dataset_info.json  # Metadata, task distribution, version
+```
+
+### `mediocre dataset validate <path>`
+
+Validate a JSONL dataset for schema compliance.
+
+```bash
+mediocre dataset validate ./dataset-v1
+```
+
+Reports schema errors, missing fields, and malformed entries per split file.
+
+### `mediocre dataset info <path>`
+
+Display dataset statistics.
+
+```bash
+mediocre dataset info ./dataset-v1
+```
+
+Shows composition counts, task distribution, tier breakdown, and split sizes.
 
 ---
 
@@ -1111,22 +1563,28 @@ mediocre generate \
 
 | Command | Description | Usage |
 | ------- | ----------- | ----- |
-| `complain` | Send feedback about a prior orchestration session | `mediocre complain <sessionFile> "complaint text"` |
+| `complain` | Send feedback about a prior orchestration session | `mediocre complain <sessionFile> "complaint text" --max-iterations 5` |
 | `resume` | Resume a paused orchestration session | `mediocre resume <sessionFile> --max-iterations 5` |
 | `compare` | A/B comparison of two ABC iteration files | `mediocre compare <fileA> <fileB>` |
 | `checkpoints` | List all checkpoints and branches for a composition | `mediocre checkpoints <target>` |
 | `branch` | Create a new branch from a specific iteration | `mediocre branch <abcFile> --from <iteration>` |
-| `timidity-config` | Generate optimized TiMidity config using soundfont agent | `mediocre timidity-config <abcFile>` |
+| `timidity-config` | Generate optimized TiMidity config using soundfont agent | `mediocre timidity-config <abcFile> [-g genre]` |
 | `generate-mxml` | Generate MusicXML composition using Claude | `mediocre generate-mxml [options]` |
 | `modify-mxml` | Modify existing MusicXML composition | `mediocre modify-mxml <mxmlFile> [options]` |
-| `generate-onsets` | Extract onset timing data from audio | `mediocre generate-onsets --abc <abcFile>` |
-| `generate-ascii-art` | Generate ASCII art assets | `mediocre generate-ascii-art [options]` |
-| `browse` | Interactive TUI composition browser | `mediocre browse` |
-| `info` | Display detailed composition information | `mediocre info <abcFile>` |
-| `list` | List compositions with sorting/filtering | `mediocre list -s age -g baroque` |
-| `convert` | Convert ABC to MIDI/WAV/PDF | `mediocre convert --to wav -i <abcFile>` |
+| `generate-onsets` | Extract onset timing data from ABC file | `mediocre generate-onsets -a <abcFile>` |
+| `generate-ascii-art` | Generate ASCII art assets for a composition | `mediocre generate-ascii-art --abc <abcFile> -c 8` |
+| `browse` | Interactive TUI composition browser with playback | `mediocre browse [-d directory]` |
+| `info` | Display detailed composition information | `mediocre info <abcFile> [--show-full-analysis]` |
+| `list` | List compositions with sorting/filtering | `mediocre list -s age -g baroque -l 20` |
+| `convert` | Convert ABC to MIDI/WAV/PDF | `mediocre convert --to all -i <abcFile>` |
 | `process` | Apply audio effects to WAV files | `mediocre process -e reverb -i <wavFile>` |
-| `dataset` | Build ML training datasets | `mediocre dataset -d ./output` |
+| `dataset build` | Build ML training dataset from composition corpus | `mediocre dataset build -i ./output -o ./dataset` |
+| `dataset validate` | Validate JSONL dataset for schema compliance | `mediocre dataset validate ./dataset` |
+| `dataset info` | Show dataset statistics and task distribution | `mediocre dataset info ./dataset` |
+| `genres` | Generate hybrid genre name suggestions | `mediocre genres -c baroque,romantic -m techno,ambient -n 5` |
+| `sanitize` | Remap problematic drum notes in ABC files | `mediocre sanitize "output/*.abc" [--dry-run] [--llm]` |
+| `validate-abc` | Validate and fix ABC notation files | `mediocre validate-abc -i <abcFile> [-o <output>]` |
+| `lyrics` | Add vocal lyrics to a composition | `mediocre lyrics -m <midi> -a <abc> -p "lyrics description"` |
 
 ---
 
@@ -1164,6 +1622,10 @@ Generated from Graphviz `.dot` sources in `docs/diagrams/`:
 | `modify`               | Transform existing compositions               |
 | `enhance`              | Orchestrated multi-agent enhancement          |
 | `combine`              | Merge multiple compositions                   |
+| `template`             | Generate a structural composition template    |
+| `compose`              | Fill a template's slots with LLM content      |
+| `evolve`               | Evolutionary seed selection pipeline          |
+| `mirror`               | Resolve %%MIRROR directives in ABC files      |
 | `complain`             | Send feedback about prior session             |
 | `resume`               | Resume paused orchestration session           |
 | `compare`              | A/B comparison of iteration files             |
@@ -1185,7 +1647,9 @@ Generated from Graphviz `.dot` sources in `docs/diagrams/`:
 | `generate-choreography`| Generate visual choreography                  |
 | `play-choreography`    | Play choreography animation                   |
 | `generate-ascii-art`   | Generate ASCII art assets                     |
-| `dataset`              | Build ML training datasets                    |
+| `dataset build`        | Build ML training dataset                     |
+| `dataset validate`     | Validate JSONL dataset schema                 |
+| `dataset info`         | Show dataset statistics                       |
 | `browse`               | Interactive terminal browser                  |
 | `list`                 | List compositions with filtering              |
 

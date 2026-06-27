@@ -120,8 +120,11 @@ program
   .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
   .option('--interactive', 'Enable human-in-the-loop interactive mode for sequential enhancement')
   .option('--instructions <text>', 'Hard compositional requirements applied throughout the entire generation pipeline (e.g. "use only grand piano and drums")')
+  .option('--movements <n>', 'Compose a long-form work as N separate movement files, focusing the agentic loop on one movement at a time (requires agents enabled; incompatible with --soundfonts)')
+  .option('--temperature <n>', 'Sampling temperature (default: 0.9)', parseFloat)
   .option('--midi', 'Run abc2midi on generated ABC files (enabled by default)', true)
   .option('--no-midi', 'Skip abc2midi conversion')
+  .option('--no-description', 'Skip generating the markdown description document')
   .action(async (options) => {
     try {
       let genres = [];
@@ -197,7 +200,11 @@ program
           maxIterations: parseInt(options.maxIterations || '5', 10),
           objectMode: options.object !== false,
           useStreaming: options.streamText || false,
-          interactive: options.interactive || false
+          interactive: options.interactive || false,
+          instructions: options.instructions || '',
+          movements: parseInt(options.movements || '1', 10),
+          temperature: options.temperature,
+          skipDescription: options.description === false,
         };
 
         const files = await generateAbc(genreOptions);
@@ -265,6 +272,8 @@ program
   .option('--dry-run', 'Parse template and show slots without generating')
   .option('--slot <n>', 'Fill only slot N (for testing)')
   .option('--skip-validation', 'Skip abc2midi validation')
+  .option('--max-tokens <n>', 'Max tokens per LLM call (default: 4000)', parseInt)
+  .option('--temperature <n>', 'Sampling temperature (default: 0.7)', parseFloat)
   .option('-o, --output <file>', 'Output filename (default: <template>-composed.abc)')
   .action(async (templatePath, options) => {
     try {
@@ -273,6 +282,8 @@ program
         slotNumber: options.slot ?? null,
         output: options.output,
         skipValidation: options.skipValidation,
+        maxTokens: options.maxTokens ?? 4000,
+        temperature: options.temperature ?? 0.7,
       });
     } catch (error) {
       console.error('Error composing:', error);

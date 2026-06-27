@@ -16,11 +16,17 @@
 
 ---
 
-Haydn crossed with Merzbow. Messiaen crossed with Burial. Babbitt crossed with Muslimgauze.
+Generate exceptionally new forms of music by merging disparate genres, influences, and properties.
 
 mediocre-music runs a coordinated pipeline of AI agents — composer, QA critic, orchestrator, drum arranger, soundfont selector, ornament specialist — that iteratively generate and refine compositions in ABC notation, then render them to MIDI and WAV. You control how long it runs and how weird it gets.
 
 It's built as a training data generator for audio ML, but the output is genuinely interesting on its own.
+
+Supports a number of different compositional philosophies but is grounded in a baseline principle: that new technologies should expand and intensify musical possibilities, and not merely streamline, automate, and simplify the generation of that which has already been tried.
+
+This project's success in pursuing this principle remains a work in progress, but the results so far are telling: cloud-based and local LLMs both are able to think musically, inventively, and experimentally. These models have the potential today to compose moving works of symphonic music, free jazz freakouts, and everything in between. Sometimes the stuff they come up with are genuinely puzzling, other times incredibly breathtaking, and still yet sometimes they just fail to even produce ABC notation that parses correctly. It's a gamble but it's one that shows great promise.
+
+With Mediocre, you can compose a dataset of 5,000 music compositions or more in a single month of a Claude Max 200 subscription. Most of them will be at least serviceable, even if 10% of them are total flops.
 
 ---
 
@@ -103,20 +109,20 @@ nix-shell -p abcmidi abcm2ps ghostscript timidity fluidsynth sox ffmpeg
 
 ## Key Flags
 
-| Flag                 | What it does                                                                    |
-| -------------------- | ------------------------------------------------------------------------------- |
-| `-C`                 | Classical composers/genres to fuse from                                         |
-| `-M`                 | Modern artists/genres to fuse from                                              |
-| `-s`                 | Style description                                                               |
-| `--sequential`       | Enable multi-agent orchestration loop                                           |
-| `--max-iterations N` | How many refinement cycles (default: 5)                                         |
-| `--interactive`      | Pause at each iteration for human control                                       |
-| `--stream-text`      | Watch the composition being written in real time                                |
-| `-c N`               | Generate N compositions                                                         |
-| `--model <id>`       | Use a different model (works with `--proxy-url` + `--api-key` for any provider) |
+| Flag                   | What it does                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `-C`                   | Classical composers/genres to fuse from                                                          |
+| `-M`                   | Modern artists/genres to fuse from                                                               |
+| `-s`                   | Style description                                                                                |
+| `--sequential`         | Enable multi-agent orchestration loop                                                            |
+| `--max-iterations N`   | How many refinement cycles (default: 5)                                                          |
+| `--interactive`        | Pause at each iteration for human control                                                        |
+| `--stream-text`        | Watch the composition being written in real time                                                 |
+| `-c N`                 | Generate N compositions                                                                          |
+| `--model <id>`         | Use a different model (works with `--proxy-url` + `--api-key` for any provider)                  |
 | `--llama-server <url>` | Use a local LLM via OpenAI-compatible API instead of Anthropic (e.g. `http://localhost:8001/v1`) |
-| `--abc2midi <path>`  | Path to a custom abc2midi binary (see [abc2midi-llm fork](#abc2midi-llm-fork) below) |
-| `--instruments <list>` | Comma-separated instruments for template composition (e.g. `"sitar,tabla,fretless bass"`) |
+| `--abc2midi <path>`    | Path to a custom abc2midi binary (see [abc2midi-llm fork](#abc2midi-llm-fork) below)             |
+| `--instruments <list>` | Comma-separated instruments for template composition (e.g. `"sitar,tabla,fretless bass"`)        |
 
 ---
 
@@ -160,15 +166,15 @@ Available forms: `ritual`, `stack-overflow`, `source-transfer`, `accumulative`. 
 
 For the best results, use our [abc2midi-llm fork](https://github.com/agrathwohl/abc2midi-llm) which adds seven directives designed for LLM-generated music:
 
-| Directive | What it does |
-|-----------|-------------|
-| `%%PNEUMA` | Biological timing — note onset jitter, sinusoidal breathing tempo, cumulative drift, free time, rubato |
-| `%%ENSEMBLE` | Inter-voice micro-timing offsets so independently generated voices sound like musicians playing together |
-| `%%BREATH` | Automatic rest insertion at phrase boundaries — the piece breathes |
-| `%%GRAVITY` | Phrase-level weight — heavier openings, lighter middles, stretched endings |
-| `%%ARTICULATE` | Context-aware note length — repeated notes shortened, leaps lengthened, phrase endings sustained |
-| `%%SPATIAL` | Millisecond-scale delays between voice groups simulating physical distance |
-| `%%TRANSFORM` | Cross-voice algorithmic transformation — retrograde, inversion, fragmentation, pitch shift, time scale |
+| Directive      | What it does                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------- |
+| `%%PNEUMA`     | Biological timing — note onset jitter, sinusoidal breathing tempo, cumulative drift, free time, rubato   |
+| `%%ENSEMBLE`   | Inter-voice micro-timing offsets so independently generated voices sound like musicians playing together |
+| `%%BREATH`     | Automatic rest insertion at phrase boundaries — the piece breathes                                       |
+| `%%GRAVITY`    | Phrase-level weight — heavier openings, lighter middles, stretched endings                               |
+| `%%ARTICULATE` | Context-aware note length — repeated notes shortened, leaps lengthened, phrase endings sustained         |
+| `%%SPATIAL`    | Millisecond-scale delays between voice groups simulating physical distance                               |
+| `%%TRANSFORM`  | Cross-voice algorithmic transformation — retrograde, inversion, fragmentation, pitch shift, time scale   |
 
 Point mediocre-music at the fork with `--abc2midi`:
 

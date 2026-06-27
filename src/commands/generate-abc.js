@@ -20,6 +20,7 @@ import { orchestratePostProcessing } from '../agents/orchestrator/index.js';
 import { arrangeSoundfontsAndGenerateConfig } from '../agents/timidity-config/index.js';
 import { GateController } from '../control/gate-controller.js';
 import { selectDrumKit } from '../agents/drum-arranger/index.js';
+import { planMovements } from '../agents/movement-planner/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -166,7 +167,18 @@ export async function generateAbc(options) {
   const sequentialMode = options.sequentialMode || false;
   const useCustomSoundfonts = options.soundfonts || false;
   const userInstructions = options.instructions || '';
-  
+  const skipDescription = options.skipDescription || false;
+  const movementCount = parseInt(options.movements || '1', 10);
+
+  if (movementCount > 1) {
+    if (useCustomSoundfonts) {
+      throw new Error('--movements is incompatible with --soundfonts');
+    }
+    if (!isAgentEnabled('composition')) {
+      throw new Error('--movements requires agent composition mode (set USE_AGENTS=true and AGENT_COMPOSITION=true)');
+    }
+  }
+
   // Parse the hybrid genre
   const genreComponents = parseHybridGenre(genre);
   
@@ -242,6 +254,176 @@ export async function generateAbc(options) {
       console.log(`Generating ${displayGenre} composition in ${style} style...`);
       console.log(`Fusing ${genreComponents.classical} with ${genreComponents.modern}...`);
       await logStep('generation_start', { classical: genreComponents.classical, modern: genreComponents.modern });
+
+      // Multi-movement mode: plan once, then compose+refine each movement as its own file
+      if (movementCount > 1) {
+        console.log(`\n🎬 Multi-movement mode: composing ${movementCount} movement(s) as separate files...`);
+
+        const sharedResearch = await researchGenresForComposition(
+          genreComponents.classical,
+          genreComponents.modern,
+          { solo: includeSolo, recordLabel, producer, instruments: requestedInstruments, style, userInstructions }
+        );
+        const sharedDrums = await selectDrumKit({
+          classicalGenre: genreComponents.classical,
+          modernGenre: genreComponents.modern,
+          genreResearch: sharedResearch,
+          userInstructions,
+        });
+        const plan = await planMovements({
+          classicalGenre: genreComponents.classical,
+          modernGenre: genreComponents.modern,
+          style,
+          movementCount,
+          userInstructions,
+          genreResearch: sharedResearch,
+        });
+        await logStep('movement_plan', { count: plan.movements.length, arc: plan.overallArc });
+
+        for (const m of plan.movements) {
+          const mvtFilename = `${sanitizeForFilename(displayGenre)}-score${i + 1}_mvt${m.number}-${timestamp}`;
+          const mvtAbcFilePath = path.join(outputDir, `${mvtFilename}.abc`);
+          const movementContext = `## MULTI-MOVEMENT WORK CONTEXT
+This is movement ${m.number} of ${movementCount} of a single unified long-form work.
+OVERALL ARC: ${plan.overallArc}
+SHARED THEMES (carry these across movements): ${plan.sharedThemes}
+THIS MOVEMENT — character: ${m.character}; key: ${m.key}; tempo: ${m.tempo}; form: ${m.form}; target length: ${m.durationTarget}.
+Compose ONLY this movement as a complete standalone ABC piece; it is rendered as its own file.
+
+`;
+          const mvtUserInstructions = movementContext + userInstructions;
+          console.log(`\n🎼 Movement ${m.number}/${movementCount}: ${m.character}`);
+
+          const agentArgs = {
+            genre: creativeGenreName || genre,
+            classicalGenre: genreComponents.classical,
+            modernGenre: genreComponents.modern,
+            style,
+            objectMode: options.objectMode !== false,
+            solo: includeSolo,
+            recordLabel,
+            producer,
+            instruments: requestedInstruments,
+            genreResearch: sharedResearch,
+            drumPrescription: sharedDrums,
+            userInstructions: mvtUserInstructions,
+          };
+
+          let mvtAbc;
+          try {
+            mvtAbc = await generateMusicWithAgent(agentArgs);
+          } catch (firstErr) {
+            const crashed = firstErr.message.includes('SIGSEGV') || firstErr.message.includes('SIGABRT') || firstErr.message.includes('crashed');
+            if (!crashed) throw firstErr;
+            console.warn(`⚠️ Movement ${m.number} crashed — retrying once...`);
+            try {
+              mvtAbc = await generateMusicWithAgent(agentArgs);
+            } catch (retryErr) {
+              mvtAbc = retryErr.abcNotation || firstErr.abcNotation || null;
+              if (!mvtAbc) {
+                console.error(`❌ Movement ${m.number} failed twice — skipping`);
+                await logStep('movement_failed', { movement: m.number, error: retryErr.message });
+                continue;
+              }
+            }
+          }
+
+          let cleanedMvt = cleanAbcNotation(mvtAbc);
+          let mvtValidation = await validateAbcNotation(cleanedMvt);
+          if (!mvtValidation.isValid) {
+            cleanedMvt = mvtValidation.fixedNotation;
+            mvtValidation = await validateAbcNotation(cleanedMvt);
+          }
+
+          await fs.promises.writeFile(mvtAbcFilePath, cleanedMvt);
+          generatedFiles.push(mvtAbcFilePath);
+          await logStep('movement_written', { movement: m.number, path: mvtAbcFilePath });
+
+          if (!skipDescription || sequentialMode) {
+            const mvtInstruments = extractInstruments(cleanedMvt);
+            const mvtInstrumentString = mvtInstruments.length > 0 ? mvtInstruments.join(', ') : 'Default Instrument';
+            const mvtDescription = await generateDescription({
+              abcNotation: cleanedMvt,
+              genre: creativeGenreName || genre,
+              classicalGenre: genreComponents.classical,
+              modernGenre: genreComponents.modern,
+              style,
+            });
+            mvtDescription.movement = { of: movementCount, ...m };
+            if (sharedDrums) mvtDescription.drumPrescription = sharedDrums;
+            if (sharedResearch) mvtDescription.research = sharedResearch;
+            await fs.promises.writeFile(
+              path.join(outputDir, `${mvtFilename}_description.json`),
+              JSON.stringify(mvtDescription, null, 2)
+            );
+            const mvtMd = `# ${creativeGenreName || genre} — Movement ${m.number}: ${m.character}
+
+## Genre Fusion
+- Classical Element: ${genreComponents.classical}
+- Modern Element: ${genreComponents.modern}
+
+## Instruments
+${mvtInstrumentString}
+
+## ABC Notation
+
+\`\`\`
+${cleanedMvt}
+\`\`\`
+
+## Analysis
+
+${mvtDescription.analysis}`;
+            await fs.promises.writeFile(path.join(outputDir, `${mvtFilename}.md`), mvtMd);
+          }
+
+          if (sequentialMode) {
+            console.log(`\n🔄 Refining movement ${m.number} via orchestrated enhancement...`);
+            try {
+              const mvtContext = await loadCompositionContext(mvtAbcFilePath);
+              const mvtGate = options.interactive ? new GateController({ abcFilePath: mvtAbcFilePath }) : null;
+              const mvtResult = await orchestratePostProcessing({
+                abcFilePath: mvtAbcFilePath,
+                musicalContext: mvtContext,
+                genres: {
+                  classical: mvtContext.metadata.classicalGenre || genreComponents.classical,
+                  modern: mvtContext.metadata.modernGenre || genreComponents.modern,
+                  hybrid: mvtContext.metadata.genre || (creativeGenreName || genre),
+                },
+                maxIterations: options.maxIterations || 10,
+                drumPrescription: sharedDrums,
+                customSystemPrompt,
+                gateController: mvtGate,
+                objectMode: options.objectMode !== false,
+                userInstructions: mvtUserInstructions,
+              });
+              if (mvtGate) mvtGate.close();
+
+              const mvtBaseNoExt = mvtAbcFilePath.replace(/\.abc$/, '');
+              let version = 1;
+              let finalPath = `${mvtBaseNoExt}_${version}.abc`;
+              while (true) {
+                try { await fs.promises.access(finalPath); } catch { break; }
+                version++;
+                finalPath = `${mvtBaseNoExt}_${version}.abc`;
+              }
+              await fs.promises.writeFile(finalPath, mvtResult.enhancedAbc);
+              const foundationIdx = generatedFiles.indexOf(mvtAbcFilePath);
+              if (foundationIdx !== -1) generatedFiles.splice(foundationIdx, 1);
+              generatedFiles.push(finalPath);
+              console.log(`✅ Movement ${m.number} refined (${mvtResult.iterations} iteration(s)) → ${path.basename(finalPath)}`);
+            } catch (enhanceError) {
+              console.error(`⚠️ Movement ${m.number} enhancement failed, keeping foundation:`, enhanceError.message);
+            }
+          }
+        }
+
+        processLog.status = 'complete';
+        processLog.completedAt = new Date().toISOString();
+        await saveProcessLog();
+        console.log(`\n✅ Composed ${movementCount}-movement work → ${plan.movements.length} movement file(s)`);
+        continue;
+      }
 
       // Log if using a custom system prompt
       if (customSystemPrompt) {
@@ -372,7 +554,7 @@ export async function generateAbc(options) {
             classicalGenre: genreComponents.classical,
             modernGenre: genreComponents.modern,
             style,
-            temperature: 0.7,
+            temperature: options.temperature || 0.9,
             customSystemPrompt,
             customUserPrompt,
             solo: includeSolo,
@@ -430,63 +612,64 @@ export async function generateAbc(options) {
       // Only skip if abc2midi crashed (segfault/fatal) — non-fatal errors still produce usable MIDI
       const abcCrashed = (validation.issues || []).some(i => i.includes('crashed'));
       if (!abcCrashed) {
-        // Generate and save the description
-        console.log('Generating description document...');
-        const description = await generateDescription({
-          abcNotation,
-          genre: creativeGenreName || genre, // Use creative name if available
-          classicalGenre: genreComponents.classical,
-          modernGenre: genreComponents.modern,
-          style
-        });
-        
-        // Add creative genre name to the description if one was generated
-        if (creativeGenreName) {
-          description.creativeGenreName = creativeGenreName;
-        }
+        if (!skipDescription) {
+          // Generate and save the description
+          console.log('Generating description document...');
+          const description = await generateDescription({
+            abcNotation,
+            genre: creativeGenreName || genre, // Use creative name if available
+            classicalGenre: genreComponents.classical,
+            modernGenre: genreComponents.modern,
+            style
+          });
 
-        // Use timidity config agent to select soundfonts when agents enabled but --soundfonts not used
-        if (isAgentEnabled('timidityConfig') && !selectedSoundfonts) {
-          console.log('🎛️ Using timidity config agent for soundfont selection...');
-          try {
-            const configResult = await arrangeSoundfontsAndGenerateConfig({
-              abcNotation: cleanedAbcNotation,
-              genre: creativeGenreName || genre,
-              classicalGenre: genreComponents.classical,
-              modernGenre: genreComponents.modern,
-              outputDir,
-              baseFilename: filename,
-            });
-            selectedSoundfonts = configResult.soundfonts;
-            soundfontReasoning = configResult.layeringStrategy;
-            console.log(`🎛️ Timidity config saved: ${configResult.configPath}`);
-          } catch (cfgErr) {
-            console.error('⚠️ Timidity config agent failed, skipping config:', cfgErr.message);
+          // Add creative genre name to the description if one was generated
+          if (creativeGenreName) {
+            description.creativeGenreName = creativeGenreName;
           }
-        }
 
-        // Add soundfont selection info to description (only if --soundfonts was used)
-        if (selectedSoundfonts) {
-          description.soundfonts = selectedSoundfonts;
-          description.soundfontReasoning = soundfontReasoning;
-          description.timidityConfig = `${filename}.timidity.cfg`;
-        }
+          // Use timidity config agent to select soundfonts when agents enabled but --soundfonts not used
+          if (isAgentEnabled('timidityConfig') && !selectedSoundfonts) {
+            console.log('🎛️ Using timidity config agent for soundfont selection...');
+            try {
+              const configResult = await arrangeSoundfontsAndGenerateConfig({
+                abcNotation: cleanedAbcNotation,
+                genre: creativeGenreName || genre,
+                classicalGenre: genreComponents.classical,
+                modernGenre: genreComponents.modern,
+                outputDir,
+                baseFilename: filename,
+              });
+              selectedSoundfonts = configResult.soundfonts;
+              soundfontReasoning = configResult.layeringStrategy;
+              console.log(`🎛️ Timidity config saved: ${configResult.configPath}`);
+            } catch (cfgErr) {
+              console.error('⚠️ Timidity config agent failed, skipping config:', cfgErr.message);
+            }
+          }
 
-        if (drumPrescription) {
-          description.drumPrescription = drumPrescription;
-        }
+          // Add soundfont selection info to description (only if --soundfonts was used)
+          if (selectedSoundfonts) {
+            description.soundfonts = selectedSoundfonts;
+            description.soundfontReasoning = soundfontReasoning;
+            description.timidityConfig = `${filename}.timidity.cfg`;
+          }
 
-        // Preserve genre research so enhance/orchestrator has genre context later
-        if (genreResearch) {
-          description.research = genreResearch;
-        }
+          if (drumPrescription) {
+            description.drumPrescription = drumPrescription;
+          }
 
-        // Save the description as JSON
-        const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
-        await fs.promises.writeFile(descriptionFilePath, JSON.stringify(description, null, 2));
+          // Preserve genre research so enhance/orchestrator has genre context later
+          if (genreResearch) {
+            description.research = genreResearch;
+          }
 
-        // Create a markdown file with both the ABC notation and description
-        const soundfontSection = selectedSoundfonts ? `
+          // Save the description as JSON
+          const descriptionFilePath = path.join(outputDir, `${filename}_description.json`);
+          await fs.promises.writeFile(descriptionFilePath, JSON.stringify(description, null, 2));
+
+          // Create a markdown file with both the ABC notation and description
+          const soundfontSection = selectedSoundfonts ? `
 ## Soundfont Selection
 **TiMidity Config:** \`${filename}.timidity.cfg\`
 **Reasoning:** ${soundfontReasoning}
@@ -495,7 +678,7 @@ export async function generateAbc(options) {
 ${selectedSoundfonts.map((sf, i) => `${i + 1}. ${sf}`).join('\n')}
 ` : '';
 
-        const mdContent = `# ${creativeGenreName || genre} Composition in ${style} Style
+          const mdContent = `# ${creativeGenreName || genre} Composition in ${style} Style
 
 ## Genre Fusion${creativeGenreName ? `\n- Creative Genre Name: "${creativeGenreName}"` : ''}
 - Classical Element: ${genreComponents.classical}
@@ -513,8 +696,9 @@ ${abcNotation}
 ## Analysis
 
 ${description.analysis}`;
-        const mdFilePath = path.join(outputDir, `${filename}.md`);
-        await fs.promises.writeFile(mdFilePath, mdContent);
+          const mdFilePath = path.join(outputDir, `${filename}.md`);
+          await fs.promises.writeFile(mdFilePath, mdContent);
+        }
 
         // Sequential mode: foundation generated, now feed to orchestrated enhancement loop
         if (sequentialMode) {

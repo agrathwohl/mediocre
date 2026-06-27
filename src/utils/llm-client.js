@@ -6,6 +6,7 @@
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
+import { Agent, fetch as undiciFetch } from "undici";
 
 let _customConfig = null;
 let _llamaServerURL = null;
@@ -48,12 +49,42 @@ export function isLlamaServer() {
 }
 
 export function getAnthropic() {
-  // If llama-server is configured, return OpenAI-compatible provider
+  // If llama-server is configured, use Chat Completions API directly.
+  // AI SDK v6 defaults to /v1/responses (Responses API), but llama-server only
+  // implements /v1/chat/completions. Returning openaiProvider.chat() forces the
+  // SDK to use Chat Completions for both generateText and streamText.
   if (_llamaServerURL) {
-    return createOpenAI({
-      baseURL: _llamaServerURL,
-      apiKey: 'not-needed',  // llama-server doesn't require an API key
+    const llamaBase = _llamaServerURL;
+    const openaiProvider = createOpenAI({
+      baseURL: llamaBase,
+      apiKey: 'not-needed',
+      fetch: async (url, init) => {
+        const agent = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
+        let body;
+        try { body = init?.body ? JSON.parse(init.body) : null; } catch { body = null; }
+
+        // streamText sends stream:true — pass through directly so the SDK gets real SSE.
+        if (!body || body.stream) {
+          return undiciFetch(url, { ...init, dispatcher: agent });
+        }
+
+        // generateText sends stream:false — force streaming to avoid blocking the server
+        // slot on dropped connections, then reassemble into a plain JSON response.
+        body.stream = true;
+        const tokenLimit = body.max_tokens || body.max_completion_tokens;
+        if (tokenLimit && tokenLimit > 0) body.n_predict = tokenLimit;
+        const response = await undiciFetch(url, { ...init, body: JSON.stringify(body), dispatcher: agent });
+        if (!response.ok) return response;
+        const json = await _parseOpenAISSE(response);
+        return new Response(JSON.stringify(json), {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'content-type': 'application/json' },
+        });
+      },
     });
+    // .chat() bypasses the Responses API path entirely — uses /v1/chat/completions
+    return (modelId, opts) => openaiProvider.chat(modelId, opts);
   }
 
   const apiKey = _customConfig?.apiKey || process.env.ANTHROPIC_API_KEY;
@@ -187,10 +218,63 @@ async function _parseAnthropicSSE(response) {
   };
 }
 
+/**
+ * Consume an OpenAI-compatible SSE stream and return a plain non-streaming response object.
+ */
+async function _parseOpenAISSE(response) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let content = '';
+  let promptTokens = 0, completionTokens = 0;
+  let finishReason = null, model = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === '[DONE]') continue;
+      let chunk;
+      try { chunk = JSON.parse(raw); } catch (_) { continue; }
+
+      if (chunk.model) model = chunk.model;
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (delta) content += delta;
+      if (chunk.choices?.[0]?.finish_reason) finishReason = chunk.choices[0].finish_reason;
+      if (chunk.usage) {
+        promptTokens = chunk.usage.prompt_tokens ?? promptTokens;
+        completionTokens = chunk.usage.completion_tokens ?? completionTokens;
+      }
+    }
+  }
+
+  return {
+    id: `chatcmpl-local`,
+    object: 'chat.completion',
+    model,
+    choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: finishReason }],
+    usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens },
+  };
+}
+
+
 export function getModel(defaultModel) {
   // llama-server serves a single model; use a generic identifier
   if (_llamaServerURL) return _customConfig?.model || 'local-model';
   return _customConfig?.model || defaultModel;
+}
+
+const KNOWN_ANTHROPIC_MODELS = ['claude-opus-4-8', 'claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5'];
+
+export function supportsAnthropicSamplingParams(defaultModel = 'claude-sonnet-4-6') {
+  if (_llamaServerURL) return true;
+  return KNOWN_ANTHROPIC_MODELS.some(m => getModel(defaultModel).includes(m));
 }
 
 /** Returns true only for models that support Anthropic context management features. */

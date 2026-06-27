@@ -4,6 +4,7 @@ import { getPercussionReference } from '../drum-arranger/gm-percussion-reference
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
 import { FORK_DIRECTIVES_REFERENCE } from '../shared/fork-directives-reference.js';
 import { getAnthropic, getModel, getAbc2midiBinary } from '../../utils/llm-client.js';
+import { cleanAbcNotation } from '../../utils/validation.js';
 
 function stripDrumContent(abc) {
   const lines = abc.split('\n');
@@ -200,7 +201,7 @@ ${strippedAbc}`,
     const finalAbc = strippedAbc + '\n' + drumLines.join('\n') + '\n';
 
     console.log(`   ✅ Drum specialist: ${output.drumMapEntries.length} sounds mapped, ${output.notes.length} bars written`);
-    return finalAbc;
+    return cleanAbcNotation(finalAbc);
 
   } catch (error) {
     console.error('Drum specialist worker error:', error.message);

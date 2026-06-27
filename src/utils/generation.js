@@ -1,5 +1,5 @@
 import { generateText, streamText } from "ai";
-import { getAnthropic, getModel, stripMarkdownCodeFences } from "./llm-client.js";
+import { getAnthropic, getModel, stripMarkdownCodeFences, isLlamaServer, supportsAnthropicSamplingParams } from "./llm-client.js";
 import { cleanAbcNotation } from "./validation.js";
 import { ensureUniqueTitle } from "./title-utils.js";
 import { selectSoundfontsWithClaude, SOUNDFONT_PALETTE_INFO } from "./soundfonts.js";
@@ -24,7 +24,18 @@ export async function generateMusicWithClaude(options) {
   // Use custom system prompt if provided, otherwise use the default
   const systemPrompt =
     options.customSystemPrompt ||
-    `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
+    (isLlamaServer()
+      ? `You are a music composition AI specializing in hybrid genre fusions. Output ONLY raw ABC notation compatible with abc2midi. No prose, no commentary, no markdown, no blank lines before or after the ABC.
+
+REQUIRED STRUCTURE for every composition:
+1. HEADERS: X:1, T:, C:, M:, L:, Q:1/4=<bpm>, K:
+2. DRUM VOICE with %%MIDI drummap on channel 10 when the modern genre is rhythm-driven (techno, house, dubstep, drum and bass, jungle, footwork, trap, gabber, breakcore, grime, juke, hardcore, trance, IDM, breakbeat, dnb)
+3. PITCHED VOICES with %%MIDI program and channel
+4. DYNAMICS: %%MIDI beatstring, %%MIDI beat
+5. ARTICULATION: %%MIDI trim, %%MIDI chordattack
+
+Write EXTREMELY LONG fully developed pieces. NEVER stop early. At least 12 contrasting sections. Every voice must have continuous active content.`
+      : `You are a music composer specializing in fusion genres, particularly combining ${classicalGenre} and ${modernGenre} into the hybrid genre ${genre}.
 Your task is to create a composition that authentically blends elements of both ${classicalGenre} and ${modernGenre} musical traditions.
 
 ⚠️ CRITICAL ABC FORMATTING INSTRUCTIONS ⚠️
@@ -144,14 +155,18 @@ ${SOUNDFONT_PALETTE_INFO}
    - %%MIDI grace a/b - Grace note takes a/b of following note
    - %%MIDI gracedivider n - Fixed grace note duration (1/L * 1/n)
 
-The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. We do not need a bunch of music that sounds like stuff already out there. We want to see what YOU, the artificial intelligence, think is most interesting about these gerne hybrids.`;
+The composition should be a genuine artistic fusion that respects and represents both the ${classicalGenre} and ${modernGenre} musical traditions while creating something new and interesting. Err on the side of experimental, creative, and exploratory. We do not need a bunch of music that sounds like stuff already out there. We want to see what YOU, the artificial intelligence, think is most interesting about these gerne hybrids.`
+    );
 
   const userInstructions = options.userInstructions || '';
 
   // Use custom user prompt if provided, otherwise use the default
   const baseUserPrompt =
     options.customUserPrompt ||
-    `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? " Include a dedicated solo section for the lead instrument." : ""}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? ` Your composition MUST include at minimum these instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors.`;
+    (isLlamaServer()
+      ? `Generate ABC notation for a ${genre} composition.\nStyle: ${style}${requestedInstruments ? `\nInstruments: ${requestedInstruments}` : ''}`
+      : `Compose a hybrid ${genre} piece that authentically fuses elements of ${classicalGenre} and ${modernGenre}.${includeSolo ? " Include a dedicated solo section for the lead instrument." : ""}${recordLabel ? ` Style the composition to sound like it was released on the record label "${recordLabel}".` : ""}${producer ? ` Style the composition to sound as if it was produced by ${producer}, with very noticeable production characteristics and techniques typical of their work.` : ""}${requestedInstruments ? ` Your composition MUST include at minimum these instruments: ${requestedInstruments}. Find the most appropriate MIDI program number for each instrument. You may add additional instruments that complement these and stay true to the ${classicalGenre} and ${modernGenre} fusion.` : ""} Use ONLY the supported and well-tested ABC notation with limited abc2midi extensions to ensure compatibility with timidity and other standard ABC processors.`
+    );
 
   const userPrompt = userInstructions
     ? `${baseUserPrompt}\n\n## ⚠️ HARD REQUIREMENTS — NON-NEGOTIABLE\nThe following requirements OVERRIDE all other considerations. You MUST comply fully:\n${userInstructions}\nDo NOT deviate from these requirements for any reason.`
@@ -169,26 +184,28 @@ The composition should be a genuine artistic fusion that respects and represents
     { role: "user", content: userPrompt },
   ];
 
+  const temperatureParam = supportsAnthropicSamplingParams()
+    ? { temperature: options.temperature || (isLlamaServer() ? 0.8 : 0.7) }
+    : {};
+
   // Use streaming if requested - helps avoid timeout errors on large generations
   if (options.useStreaming) {
     console.log("Using streaming mode for generation...");
     const result = await streamText({
       model,
       messages,
-      temperature: options.temperature || 0.7,
+      ...temperatureParam,
       maxTokens: 40000,
+      ...(isLlamaServer() ? { frequencyPenalty: 0.3, presencePenalty: 0.1 } : {}),
     });
 
-    // Collect the full response from the stream
+    // Collect the full response from the stream, printing each chunk live to stderr
     let text = "";
     for await (const chunk of result.textStream) {
       text += chunk;
-      // Show progress indicator
-      if (text.length % 1000 === 0) {
-        process.stdout.write(".");
-      }
+      process.stderr.write(chunk);
     }
-    console.log("\nStreaming complete.");
+    process.stderr.write("\n");
     // Ensure unique title before returning
     return await ensureUniqueTitle(text, genre);
   }
@@ -197,8 +214,9 @@ The composition should be a genuine artistic fusion that respects and represents
   const { text } = await generateText({
     model,
     messages,
-    temperature: options.temperature || 0.7,
+    ...temperatureParam,
     maxTokens: 40000,
+    ...(isLlamaServer() ? { frequencyPenalty: 0.3, presencePenalty: 0.1 } : {}),
   });
 
   // Ensure unique title before returning
@@ -436,16 +454,13 @@ Your modifications should respect both the user's instructions and the musical i
       maxTokens: 40000,
     });
 
-    // Collect the full response from the stream
+    // Collect the full response from the stream, printing each chunk live to stderr
     let text = "";
     for await (const chunk of result.textStream) {
       text += chunk;
-      // Show progress indicator
-      if (text.length % 1000 === 0) {
-        process.stdout.write(".");
-      }
+      process.stderr.write(chunk);
     }
-    console.log("\nStreaming complete.");
+    process.stderr.write("\n");
     // Clean and ensure unique title before returning
     const cleaned = cleanAbcNotation(text);
     return await ensureUniqueTitle(cleaned, genre);
@@ -511,11 +526,13 @@ Organize your analysis into these sections:
     ],
     temperature: 0.5,
     maxTokens: 2000,
-    providerOptions: {
-      anthropic: {
-        thinking: { type: "enabled", budgetTokens: 12000 },
+    ...(supportsAnthropicSamplingParams('claude-sonnet-4-6') ? {
+      providerOptions: {
+        anthropic: {
+          thinking: { type: "enabled", budgetTokens: 12000 },
+        },
       },
-    },
+    } : {}),
   });
 
   return {
@@ -806,16 +823,13 @@ Return valid MusicXML 3.1 notation with all proper structure and elements.`;
       maxTokens: 40000,
     });
 
-    // Collect the full response from the stream
+    // Collect the full response from the stream, printing each chunk live to stderr
     let text = "";
     for await (const chunk of result.textStream) {
       text += chunk;
-      // Show progress indicator
-      if (text.length % 1000 === 0) {
-        process.stdout.write(".");
-      }
+      process.stderr.write(chunk);
     }
-    console.log("\nStreaming complete.");
+    process.stderr.write("\n");
     return stripMarkdownCodeFences(text);
   }
 

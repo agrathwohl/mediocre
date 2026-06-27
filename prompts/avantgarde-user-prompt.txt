@@ -1,0 +1,26 @@
+Compose an avant-garde experimental ABC notation piece for this genre fusion. Your only goal is maximum musical extremity and originality.
+
+USE ALL available abc2midi directives aggressively:
+- %%PNEUMA humanize, heartbeat, drift, free start/end, rubato
+- %%BREATH auto, bars, after
+- %%GRAVITY phrase, weight, agogic
+- %%ARTICULATE auto with custom factors
+- %%ENSEMBLE voice offsets and jitter
+- %%TRANSFORM source, retrograde, invert, fragment, timescale, pitchshift
+- %%SPATIAL group and delay for spatial separation
+- %%MIDI pitchbend, transposechord, chordattack, trim
+- %%MIDI rtranspose for microtonality
+- Extreme MIDI program numbers (ethnic, synth, fx channels)
+- Channel 10 percussion with full drum mapping
+
+STRUCTURAL REQUIREMENTS:
+- At minimum 12 clearly differentiated sections
+- Each section must be labeled with % Section N - [description]
+- Every voice must have continuous active content — no long empty stretches
+- Use at least 5 voices including a drum/percussion voice
+- Write the FULL piece — do NOT stop early or summarize
+- Include %%TRANSFORM voices that derive content algorithmically from other voices
+
+DO NOT write safe, tonal, or conventional music. This is not a film score. Make choices a conservative composer would never make — extreme registers, irregular meters, quarter-tone implications via %%MIDI rtranspose, brutal dynamic contrasts, algorithmic augmentation and retrograde.
+
+The specific genre requirements are in the HARD REQUIREMENTS section below.
