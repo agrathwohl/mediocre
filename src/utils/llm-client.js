@@ -5,12 +5,17 @@
  */
 
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { wrapLanguageModel, defaultSettingsMiddleware } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { Agent, fetch as undiciFetch } from "undici";
+import { homedir } from "os";
+import fs from "fs";
+import path from "path";
+import { writeFailure, trace } from "../agents/shared/utils.js";
 
 let _customConfig = null;
 let _llamaServerURL = null;
-let _abc2midiBinary = 'abc2midi';
+let _abc2midiBinary = null;
 
 /**
  * Set a custom abc2midi binary path (for forked builds like Pneuma).
@@ -22,7 +27,10 @@ export function setAbc2midiBinary(path) {
 
 /** Get the configured abc2midi binary path */
 export function getAbc2midiBinary() {
-  return _abc2midiBinary;
+  // Precedence: --abc2midi flag > MEDIOCRE_ABC2MIDI > legacy ABC2MIDI_BIN > stock 'abc2midi'.
+  // Read the env lazily so it resolves after dotenv.config() regardless of import order.
+  const bin = _abc2midiBinary || process.env.MEDIOCRE_ABC2MIDI || process.env.ABC2MIDI_BIN || 'abc2midi';
+  return bin.startsWith('~/') ? homedir() + bin.slice(1) : bin;
 }
 
 
@@ -46,6 +54,110 @@ export function setLlamaServer(url) {
 /** Returns true if --llama-server is active */
 export function isLlamaServer() {
   return !!_llamaServerURL;
+}
+
+let _callCount = 0;
+
+const unifiedFinish = (fr) => (fr && typeof fr === 'object' ? (fr.unified ?? JSON.stringify(fr)) : fr);
+const tokenTotal = (v) => (v && typeof v === 'object' ? v.total : v);
+const rawFinish = (fr) => (fr && typeof fr === 'object' ? fr.raw : undefined);
+// in / cache read / cache write / out / reasoning, from the provider's extended usage
+const usageText = (u) => `in: ${tokenTotal(u?.inputTokens)} (cache read: ${u?.inputTokens?.cacheRead ?? '?'}, cache write: ${u?.inputTokens?.cacheWrite ?? '?'}, uncached: ${u?.inputTokens?.noCache ?? '?'}), out: ${tokenTotal(u?.outputTokens)} (text: ${u?.outputTokens?.text ?? '?'}, reasoning: ${u?.outputTokens?.reasoning ?? '?'})`;
+
+/**
+ * Middleware on EVERY model call: records finish reason, tokens, time, errors and
+ * empty replies to ./logs/model-calls.jsonl and ./failures/, and turns off the SDK's automatic retries.
+ */
+function recordingMiddleware(modelId) {
+  const log = (entry) => {
+    fs.mkdirSync(path.join(process.cwd(), 'logs'), { recursive: true });
+    fs.appendFileSync(path.join(process.cwd(), 'logs', 'model-calls.jsonl'), JSON.stringify({ time: new Date().toISOString(), model: modelId, ...entry }) + '\n');
+  };
+
+  const recordEnd = (id, kind, startedAt, finishReason, usage, text, reasoning, toolCalls, errors) => {
+    const seconds = (Date.now() - startedAt) / 1000;
+    const finish = unifiedFinish(finishReason);
+    const raw = rawFinish(finishReason);
+    console.log(`[${modelId} call ${id}] ${kind} finish: ${finish} (raw: ${raw}) ${usageText(usage)} in ${seconds.toFixed(0)}s`);
+    log({ call: id, kind, finish, rawFinishReason: raw, usage, seconds, textChars: text.length, reasoningChars: reasoning.length, toolCalls, errors });
+    trace(`\n===== [${modelId} call ${id}] finish: ${finish} (raw: ${raw}) ${usageText(usage)} ${seconds.toFixed(0)}s =====\n`);
+    const emptyReply = finish === 'stop' && text.length === 0 && toolCalls === 0;
+    if (!['stop', 'tool-calls'].includes(finish) || emptyReply || errors.length > 0) {
+      console.warn(`⚠️ [${modelId} call ${id}] did not end normally (finish: ${finish}${emptyReply ? ', empty reply' : ''})`);
+      writeFailure(`${modelId}-call${id}`, { kind, finishReason: finish, rawFinishReason: raw, usage, seconds, text, reasoning, toolCalls, errors });
+    }
+  };
+
+  const recordError = (id, kind, startedAt, error) => {
+    const seconds = (Date.now() - startedAt) / 1000;
+    console.error(`❌ [${modelId} call ${id}] ${kind} failed after ${seconds.toFixed(0)}s: ${error?.message}`);
+    log({ call: id, kind, seconds, error: error?.message, statusCode: error?.statusCode });
+    trace(`\n!!!!! [${modelId} call ${id}] ${kind} FAILED after ${seconds.toFixed(0)}s: ${error?.message}\n`);
+    writeFailure(`${modelId}-call${id}-error`, {
+      kind, seconds, name: error?.name, error: error?.message, statusCode: error?.statusCode,
+      wasRetryable: error?.isRetryable, url: error?.url,
+      responseBody: typeof error?.responseBody === 'string' ? error.responseBody.slice(0, 5000) : error?.responseBody,
+      stack: error?.stack,
+    });
+    if (error && typeof error === 'object') error.isRetryable = false; // no automatic retries
+  };
+
+  return {
+    specificationVersion: 'v3',
+    wrapGenerate: async ({ doGenerate }) => {
+      const id = ++_callCount;
+      const startedAt = Date.now();
+      let result;
+      try {
+        result = await doGenerate();
+      } catch (error) {
+        recordError(id, 'generate', startedAt, error);
+        throw error;
+      }
+      const parts = result.content || [];
+      trace(`\n===== [${modelId} call ${id}] generate =====\n`);
+      for (const p of parts) {
+        if (p.type === 'reasoning') trace(`--- thinking ---\n${p.text}\n`);
+        else if (p.type === 'text') trace(`--- text ---\n${p.text}\n`);
+        else if (p.type === 'tool-call') trace(`--- tool call: ${p.toolName} ${p.input}\n`);
+      }
+      recordEnd(id, 'generate', startedAt, result.finishReason, result.usage,
+        parts.filter(p => p.type === 'text').map(p => p.text).join(''),
+        parts.filter(p => p.type === 'reasoning').map(p => p.text).join(''),
+        parts.filter(p => p.type === 'tool-call').length, []);
+      return result;
+    },
+    wrapStream: async ({ doStream }) => {
+      const id = ++_callCount;
+      const startedAt = Date.now();
+      let result;
+      try {
+        result = await doStream();
+      } catch (error) {
+        recordError(id, 'stream', startedAt, error);
+        throw error;
+      }
+      let text = '', reasoning = '', toolCalls = 0, finishReason = null, usage = null;
+      trace(`\n===== [${modelId} call ${id}] stream =====\n`);
+      const errors = [];
+      const stream = result.stream.pipeThrough(new TransformStream({
+        transform(part, controller) {
+          if (part.type === 'text-delta') { text += part.delta ?? ''; trace(part.delta ?? ''); }
+          else if (part.type === 'reasoning-delta') { reasoning += part.delta ?? ''; trace(part.delta ?? ''); }
+          else if (part.type === 'reasoning-start') trace('\n--- thinking ---\n');
+          else if (part.type === 'text-start') trace('\n--- text ---\n');
+          else if (part.type === 'tool-call') { toolCalls++; trace(`\n--- tool call: ${part.toolName} ${part.input}\n`); }
+          else if (part.type === 'finish') { finishReason = part.finishReason; usage = part.usage; }
+          else if (part.type === 'error') { errors.push(String(part.error?.message ?? JSON.stringify(part.error))); trace(`\n!!! stream error: ${errors[errors.length - 1]}\n`); }
+          controller.enqueue(part);
+        },
+        flush() {
+          recordEnd(id, 'stream', startedAt, finishReason ?? 'no-finish-event', usage, text, reasoning, toolCalls, errors);
+        },
+      }));
+      return { ...result, stream };
+    },
+  };
 }
 
 export function getAnthropic() {
@@ -84,7 +196,7 @@ export function getAnthropic() {
       },
     });
     // .chat() bypasses the Responses API path entirely — uses /v1/chat/completions
-    return (modelId, opts) => openaiProvider.chat(modelId, opts);
+    return (modelId, opts) => wrapLanguageModel({ model: openaiProvider.chat(modelId, opts), middleware: recordingMiddleware(modelId) });
   }
 
   const apiKey = _customConfig?.apiKey || process.env.ANTHROPIC_API_KEY;
@@ -95,6 +207,10 @@ export function getAnthropic() {
   }
 
   const opts = { apiKey };
+
+  // Non-streaming Opus 5.5 turns send no headers until done; undici's default 300s headers timeout kills them.
+  const noTimeoutAgent = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
+  opts.fetch = (url, init) => undiciFetch(url, { ...init, dispatcher: noTimeoutAgent });
 
   if (_customConfig?.baseURL) {
     opts.baseURL = _customConfig.baseURL;
@@ -135,7 +251,21 @@ export function getAnthropic() {
     };
   }
 
-  return createAnthropic(opts);
+  const anthropic = createAnthropic(opts);
+  // Opus 5.5 always thinks; effort is the only depth control and its API default is `medium`.
+  return (modelId, settings) => {
+    const model = anthropic(modelId, settings);
+    // Top-level cache_control = automatic prompt caching: each request caches up to its newest
+    // block, so every step of a tool loop reads the earlier conversation from cache.
+    const anthropicDefaults = { cacheControl: { type: 'ephemeral' } };
+    if (modelId.includes('claude-opus-5-5')) {
+      Object.assign(anthropicDefaults, { effort: 'medium', thinking: { type: 'adaptive', display: 'summarized' } });
+    }
+    return wrapLanguageModel({
+      model,
+      middleware: [defaultSettingsMiddleware({ settings: { providerOptions: { anthropic: anthropicDefaults } } }), recordingMiddleware(modelId)],
+    });
+  };
 }
 
 /**
@@ -272,7 +402,7 @@ export function getModel(defaultModel) {
 
 const KNOWN_ANTHROPIC_MODELS = ['claude-opus-4-8', 'claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5'];
 
-export function supportsAnthropicSamplingParams(defaultModel = 'claude-sonnet-4-6') {
+export function supportsAnthropicSamplingParams(defaultModel = 'claude-opus-5-5') {
   if (_llamaServerURL) return true;
   return KNOWN_ANTHROPIC_MODELS.some(m => getModel(defaultModel).includes(m));
 }
@@ -280,7 +410,7 @@ export function supportsAnthropicSamplingParams(defaultModel = 'claude-sonnet-4-
 /** Returns true only for models that support Anthropic context management features. */
 export function supportsContextManagement() {
   if (_llamaServerURL) return false;  // llama-server doesn't support cache control
-  return !getModel('claude-sonnet-4-6').includes('haiku');
+  return !getModel('claude-opus-5-5').includes('haiku');
 }
 
 /**

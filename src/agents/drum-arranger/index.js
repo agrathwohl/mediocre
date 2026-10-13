@@ -2,6 +2,7 @@ import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { getPercussionReference, GM_PERCUSSION } from './gm-percussion-reference.js';
 import { getAnthropic, getModel, supportsAnthropicSamplingParams } from '../../utils/llm-client.js';
+import { ADVENTUROUSNESS_MANDATE } from '../shared/adventurousness-directive.js';
 
 const drumKitSchema = z.object({
   noDrums: z.boolean().describe('Set to true ONLY when BOTH genres are inherently non-percussive (e.g. ambient, drone, sacred minimalism, meditation music, certain chamber music). When true, drumKit must be an empty array.'),
@@ -31,6 +32,7 @@ export async function selectDrumKit({ classicalGenre, modernGenre, genreResearch
   const percussionRef = getPercussionReference();
 
   const prompt = `You are a percussion specialist selecting drum sounds for a ${classicalGenre} \u00d7 ${modernGenre} genre fusion composition.
+${ADVENTUROUSNESS_MANDATE}
 
 ${genreResearch ? `## GENRE RESEARCH (context about what this fusion requires)
 ${genreResearch}
@@ -60,10 +62,10 @@ ${percussionRef}`;
 
   try {
     let result;
-    const modelId = getModel('claude-haiku-4-5-20251001');
-    if (supportsAnthropicSamplingParams('claude-haiku-4-5-20251001')) {
+    const modelId = getModel('claude-opus-5-5');
+    if (supportsAnthropicSamplingParams('claude-opus-5-5')) {
       const { output } = await generateText({
-        model: anthropic(modelId, { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
+        model: anthropic(modelId, { cacheControl: { type: 'ephemeral' } }),
         output: Output.object({ schema: drumKitSchema }),
         prompt,
       });
@@ -116,26 +118,6 @@ ${percussionRef}`;
     };
   } catch (error) {
     console.error('Drum arranger error:', error.message);
-    // Fallback: return a safe default kit
-    console.warn('⚠️ Using fallback drum kit');
-    return {
-      drumKit: [
-        { gm: 35, name: 'Acoustic Bass Drum', role: 'foundation' },
-        { gm: 36, name: 'Bass Drum 1', role: 'foundation' },
-        { gm: 37, name: 'Side Stick', role: 'timekeeping' },
-        { gm: 38, name: 'Acoustic Snare', role: 'foundation' },
-        { gm: 39, name: 'Hand Clap', role: 'accent' },
-        { gm: 40, name: 'Electric Snare', role: 'foundation' },
-        { gm: 42, name: 'Closed Hi-Hat', role: 'timekeeping' },
-        { gm: 44, name: 'Pedal Hi-Hat', role: 'timekeeping' },
-        { gm: 46, name: 'Open Hi-Hat', role: 'timekeeping' },
-        { gm: 49, name: 'Crash Cymbal 1', role: 'accent' },
-        { gm: 51, name: 'Ride Cymbal 1', role: 'timekeeping' },
-        { gm: 53, name: 'Ride Bell', role: 'timekeeping' },
-        { gm: 54, name: 'Tambourine', role: 'color' },
-      ],
-      patternGuidance: 'Use standard rock/pop patterns with kick on beats 1 and 3, snare on 2 and 4, hi-hat on eighth notes.',
-      reasoning: 'Fallback kit — drum arranger agent failed. Using safe universal percussion set.',
-    };
+    throw error;
   }
 }

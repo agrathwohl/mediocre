@@ -1,3 +1,8 @@
+
+function savePartialOutput(error) {
+  writeFailure('composition-object', { error: error.message, stack: error.stack, finishReason: error.finishReason, usage: error.usage, text: error.text });
+}
+
 /**
  * Composition Generation Agent - AI SDK v6
  * Generates ABC notation for music compositions with genre fusion
@@ -5,9 +10,11 @@
  */
 
 import { ToolLoopAgent, Output, stepCountIs, streamText } from 'ai';
+import fs from 'fs';
 import { z } from 'zod';
 import { validateAbcTool } from '../shared/tools.js';
-import { createStepLogger } from '../shared/utils.js';
+import { ADVENTUROUSNESS_MANDATE } from '../shared/adventurousness-directive.js';
+import { createStepLogger, logCallEnd, writeFailure } from '../shared/utils.js';
 import { validateAbcNotation, cleanAbcNotation } from '../../utils/claude.js';
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
 import { formatDrumKitForPrompt } from '../drum-arranger/gm-percussion-reference.js';
@@ -49,6 +56,13 @@ function computeRestBar(meter, defaultNoteLength) {
   }
 }
 
+const EXPRESSIVE_ABC_GUIDE = `EXPRESSIVE ABC YOU MAY WRITE INLINE IN notes:
+- Dynamics: !pp! !p! !mp! !mf! !f! !ff! before a note; crescendo/decrescendo with !<(! ... !<)! and !>(! ... !>)!
+- Articulation: !staccato! (or a leading dot, .A), !accent! (or !>!), !tenuto!, !marcato!, !fermata!
+- Mid-piece tempo change: an inline field [Q:1/4=140] at the start of the measure where the tempo changes
+- Repeats & endings: |: ... :| to repeat a section; first/second endings as |1 ... :|2 ... ; part labels P:A , P:B
+Reach for these when the music calls for them — they shape the performance, not just the page.`;
+
 export function assembleAbcNotation(structured, options = {}) {
   const lines = [];
 
@@ -60,6 +74,7 @@ export function assembleAbcNotation(structured, options = {}) {
   lines.push(`L:${structured.defaultNoteLength}`);
   if (structured.tempo) lines.push(`Q:${structured.tempo}`);
   lines.push(`K:${structured.key}`);
+  if (structured.score) lines.push(`%%score ${structured.score}`);
 
   // MIDI extensions
   if (structured.midiExtensions) {
@@ -138,6 +153,9 @@ export function assembleAbcNotation(structured, options = {}) {
     } else {
       lines.push(Array.isArray(voice.notes) ? voice.notes.join('\n') : voice.notes);
     }
+    if (voice.lyrics) {
+      for (const w of voice.lyrics) lines.push(`w:${w}`);
+    }
   }
 
   return lines.join('\n');
@@ -189,6 +207,7 @@ function enforcePercVoiceNotes(abcText) {
     if (lMatch) defaultNoteLength = lMatch[1].trim();
   }
   const restBar = computeRestBar(meter, defaultNoteLength);
+  const hasHeaderDrummap = /%%MIDI\s+drummap/.test(abcText.split(/^\[V:/m)[0]);
 
   const result = [];
   let inPercVoice = false;
@@ -200,7 +219,7 @@ function enforcePercVoiceNotes(abcText) {
     // Detect voice section start
     if (line.match(/^\[V:/)) {
       inPercVoice = line.includes('clef=perc');
-      percVoiceHasDrummap = false;
+      percVoiceHasDrummap = hasHeaderDrummap;
 
       // Also check for channel 10 without clef=perc
       if (!inPercVoice) {
@@ -309,12 +328,13 @@ ONLY use these GM numbers in drum-related midiExtensions: ${drumMapTable.map(m =
     : 'GM drum number 35-81 to map to';
 
   return new ToolLoopAgent({
-    model: anthropic(getModel('claude-sonnet-4-6'), {
-      cacheControl: { type: 'ephemeral', ttl: '1h' },
+    model: anthropic(getModel('claude-opus-5-5'), {
+      cacheControl: { type: 'ephemeral' },
     }),
 
     instructions: `You are a music composer specializing in fusion genres.
 Your task is to create compositions that authentically blend classical and modern musical traditions.
+${ADVENTUROUSNESS_MANDATE}
 
 MUSICOLOGICAL PRINCIPLES:
 You compose with authentic technique fidelity — each genre's specific compositional methods must be faithfully implemented, not just superficially referenced. When genre research mentions STYLE FINGERPRINTS, these are non-negotiable requirements that must appear in your composition.
@@ -325,8 +345,6 @@ When genre research recommends a mixture strategy, structure your entire piece a
 - COEXISTENCE: Find shared traits between traditions and use them as linchpins for integration. Make concessions from each to create a THIRD compound identity — an amalgam, not two things side by side.
 - DISTORTION: One tradition is clearly recognizable source material. Alter it with incongruous elements that don't form a second coherent style — they corrupt, exaggerate, or undermine. The source is recognizable but defamiliarized.
 - TRAJECTORY: Gradual, traceable transformation from one tradition to another. The process of change must be audible and followable.
-If no strategy is specified, default to COEXISTENCE.
-
 You will provide structured components that will be assembled into proper ABC notation automatically.
 Focus on the musical content - the formatting will be handled correctly.
 
@@ -374,7 +392,10 @@ ABC OCTAVE NOTATION (CRITICAL - DO NOT USE COMMAS):
 - Example valid notes: C, D, E F G A B c d e f g a b c' d' e'
 - Example INVALID (will cause errors): a, b, c, d, e, f, g,
 
-${ABC2MIDI_REFERENCE}${usingFork ? '\n\n' + FORK_DIRECTIVES_REFERENCE + '\n\nYou MUST use fork directives for expressive output. Include global directives (DYNAMICS, BREATH, GRAVITY, ENSEMBLE, SPATIAL) as forkDirective entries in midiExtensions. Include per-voice directives (PNEUMA, ARTICULATE, SPECTRAL, ENSEMBLE voice, TRANSFORM, SHADOW) in each voice\'s forkDirectives array. These are ESSENTIAL — without them the MIDI output sounds mechanical and lifeless.' : ''}`,
+${EXPRESSIVE_ABC_GUIDE}
+Lyrics: put each voice's lyric lines in that voice's 'lyrics' slot (rendered as w: lines). Voice grouping/bracketing: put it in the top-level 'score' slot (rendered as %%score).
+
+${ABC2MIDI_REFERENCE}${usingFork ? '\n\n' + FORK_DIRECTIVES_REFERENCE + '\n\nThe fork directives are part of your sonic toolbox — available, not required; use them only when they serve the music. If you do use them: global directives (DYNAMICS, BREATH, GRAVITY, ENSEMBLE, SPATIAL) go as forkDirective entries in midiExtensions; per-voice directives (PNEUMA, ARTICULATE, SPECTRAL, ENSEMBLE voice, TRANSFORM, SHADOW, GHOSTTRANCE) go in each voice\'s forkDirectives array.' : ''}`,
 
     output: Output.object({
       schema: z.object({
@@ -388,6 +409,7 @@ ${ABC2MIDI_REFERENCE}${usingFork ? '\n\n' + FORK_DIRECTIVES_REFERENCE + '\n\nYou
         // Optional headers
         composer: z.string().optional().describe('Composer name'),
         tempo: z.string().optional().describe('Tempo marking (e.g., "1/4=120")'),
+        score: z.string().optional().describe('%%score voice-grouping line without the %%score prefix, e.g. "{(1 2) 3} (4 5)" — brackets/braces group staves by voice id. Omit for default ordering.'),
 
         // Structured MIDI extensions
         midiExtensions: z.array(z.discriminatedUnion('type', [
@@ -431,6 +453,7 @@ ${ABC2MIDI_REFERENCE}${usingFork ? '\n\n' + FORK_DIRECTIVES_REFERENCE + '\n\nYou
           clef: z.enum(['treble', 'bass', 'alto', 'tenor', 'treble+8', 'treble-8', 'bass+8', 'bass-8', 'perc']).optional().describe('Musical clef — use "perc" for drum/percussion voices (auto-assigns MIDI channel 10)'),
           midiProgram: z.number().optional().describe('MIDI instrument 0-127 for this voice'),
           forkDirectives: z.array(z.string()).optional().describe('Per-voice abc2midi-llm fork directives without %% prefix, e.g. ["PNEUMA humanize 10", "ENSEMBLE voice -5", "ARTICULATE auto", "SPECTRAL cc 74 0.5", "TRANSFORM source 1", "SHADOW source 1"]'),
+          lyrics: z.array(z.string()).optional().describe('Lyric lines for this voice, rendered as ABC w: fields. Each string is one w: line: syllables separated by spaces, "-" splits a word across notes, "_" holds a syllable across the next note, "*" skips a note. Omit for instrumental voices.'),
           notes: z.union([
             z.string(),
             z.array(z.string()),
@@ -502,6 +525,7 @@ ${exampleNotes.map(m => `    %%MIDI drummap ${m.abcNote} ${m.gm}`).join('\n')}
 
   return `You are a music composer specializing in fusion genres.
 Output ONLY valid ABC notation — no markdown fences, no explanatory text, no reasoning, nothing before X:1.
+${ADVENTUROUSNESS_MANDATE}
 
 MUSICOLOGICAL PRINCIPLES:
 You compose with authentic technique fidelity — each genre's specific compositional methods must be faithfully implemented, not just superficially referenced. When genre research mentions STYLE FINGERPRINTS, these are non-negotiable requirements that must appear in your composition.
@@ -512,8 +536,6 @@ When genre research recommends a mixture strategy, structure your entire piece a
 - COEXISTENCE: Find shared traits between traditions and use them as linchpins for integration. Make concessions from each to create a THIRD compound identity — an amalgam, not two things side by side.
 - DISTORTION: One tradition is clearly recognizable source material. Alter it with incongruous elements that don't form a second coherent style — they corrupt, exaggerate, or undermine. The source is recognizable but defamiliarized.
 - TRAJECTORY: Gradual, traceable transformation from one tradition to another. The process of change must be audible and followable.
-If no strategy is specified, default to COEXISTENCE.
-
 ABC NOTATION RULES:
 - Required headers in order: X: T: M: L: Q: K:
 - MIDI PROGRAM PLACEMENT (CRITICAL): %%MIDI program N must appear INSIDE each voice section,
@@ -534,7 +556,10 @@ ${percSection}
   - C D E = middle octave (uppercase)
   - c d e = high octave (lowercase)
   - c' d' = very high (lowercase + apostrophe)
-  - NEVER use lowercase letters with commas (a, b, c, — INVALID)`;
+  - NEVER use lowercase letters with commas (a, b, c, — INVALID)
+
+${EXPRESSIVE_ABC_GUIDE}
+- Lyrics: add w: lines immediately under a voice's music line. Voice grouping: add a %%score directive in the header (after K:).`;
 }
 
 /**
@@ -629,23 +654,24 @@ Remember: NO BLANK LINES between voice sections or elements!`;
     if (objectMode) {
       // Create agent with dynamic drum constraints
       const agent = createCompositionAgent({ drumMapTable });
-      const { output } = await agent.generate({
+      const objectStream = await agent.stream({
         prompt: userPrompt,
         onStepFinish: createStepLogger('CompositionAgent[object]'),
       });
+      const output = await objectStream.output;
       const allowedDrumNumbers = drumPrescription
         ? new Set(drumPrescription.drumKit.map(s => s.gm))
         : null;
       abcNotation = assembleAbcNotation(output, { allowedDrumNumbers });
       console.log(`✅ Composition generated [object]: ${output.title} (${output.voices.length} voice(s))`);
     } else {
+      const startedAt = Date.now();
       const result = streamText({
-        model: anthropic(getModel('claude-sonnet-4-6'), { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
+        model: anthropic(getModel('claude-opus-5-5'), { cacheControl: { type: 'ephemeral' } }),
         system: buildTextModeSystemPrompt(drumMapTable),
         prompt: userPrompt,
         providerOptions: {
           anthropic: {
-            thinking: { type: 'disabled' },
             ...(supportsContextManagement() && {
               contextManagement: {
                 edits: [
@@ -667,6 +693,7 @@ Remember: NO BLANK LINES between voice sections or elements!`;
         text += delta;
       }
       process.stdout.write('\n');
+      await logCallEnd('CompositionAgent[text]', result, startedAt, true);
       // Strip any accidental markdown fences
       abcNotation = text.replace(/^```[^\n]*\n?/gm, '').replace(/^```$/gm, '').trim();
       // Safety net: enforce perc voice notes (replace unmapped notes with rests)
@@ -754,6 +781,7 @@ Remember: NO BLANK LINES between voice sections or elements!`;
     return abcNotation;
 
   } catch (error) {
+    savePartialOutput(error);
     console.error('Composition agent error:', error.message);
     throw error;
   }
@@ -850,23 +878,24 @@ Output ONLY the COMPLETE modified ABC notation — no markdown fences, no explan
     if (objectMode) {
       // Create agent with dynamic drum constraints
       const agent = createCompositionAgent({ drumMapTable });
-      const { output } = await agent.generate({
+      const objectStream = await agent.stream({
         prompt: userPrompt,
         onStepFinish: createStepLogger('CompositionAgent[modify/object]'),
       });
+      const output = await objectStream.output;
       const modAllowedDrums = drumPrescription
         ? new Set(drumPrescription.drumKit.map(s => s.gm))
         : null;
       abcNotation = assembleAbcNotation(output, { allowedDrumNumbers: modAllowedDrums });
       console.log(`✅ Composition modified [object]: ${output.title}`);
     } else {
+      const startedAt = Date.now();
       const modResult = streamText({
-        model: anthropic(getModel('claude-sonnet-4-6'), { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
+        model: anthropic(getModel('claude-opus-5-5'), { cacheControl: { type: 'ephemeral' } }),
         system: buildTextModeSystemPrompt(drumMapTable) + (customSystemPrompt ? '\n\n## EXTENDED DIRECTIVE SET\n' + customSystemPrompt : ''),
         prompt: userPrompt,
         providerOptions: {
           anthropic: {
-            thinking: { type: 'disabled' },
             ...(supportsContextManagement() && {
               contextManagement: {
                 edits: [
@@ -888,6 +917,7 @@ Output ONLY the COMPLETE modified ABC notation — no markdown fences, no explan
         text += delta;
       }
       if (!_isCorrection) process.stdout.write('\n');
+      await logCallEnd(_isCorrection ? 'CompositionAgent[correction]' : 'CompositionAgent[modify/text]', modResult, startedAt, true);
       abcNotation = text.replace(/^```[^\n]*\n?/gm, '').replace(/^```$/gm, '').trim();
       // Safety net: enforce perc voice notes (replace unmapped notes with rests)
       abcNotation = enforcePercVoiceNotes(abcNotation);
@@ -970,6 +1000,7 @@ Output ONLY the COMPLETE modified ABC notation — no markdown fences, no explan
     return abcNotation;
 
   } catch (error) {
+    savePartialOutput(error);
     console.error('Composition modification error:', error.message);
     throw error;
   }

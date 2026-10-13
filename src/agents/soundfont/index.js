@@ -16,8 +16,8 @@ function getSoundfontAgent() {
   if (!_soundfontAgent) {
     const anthropic = getAnthropic();
     _soundfontAgent = new ToolLoopAgent({
-      model: anthropic(getModel('claude-haiku-4-5-20251001'), {
-        cacheControl: { type: 'ephemeral', ttl: '1h' },
+      model: anthropic(getModel('claude-opus-5-5'), {
+        cacheControl: { type: 'ephemeral' },
       }),
 
   instructions: `You are a music producer selecting soundfonts for compositions.

@@ -15,8 +15,8 @@ function getTitleAgent() {
   if (!_titleAgent) {
     const anthropic = getAnthropic();
     _titleAgent = new ToolLoopAgent({
-      model: anthropic(getModel('claude-haiku-4-5-20251001'), {
-        cacheControl: { type: 'ephemeral', ttl: '1h' },
+      model: anthropic(getModel('claude-opus-5-5'), {
+        cacheControl: { type: 'ephemeral' },
       }),
 
   instructions: `You are a creative title generator for music compositions.

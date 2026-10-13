@@ -1,17 +1,18 @@
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { getAnthropic, getModel, supportsAnthropicSamplingParams } from '../../utils/llm-client.js';
+import { ADVENTUROUSNESS_MANDATE } from '../shared/adventurousness-directive.js';
 
 const movementPlanSchema = z.object({
   overallArc: z.string().describe('The dramatic/emotional span across ALL movements — how the work travels from first movement to last, as one unified statement'),
   sharedThemes: z.string().describe('Recurring motifs, harmonic language, and instrumentation that carry across movements and make this ONE work rather than unrelated pieces'),
   movements: z.array(z.object({
     number: z.number().describe('Movement number, starting at 1, in performance order'),
-    character: z.string().describe('The character/affect of this movement (e.g. "Solemn, glacial introduction" or "Frenetic breakbeat scherzo")'),
-    key: z.string().describe('Key/tonal center for this movement (e.g. "D minor", "modal on E", "atonal")'),
-    tempo: z.string().describe('Tempo marking with BPM (e.g. "Adagio (1/4=52)", "Presto (1/4=184)")'),
-    form: z.string().describe('Formal structure of this movement (e.g. "Sonata-allegro", "Through-composed build", "Scherzo and trio")'),
-    durationTarget: z.string().describe('Target duration (e.g. "5-7 minutes")'),
+    character: z.string().describe('The character/affect of this movement'),
+    key: z.string().describe('Key/tonal center for this movement'),
+    tempo: z.string().describe('Tempo marking including BPM, e.g. "1/4=120"'),
+    form: z.string().describe('Formal structure of this movement'),
+    durationTarget: z.string().describe('Target duration for this movement'),
   })).describe('Exactly the requested number of movements, ordered by number'),
 });
 
@@ -43,7 +44,8 @@ export async function planMovements(options) {
   const anthropic = getAnthropic();
 
   const prompt = `You are planning the structure of a LONG-FORM, multi-movement work that fuses ${classicalGenre} and ${modernGenre}.
-This is the scale of a Bruckner symphony or a Wagner music-drama act — a single unified work spanning ${movementCount} movements.
+This is a large-scale unified work spanning ${movementCount} movements.
+${ADVENTUROUSNESS_MANDATE}
 
 ${genreResearch ? `## GENRE RESEARCH (context for what this fusion requires)
 ${genreResearch}
@@ -52,20 +54,18 @@ The following requirements MUST shape every movement:
 ${userInstructions}
 
 ` : ''}## YOUR TASK
-Design a coherent ${movementCount}-movement plan in the style "${style}".
+Design a ${movementCount}-movement plan in the style "${style}".
 - Produce EXACTLY ${movementCount} movements, numbered 1..${movementCount} in performance order.
-- Give the work a single dramatic ARC across all movements — contrast of tempo, key, and character between movements, building to a culmination.
-- Define SHARED thematic material (motifs, harmony, instrumentation) that recurs across movements so the whole reads as ONE work, not ${movementCount} unrelated pieces.
-- For each movement specify a distinct character, key/tonal center, tempo (with BPM), formal structure, and target duration.
-- Keep the instrumentation consistent across movements (a single ensemble performs the whole work).
+- For each movement, decide its character, key/tonal center, tempo (with BPM), formal structure, and target duration.
+- Decide the overall arc across the movements and what shared material, if any, connects them — these are entirely yours to determine.
 
-Think like a symphonist: slow introductions, scherzos, slow movements, finales — adapt these archetypes to the ${classicalGenre} × ${modernGenre} fusion.`;
+Every structural and dramatic decision is yours to make. Let the fusion of ${classicalGenre} and ${modernGenre} drive them.`;
 
   let result;
-  const modelId = getModel('claude-sonnet-4-6');
-  if (supportsAnthropicSamplingParams('claude-sonnet-4-6')) {
+  const modelId = getModel('claude-opus-5-5');
+  if (supportsAnthropicSamplingParams('claude-opus-5-5')) {
     const { output } = await generateText({
-      model: anthropic(modelId, { cacheControl: { type: 'ephemeral', ttl: '1h' } }),
+      model: anthropic(modelId, { cacheControl: { type: 'ephemeral' } }),
       output: Output.object({ schema: movementPlanSchema }),
       prompt,
     });

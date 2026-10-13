@@ -169,6 +169,7 @@ export async function generateAbc(options) {
   const userInstructions = options.instructions || '';
   const skipDescription = options.skipDescription || false;
   const movementCount = parseInt(options.movements || '1', 10);
+  const refreshResearch = options.refreshResearch || false;
 
   if (movementCount > 1) {
     if (useCustomSoundfonts) {
@@ -262,7 +263,7 @@ export async function generateAbc(options) {
         const sharedResearch = await researchGenresForComposition(
           genreComponents.classical,
           genreComponents.modern,
-          { solo: includeSolo, recordLabel, producer, instruments: requestedInstruments, style, userInstructions }
+          { solo: includeSolo, recordLabel, producer, instruments: requestedInstruments, style, userInstructions, refreshResearch }
         );
         const sharedDrums = await selectDrumKit({
           classicalGenre: genreComponents.classical,
@@ -280,14 +281,28 @@ export async function generateAbc(options) {
         });
         await logStep('movement_plan', { count: plan.movements.length, arc: plan.overallArc });
 
+        const planOverview = plan.movements.map(mv =>
+          `  ${mv.number}. ${mv.character} — key ${mv.key}, ${mv.tempo}, form ${mv.form}, target ${mv.durationTarget}`
+        ).join('\n');
+        const priorMovements = [];
+
         for (const m of plan.movements) {
           const mvtFilename = `${sanitizeForFilename(displayGenre)}-score${i + 1}_mvt${m.number}-${timestamp}`;
           const mvtAbcFilePath = path.join(outputDir, `${mvtFilename}.abc`);
+          const priorBlock = priorMovements.length > 0
+            ? `\nALREADY-COMPOSED MOVEMENTS — their actual realized notation follows. Quote, develop, and transform the shared themes from these so the work coheres as one piece rather than unrelated movements:\n\n`
+              + priorMovements.map(pm => `--- Movement ${pm.number} (${pm.character}) ---\n${pm.abc}`).join('\n\n') + '\n'
+            : '';
           const movementContext = `## MULTI-MOVEMENT WORK CONTEXT
 This is movement ${m.number} of ${movementCount} of a single unified long-form work.
 OVERALL ARC: ${plan.overallArc}
 SHARED THEMES (carry these across movements): ${plan.sharedThemes}
+
+FULL MOVEMENT PLAN (every movement of the work, so you know where this one sits):
+${planOverview}
+
 THIS MOVEMENT — character: ${m.character}; key: ${m.key}; tempo: ${m.tempo}; form: ${m.form}; target length: ${m.durationTarget}.
+${priorBlock}HYBRID BALANCE: the classical and modern influences are balanced across the TOTAL WORK as a whole. Compose this movement to fully inhabit its own character, leaning into whichever tradition that character calls for.
 Compose ONLY this movement as a complete standalone ABC piece; it is rendered as its own file.
 
 `;
@@ -338,6 +353,25 @@ Compose ONLY this movement as a complete standalone ABC piece; it is rendered as
           await fs.promises.writeFile(mvtAbcFilePath, cleanedMvt);
           generatedFiles.push(mvtAbcFilePath);
           await logStep('movement_written', { movement: m.number, path: mvtAbcFilePath });
+          priorMovements.push({ number: m.number, character: m.character, abc: cleanedMvt });
+
+          let mvtSoundfonts = null;
+          if (isAgentEnabled('timidityConfig')) {
+            try {
+              const cfgResult = await arrangeSoundfontsAndGenerateConfig({
+                abcNotation: cleanedMvt,
+                genre: creativeGenreName || genre,
+                classicalGenre: genreComponents.classical,
+                modernGenre: genreComponents.modern,
+                outputDir,
+                baseFilename: mvtFilename,
+              });
+              mvtSoundfonts = cfgResult.soundfonts;
+              console.log(`🎛️ Movement ${m.number} timidity config: ${path.basename(cfgResult.configPath)}`);
+            } catch (cfgErr) {
+              console.error(`⚠️ Movement ${m.number} timidity config failed:`, cfgErr.message);
+            }
+          }
 
           if (!skipDescription || sequentialMode) {
             const mvtInstruments = extractInstruments(cleanedMvt);
@@ -352,6 +386,10 @@ Compose ONLY this movement as a complete standalone ABC piece; it is rendered as
             mvtDescription.movement = { of: movementCount, ...m };
             if (sharedDrums) mvtDescription.drumPrescription = sharedDrums;
             if (sharedResearch) mvtDescription.research = sharedResearch;
+            if (mvtSoundfonts) {
+              mvtDescription.soundfonts = mvtSoundfonts;
+              mvtDescription.timidityConfig = `${mvtFilename}.timidity.cfg`;
+            }
             await fs.promises.writeFile(
               path.join(outputDir, `${mvtFilename}_description.json`),
               JSON.stringify(mvtDescription, null, 2)
@@ -391,6 +429,7 @@ ${mvtDescription.analysis}`;
                   hybrid: mvtContext.metadata.genre || (creativeGenreName || genre),
                 },
                 maxIterations: options.maxIterations || 10,
+                selectedSoundfonts: mvtSoundfonts,
                 drumPrescription: sharedDrums,
                 customSystemPrompt,
                 gateController: mvtGate,
@@ -487,6 +526,7 @@ ${mvtDescription.analysis}`;
               instruments: requestedInstruments,
               style,
               userInstructions,
+              refreshResearch,
             }
           );
 
@@ -743,7 +783,11 @@ ${description.analysis}`;
             }
             await fs.promises.writeFile(finalPath, enhancementResult.enhancedAbc);
             generatedFiles.push(finalPath);
-            console.log(`✅ Sequential enhancement complete (${enhancementResult.iterations} iteration(s)) → ${path.basename(finalPath)}`);
+            if (enhancementResult.exitReason === 'error') {
+              console.warn(`⚠️ Sequential enhancement stopped early on an error after ${enhancementResult.iterations} iteration(s); saved the last good version → ${path.basename(finalPath)}`);
+            } else {
+              console.log(`✅ Sequential enhancement complete (${enhancementResult.iterations} iteration(s)) → ${path.basename(finalPath)}`);
+            }
           } catch (enhanceError) {
             console.error('⚠️ Sequential enhancement failed, keeping foundation:', enhanceError.message);
           }

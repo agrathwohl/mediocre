@@ -13,9 +13,11 @@ import { streamText, generateText, Output, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { modifyMusicWithAgent } from '../composition/index.js';
 import { readAbcFileTool } from '../shared/tools.js';
+import { ADVENTUROUSNESS_MANDATE } from '../shared/adventurousness-directive.js';
 import { reviewCompositionWithAgent } from '../qa/index.js';
 import { addOrnamentation } from '../workers/ornamentation.js';
 import { addMidiExpression } from '../workers/midi-expression.js';
+import { writeFailure } from '../shared/utils.js';
 import { enhanceDrums } from '../workers/drum-specialist.js';
 import { validateAbcNotation } from '../../utils/claude.js';
 import fs from 'fs/promises';
@@ -105,7 +107,7 @@ ${priorSession.iterations.map(iter =>
     : '';
 
   const prompt = `You are the orchestrator for a music composition post-processing pipeline.
-${complaintBlock}${instructionsBlock}
+${complaintBlock}${instructionsBlock}${ADVENTUROUSNESS_MANDATE}
 ## YOUR ROLE
 You synthesize QA feedback, musical history context, and work history to decide what to do next.
 You can invoke:
@@ -180,12 +182,11 @@ Consider:
 
 ${iteration >= maxIterations - 1 ? `
 **FINAL ITERATION STRATEGY**: With ${maxIterations - iteration} iteration(s) remaining, prioritize fixing critical/major issues over minor polish. Any issue you skip NOW will persist in the final output.
-` : ''}
-Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "improve ornamentation").`;
+` : ''}`;
 
   try {
     const stream = streamText({
-      model: anthropic(getModel('claude-sonnet-4-6')),
+      model: anthropic(getModel('claude-opus-5-5')),
       output: Output.object({ schema: orchestratorDecisionSchema }),
       messages: [
         {
@@ -195,7 +196,7 @@ Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "imp
       ],
       providerOptions: {
         anthropic: {
-          cacheControl: { type: 'ephemeral', ttl: '1h' },
+          cacheControl: { type: 'ephemeral' },
           ...(supportsContextManagement() && {
             contextManagement: {
               edits: [
@@ -353,7 +354,7 @@ Prior final verdict: ${priorSession.finalVerdict} | ${priorSession.finalSummary 
     : abcFilePath.replace(/\.abc$/i, `_iter${iteration}.abc`);
 
   const prompt = `You are the orchestrator for a music composition post-processing pipeline.
-${complaintBlock}${enhanceInstructionsBlock}
+${complaintBlock}${enhanceInstructionsBlock}${ADVENTUROUSNESS_MANDATE}
 ## YOUR ROLE
 You synthesize QA feedback, musical history context, and work history to decide what to do next.
 You can invoke:
@@ -407,19 +408,18 @@ ${iteration === 0 ? `
 ## FIRST ITERATION GUIDANCE
 This is the first iteration. Read the composition with read_abc_file first, then decide what aspect most needs improvement.
 ` : ''}
-
-Be specific in directives (e.g., "Add trills to violin in measures 4-8" not "improve ornamentation").`;
+`;
 
   try {
     const result = await generateText({
-      model: anthropic(getModel('claude-sonnet-4-6')),
+      model: anthropic(getModel('claude-opus-5-5')),
       tools: { read_abc_file: readAbcFileTool },
       output: Output.object({ schema: orchestratorDecisionSchema }),
       stopWhen: stepCountIs(7),
       messages: [{ role: 'user', content: prompt }],
       providerOptions: {
         anthropic: {
-          cacheControl: { type: 'ephemeral', ttl: '1h' },
+          cacheControl: { type: 'ephemeral' },
         },
       },
     });
@@ -485,7 +485,7 @@ function buildOrchestratorContext(options) {
 
   // Musical context summary
   const musicalContextSummary = musicalContext.analysis
-    ? musicalContext.analysis.substring(0, 1500) + '...'
+    ? `Style: ${musicalContext.metadata?.style || 'unspecified'}\n` + musicalContext.analysis.substring(0, 1500) + '...'
     : 'No musical context available';
 
   // Work history summary
@@ -637,38 +637,58 @@ export async function orchestratePostProcessing(options) {
 
       // Invoke the agent orchestrator selected
       let newAbc;
+      try {
+        if (!decision.agent) {
+          throw new Error(`Orchestrator decision has action 'invoke' but missing 'agent' field`);
+        }
 
-      if (!decision.agent) {
-        throw new Error(`Orchestrator decision has action 'invoke' but missing 'agent' field`);
-      }
+        if (decision.agent === 'composition') {
+          newAbc = await modifyMusicWithAgent({
+            currentAbc,
+            modificationDirective: decision.directive,
+            qaFeedback: lastQaResult,
+            genre: genres.hybrid,
+            classicalGenre: genres.classical,
+            modernGenre: genres.modern,
+            drumPrescription,
+            objectMode,
+            userInstructions,
+            customSystemPrompt,
+          });
+        } else if (decision.agent === 'ornamentation') {
+          newAbc = await addOrnamentation({
+            abc: currentAbc,
+            directive: decision.directive,
+            customSystemPrompt,
+          });
+        } else if (decision.agent === 'midi-expression') {
+          newAbc = await addMidiExpression({
+            abc: currentAbc,
+            directive: decision.directive,
+            customSystemPrompt,
+          });
+        } else {
+          throw new Error(`Unknown agent type: ${decision.agent}. Valid agents: composition, ornamentation, midi-expression`);
+        }
 
-      if (decision.agent === 'composition') {
-        newAbc = await modifyMusicWithAgent({
-          currentAbc,
-          modificationDirective: decision.directive,
-          qaFeedback: lastQaResult,
-          genre: genres.hybrid,
-          classicalGenre: genres.classical,
-          modernGenre: genres.modern,
-          drumPrescription,
-          objectMode,
-          userInstructions,
-          customSystemPrompt,
-        });
-      } else if (decision.agent === 'ornamentation') {
-        newAbc = await addOrnamentation({
-          abc: currentAbc,
+        if (!newAbc || !newAbc.trim()) {
+          throw new Error(`${decision.agent} agent returned an empty ABC in iteration ${iteration + 1}`);
+        }
+      } catch (agentError) {
+        console.error(`\n❌ ${decision.agent} agent failed in iteration ${iteration + 1}: ${agentError.message}`);
+        console.error('   Stopping and keeping the last good iteration.');
+        writeFailure(`orchestrator-${decision.agent}`, {
+          iteration: iteration + 1,
           directive: decision.directive,
-          customSystemPrompt,
+          error: agentError.message,
+          stack: agentError.stack,
+          finishReason: agentError.finishReason,
+          usage: agentError.usage,
+          text: agentError.text,
         });
-      } else if (decision.agent === 'midi-expression') {
-        newAbc = await addMidiExpression({
-          abc: currentAbc,
-          directive: decision.directive,
-          customSystemPrompt,
-        });
-      } else {
-        throw new Error(`Unknown agent type: ${decision.agent}. Valid agents: composition, ornamentation, midi-expression`);
+        exitReason = 'error';
+        stopped = true;
+        break;
       }
 
       // Write this iteration to disk immediately as an intermediate checkpoint
@@ -893,6 +913,7 @@ export async function orchestratePostProcessing(options) {
   // Return final result
   return {
     enhancedAbc: currentAbc,
+    exitReason,
     originalAbc,
     workHistory,
     finalQaResult: lastQaResult,

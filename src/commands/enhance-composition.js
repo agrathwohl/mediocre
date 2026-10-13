@@ -46,6 +46,7 @@ export async function enhanceComposition(options) {
   console.log(`   Genre: ${context.metadata.genre}`);
   console.log(`   Classical: ${context.metadata.classicalGenre}`);
   console.log(`   Modern: ${context.metadata.modernGenre}`);
+  console.log(`   Style: ${context.metadata.style}`);
 
   // Create gate controller for interactive mode
   const gateController = interactive ? new GateController({ abcFilePath: input }) : null;

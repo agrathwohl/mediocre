@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 /**
  * Shared utility functions for AI SDK v6 agents
  * Helper functions for agent result extraction, logging, etc.
@@ -49,6 +52,61 @@ export function logAgentStep({ stepNumber, toolCalls, usage, finishReason }) {
 }
 
 /**
+ * Append to ./logs/trace.log as events happen, so a run can be watched with tail -f.
+ */
+export function trace(chunk) {
+  const dir = path.join(process.cwd(), 'logs');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.appendFileSync(path.join(dir, 'trace.log'), chunk);
+}
+
+/**
+ * Save a model call's thinking summary so it survives a failed call.
+ * Files go to ./thinking-logs/<label>-<timestamp>.txt
+ */
+function saveThinking(label, text) {
+  if (!text || !text.trim()) return;
+  const dir = path.join(process.cwd(), 'thinking-logs');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${label.replace(/[^A-Za-z0-9_-]+/g, '_')}-${Date.now()}.txt`);
+  fs.writeFileSync(file, text);
+  console.log(`  Thinking saved: ${file} (${text.length} chars)`);
+}
+
+/**
+ * Write a failure or incomplete result to ./failures/<label>-<timestamp>.json
+ * so nothing that went wrong is lost.
+ */
+export function writeFailure(label, details) {
+  const dir = path.join(process.cwd(), 'failures');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${label.replace(/[^A-Za-z0-9_-]+/g, '_')}-${Date.now()}.json`);
+  fs.writeFileSync(file, JSON.stringify({ label, time: new Date().toISOString(), ...details }, null, 2));
+  console.error(`  Failure record saved: ${file}`);
+  return file;
+}
+
+function formatUsage(usage) {
+  const reasoning = usage.outputTokenDetails?.reasoningTokens;
+  return `(in: ${usage.inputTokens}, out: ${usage.outputTokens}${reasoning != null ? `, reasoning: ${reasoning}` : ''})`;
+}
+
+/**
+ * Log how a streamText call ended: finish reason and the input/output token split.
+ * Call after the stream has been consumed.
+ */
+export async function logCallEnd(label, result, startedAt = null, strict = false) {
+  const [finishReason, usage, reasoningText] = await Promise.all([result.finishReason, result.usage, result.reasoningText]);
+  const seconds = startedAt != null ? (Date.now() - startedAt) / 1000 : null;
+  const rate = seconds >= 1 && usage.outputTokens ? `, ${(usage.outputTokens / seconds).toFixed(0)} out tok/s` : '';
+  console.log(`[${label}] Finish: ${finishReason} ${formatUsage(usage)}${seconds != null ? ` in ${seconds.toFixed(0)}s${rate}` : ''}`);
+  saveThinking(label, reasoningText);
+  if (strict && finishReason !== 'stop') {
+    throw new Error(`${label} stopped early: finishReason ${finishReason}, output tokens ${usage.outputTokens}${usage.outputTokenDetails?.reasoningTokens != null ? ` (reasoning ${usage.outputTokenDetails.reasoningTokens})` : ''}. The output is incomplete.`);
+  }
+}
+
+/**
  * Create a standard onStepFinish callback with logging
  * @param {string} agentName - Name of the agent (for logging context)
  * @returns {Function} onStepFinish callback function
@@ -68,8 +126,10 @@ export function createStepLogger(agentName) {
     console.log(`[${agentName}] Step ${stepNum}: ${stepInfo.toolCalls?.map(tc => tc.toolName).join(', ') || 'text'}`);
 
     if (stepInfo.usage) {
-      console.log(`  Tokens: ${stepTokens} (total: ${totalTokens})`);
+      console.log(`  Tokens: ${stepTokens} (total: ${totalTokens}) ${formatUsage(stepInfo.usage)}`);
     }
+    console.log(`  Finish: ${stepInfo.finishReason}`);
+    saveThinking(`${agentName}-step${stepNum}`, stepInfo.reasoningText);
 
     // Log completion on final step
     if (stepInfo.finishReason && stepInfo.finishReason !== 'tool-calls') {

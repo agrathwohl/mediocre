@@ -14,6 +14,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import chalk from 'chalk';
+import { getAbc2midiBinary } from '../utils/llm-client.js';
 
 export class PreviewPlayer {
   /**
@@ -38,7 +39,7 @@ export class PreviewPlayer {
     try {
       await writeFile(tmpAbc, abcContent, 'utf-8');
 
-      const abc2midiBin = process.env.ABC2MIDI_BIN || 'abc2midi';
+      const abc2midiBin = getAbc2midiBinary();
       const timidityBin = process.env.TIMIDITY_BIN || 'timidity';
 
       console.error(chalk.dim('  Converting ABC to MIDI...'));

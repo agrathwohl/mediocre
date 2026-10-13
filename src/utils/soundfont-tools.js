@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -19,7 +20,13 @@ export const BANNED_SOUNDFONTS = [
   'ColomboGMGS2.sf2',                        // CRASHES TIMIDITY - vlist[32] overflow
   'DSoundFont Gaming Edition (3.51).sf2',    // 1.4 GB - causes OOM segfault
   'The Fairy Tale Bank 2.sf2',               // 1.1 GB - causes OOM segfault
+  'GMExtBank.sf2',                           // CRASHES TIMIDITY - SF2 zone overflow (segfaults loading alone; verified)
+  'Kirby Soundfont_NoDrums.sf2',             // CRASHES TIMIDITY - SF2 zone overflow (segfaults loading alone; verified)
 ];
+
+export function soundfontExists(name) {
+  return existsSync(path.join(SOUNDFONT_DIR, name));
+}
 
 /**
  * Genre-to-soundfont mapping for intelligent recommendations
@@ -494,6 +501,8 @@ dir ${SOUNDFONT_DIR}
 
   // Add soundfonts in order (later ones override earlier for same bank/program)
   for (const sf of soundfonts) {
+    if (BANNED_SOUNDFONTS.includes(sf)) continue;
+    if (!soundfontExists(sf)) continue;
     config += `soundfont "${sf}"\n`;
   }
 

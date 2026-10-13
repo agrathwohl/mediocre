@@ -5,8 +5,8 @@
 
 export const FORK_DIRECTIVES_REFERENCE = `## abc2midi-llm Fork — Custom Directive Extensions (Pneuma Engine)
 
-These directives are ONLY available when using the abc2midi-llm fork binary (passed via --abc2midi).
-Use them liberally for organic, expressive, algorithmically rich MIDI output.
+These directives are available when using the abc2midi-llm fork binary (passed via --abc2midi).
+They are part of the sonic toolbox available to you — reach for them when they serve the music, not by default.
 
 ### %%PNEUMA — Temporal Liberation
 
@@ -103,6 +103,7 @@ Target voices need NO placeholder notes — content is generated from source at 
 | Directive                | Parameters                   | Effect                                               |
 | ------------------------ | ---------------------------- | ---------------------------------------------------- |
 | \`%%TRANSFORM source\`     | \`N\` (voice number)           | Set source voice; containing voice becomes target    |
+| \`%%TRANSFORM target\`     | \`N\` (voice number, optional) | Explicitly set the target voice (default: containing voice) |
 | \`%%TRANSFORM retrograde\` |                              | Reverse the note sequence                            |
 | \`%%TRANSFORM invert\`     |                              | Mirror pitches around axis                           |
 | \`%%TRANSFORM invertaxis\` | \`N\` (MIDI pitch, default 60) | Set inversion axis (middle C)                        |
@@ -128,14 +129,33 @@ Target voices need NO placeholder notes — content is generated from source at 
 | \`%%SHADOW intervallock\` | \`N\` (semitones)                  | Lock shadow at fixed interval from source                                                |
 | \`%%SHADOW off\`          |                                  | Disable shadow                                                                           |
 
-### Composition Philosophy
+### %%GHOSTTRANCE — Generative Melody-Follower Swarm
 
-- **Start with PNEUMA**: Add humanize, drift, and heartbeat to all melodic voices
-- **ENSEMBLE for texture**: Offset voices so they don't land on identical ticks
-- **BREATH for phrasing**: Auto-insert micro-rests so phrases separate
-- **GRAVITY for shape**: Apply phrase-level weight and agogic timing
-- **TRANSFORM for structure**: Create derived voices algorithmically
-- **SHADOW for depth**: Add ghost voices that follow/comment on source material
-- **SPECTRAL for timbre**: Map velocity to filter cutoff for brighter loud passages
-- **DYNAMICS for flow**: Smooth velocity interpolation between dynamic marks
+Designate one melody voice and up to 16 follower voices. Followers track the melody but
+stochastically "depart" into their own (or a secondary voice's) material, then rejoin.
+Follower content is generated at render time.
+
+| Directive                  | Parameters            | Effect                                                                  |
+| -------------------------- | --------------------- | ----------------------------------------------------------------------- |
+| \`%%GHOSTTRANCE melody\`     |                       | Mark the containing voice as the melody all followers track             |
+| \`%%GHOSTTRANCE follower\`   |                       | Mark the containing voice as a follower of the melody                   |
+| \`%%GHOSTTRANCE departprob\` | \`F\` (float, def 0.12) | Probability a follower departs from the melody                          |
+| \`%%GHOSTTRANCE departmin\`  | \`N\` (int, def 2)      | Minimum length of a departure                                           |
+| \`%%GHOSTTRANCE departmax\`  | \`N\` (int, def 8)      | Maximum length of a departure                                           |
+| \`%%GHOSTTRANCE secondary\`  | \`N\` (voice number)    | Use voice N's notes as the follower's departure material (default: own) |
+| \`%%GHOSTTRANCE off\`        |                       | Disable ghosttrance                                                     |
+
+### What Each Layer Does
+
+- **PNEUMA** — organic/biological timing: humanize, drift, heartbeat, free, rubato
+- **ENSEMBLE** — inter-voice micro-timing offsets
+- **BREATH** — micro-rests at phrase boundaries
+- **GRAVITY** — phrase-level velocity/agogic weighting
+- **ARTICULATE** — context-aware note length
+- **DYNAMICS** — smooth velocity interpolation between marks
+- **SPECTRAL** — velocity-mapped timbral shift (CC / pitch bend)
+- **SPATIAL** — inter-group timing offsets for physical space
+- **TRANSFORM** — derive a voice algorithmically from a source (retrograde, invert, fragment, …)
+- **SHADOW** — reactive voice that follows / contradicts / comments on a source
+- **GHOSTTRANCE** — melody plus a stochastic follower swarm
 `;

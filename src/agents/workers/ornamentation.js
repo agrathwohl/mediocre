@@ -13,6 +13,8 @@
 import { streamText } from 'ai';
 import { validateAbcNotation } from '../../utils/claude.js';
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
+import { ADVENTUROUSNESS_MANDATE } from '../shared/adventurousness-directive.js';
+import { logCallEnd } from '../shared/utils.js';
 import { getAnthropic, getModel } from '../../utils/llm-client.js';
 
 /**
@@ -30,6 +32,7 @@ export async function addOrnamentation(options) {
   console.log(`   Directive: ${directive}`);
 
   const systemPrompt = `You are an expert in baroque and classical ornamentation and MIDI expression.
+${ADVENTUROUSNESS_MANDATE}
 
 ## ABC ORNAMENTATION SYNTAX
 - T - trill (rapid alternation between the note and the note above)
@@ -51,12 +54,11 @@ export async function addOrnamentation(options) {
 ${ABC2MIDI_REFERENCE}${customSystemPrompt ? '\n\n## EXTENDED DIRECTIVE SET\n' + customSystemPrompt : ''}`;
 
   try {
+    const startedAt = Date.now();
     const result = streamText({
-      model: anthropic(getModel('claude-sonnet-4-6')),
+      model: anthropic(getModel('claude-opus-5-5'), { cacheControl: { type: 'ephemeral' } }),
       system: systemPrompt,
-      experimental_providerMetadata: {
-        anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } },
-      },
+      providerOptions: { anthropic: { effort: 'low' } },
       messages: [
         {
           role: 'user',
@@ -71,6 +73,11 @@ ${ABC2MIDI_REFERENCE}${customSystemPrompt ? '\n\n## EXTENDED DIRECTIVE SET\n' + 
       enhancedAbc += delta;
     }
     process.stdout.write('\n');
+    await logCallEnd('Ornamentation', result, startedAt, true);
+
+    if (!enhancedAbc.trim()) {
+      throw new Error(`Ornamentation worker got no text from the model (finishReason: ${await result.finishReason}, usage: ${JSON.stringify(await result.usage)})`);
+    }
 
     // Clean up the response (remove markdown code fences if present)
     const cleaned = enhancedAbc

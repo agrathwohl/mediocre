@@ -2,16 +2,19 @@ import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { getPercussionReference } from '../drum-arranger/gm-percussion-reference.js';
 import { ABC2MIDI_REFERENCE } from '../shared/abc2midi-reference.js';
+import { ADVENTUROUSNESS_MANDATE } from '../shared/adventurousness-directive.js';
 import { FORK_DIRECTIVES_REFERENCE } from '../shared/fork-directives-reference.js';
 import { getAnthropic, getModel, getAbc2midiBinary } from '../../utils/llm-client.js';
 import { cleanAbcNotation } from '../../utils/validation.js';
 
 function stripDrumContent(abc) {
-  const lines = abc.split('\n');
+  // A voice header can be glued to the end of the previous voice ("|][V:2 ...]")
+  const lines = abc.replace(/\|\](\[V:)/g, '|]\n$1').split('\n');
   const kept = [];
+  const percIds = new Set();
+  const voiceText = {};
+  let currentId = null;
   let inPercVoice = false;
-  let barCount = 0;
-  let maxBars = 0;
   let meter = '4/4';
   let tempo = '1/4=120';
   let defaultNoteLength = '1/8';
@@ -24,15 +27,13 @@ function stripDrumContent(abc) {
     const lMatch = line.match(/^L:\s*(.+)/);
     if (lMatch) defaultNoteLength = lMatch[1].trim();
 
-    // Voice body start — [V:id ...]
-    if (line.match(/^\[V:/)) {
-      if (barCount > maxBars) maxBars = barCount;
-      barCount = 0;
-      if (/clef\s*=\s*perc/.test(line)) {
-        inPercVoice = true;
-        continue;
-      }
-      inPercVoice = false;
+    // Voice body start — [V:id ...]. Later sections of the same voice may be a bare [V:id].
+    const vMatch = line.match(/^\[V:([^\s\]]+)/);
+    if (vMatch) {
+      currentId = vMatch[1];
+      if (/clef\s*=\s*perc/.test(line)) percIds.add(currentId);
+      inPercVoice = percIds.has(currentId);
+      if (inPercVoice) continue;
     }
 
     // Voice declaration (no brackets) — V:id ... clef=perc
@@ -46,15 +47,16 @@ function stripDrumContent(abc) {
     if (/^%%MIDI\s+drumon/.test(line)) continue;
     if (/^%%MIDI\s+drumoff/.test(line)) continue;
 
-    // Count bars in non-drum, non-directive, non-comment lines
-    if (!line.startsWith('%%') && !line.startsWith('%') && !line.startsWith('[') && !line.match(/^[A-Z]:/)) {
-      barCount += (line.match(/\|/g) || []).length;
+    // Collect the music of each voice across all its sections
+    if (currentId && !line.startsWith('%') && !line.match(/^[A-Za-z]:/)) {
+      voiceText[currentId] = (voiceText[currentId] || '') + '\n' + line;
     }
 
     kept.push(line);
   }
 
-  if (barCount > maxBars) maxBars = barCount;
+  const barsOf = (text) => text.split(/:?\|+\]?:?/).filter((b) => b.trim().length).length;
+  const maxBars = Math.max(0, ...Object.values(voiceText).map(barsOf));
 
   return { strippedAbc: kept.join('\n'), barCount: maxBars || 32, meter, tempo, defaultNoteLength };
 }
@@ -92,6 +94,7 @@ export async function enhanceDrums(options) {
   const percussionRef = getPercussionReference();
 
   const systemPrompt = `You are an elite drum programmer and percussion arranger for hybrid genre fusion music.
+${ADVENTUROUSNESS_MANDATE}
 
 You will receive a composition that has NO drum/percussion voice. Your job: write the channel 10 percussion voice for it. You return ONLY the drum content as structured data — the code handles splicing it into the piece.
 
@@ -127,8 +130,8 @@ ${ABC2MIDI_REFERENCE}${usingFork ? '\n\n' + FORK_DIRECTIVES_REFERENCE : ''}${cus
 
   try {
     const { output } = await generateText({
-      model: anthropic(getModel('claude-sonnet-4-6'), {
-        cacheControl: { type: 'ephemeral', ttl: '1h' },
+      model: anthropic(getModel('claude-opus-5-5'), {
+        cacheControl: { type: 'ephemeral' },
       }),
       output: Output.object({
         schema: z.object({

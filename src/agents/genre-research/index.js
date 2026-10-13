@@ -8,6 +8,7 @@
 
 import { generateText } from 'ai';
 import { getAnthropic, getModel } from '../../utils/llm-client.js';
+import { ADVENTUROUSNESS_MANDATE } from '../shared/adventurousness-directive.js';
 import {
   getCachedResearch,
   cacheAllSections,
@@ -54,10 +55,12 @@ ${userInstructions}
  * @returns {Promise<string>}
  */
 export async function researchGenresForComposition(classicalGenre, modernGenre, flags = {}) {
-  const { userInstructions } = flags;
+  const { userInstructions, refreshResearch = false } = flags;
 
   // ── Cache check ─────────────────────────────────────────────────────
-  const cached = await getCachedResearch(classicalGenre, modernGenre);
+  const cached = refreshResearch
+    ? { classical: null, modern: null, pair: null }
+    : await getCachedResearch(classicalGenre, modernGenre);
 
   // FULL HIT: all three parts cached → zero API cost
   if (cached.classical && cached.modern && cached.pair) {
@@ -104,12 +107,12 @@ async function generateFullResearch(classicalGenre, modernGenre, flags) {
   const instructionsBlock = buildInstructionsBlock(flags.userInstructions);
 
   const { text } = await generateText({
-    model: anthropic(getModel('claude-haiku-4-5-20251001'), {
-      cacheControl: { type: 'ephemeral', ttl: '1h' },
+    model: anthropic(getModel('claude-opus-5-5'), {
+      cacheControl: { type: 'ephemeral' },
     }),
     prompt: `You are a musicologist briefing a composer who is about to write a hybrid of "${classicalGenre}" and "${modernGenre}".
-${instructionsBlock}
-Write a dense, factual briefing covering BOTH genres. For each genre, answer:
+${instructionsBlock}${ADVENTUROUSNESS_MANDATE}
+Write a dense, factual briefing covering BOTH genres with EQUAL depth and specificity — never under-serve the modern partner. For each genre, answer:
 
 ${GENRE_BRIEFING_CATEGORIES}
 
@@ -132,10 +135,11 @@ async function generateMixtureOnly(classicalGenre, modernGenre, cachedClassical,
   const instructionsBlock = buildInstructionsBlock(flags.userInstructions);
 
   const { text } = await generateText({
-    model: anthropic(getModel('claude-haiku-4-5-20251001'), {
-      cacheControl: { type: 'ephemeral', ttl: '1h' },
+    model: anthropic(getModel('claude-opus-5-5'), {
+      cacheControl: { type: 'ephemeral' },
     }),
     prompt: `You are a musicologist. You have already researched both genres individually. Now recommend a mixture strategy for combining them.
+${ADVENTUROUSNESS_MANDATE}
 
 ## GENRE A: ${classicalGenre}
 ${cachedClassical}

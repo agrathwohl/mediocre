@@ -4,6 +4,7 @@ import { validateAbcTool, readAbcFileTool } from '../shared/tools.js';
 import { createStepLogger } from '../shared/utils.js';
 import { getAnthropic, getModel, supportsContextManagement, getAbc2midiBinary } from '../../utils/llm-client.js';
 import { FORK_DIRECTIVES_REFERENCE } from '../shared/fork-directives-reference.js';
+import { QA_ADVENTUROUSNESS_RUBRIC } from '../shared/adventurousness-directive.js';
 
 let _qaAgent = null;
 let _qaAgentForkAware = false;
@@ -23,7 +24,7 @@ function getQaAgent() {
 FORK DIRECTIVE AWARENESS (CRITICAL):
 This composition was generated using the abc2midi-llm fork which supports EXTENDED directives beyond standard abc2midi.
 The following directives are VALID and RECOGNIZED by the fork binary — do NOT flag them as non-standard, unknown, or no-ops:
-- %%PNEUMA (humanize, heartbeat, drift, free, rubato) — temporal liberation / organic timing
+- %%PNEUMA (humanize, heartbeat, drift, free, rubato, breathe, polytempo, gravity, couple) — temporal liberation / organic timing
 - %%ENSEMBLE (offset, jitter, voice) — inter-voice timing offset
 - %%BREATH (auto, bars, after, off) — automatic rest insertion
 - %%GRAVITY (phrase, weight, agogic, off) — phrase-level dynamics/timing weight
@@ -31,15 +32,16 @@ The following directives are VALID and RECOGNIZED by the fork binary — do NOT 
 - %%DYNAMICS (curve, transition, attack, off) — smooth velocity interpolation between dynamic marks
 - %%SPECTRAL (tilt, cc, off) — velocity-dependent timbral shift via CC messages
 - %%SPATIAL (group, delay) — inter-group timing offset for spatial simulation
-- %%TRANSFORM (source, retrograde, invert, invertaxis, fragment, pitchshift, timescale, delay, off) — cross-voice algorithmic transformation. Target voices need NO placeholder notes — content is generated from source at render time.
+- %%TRANSFORM (source, target, retrograde, invert, invertaxis, fragment, pitchshift, timescale, delay, off) — cross-voice algorithmic transformation. Target voices need NO placeholder notes — content is generated from source at render time.
 - %%SHADOW (source, mode, probability, transpose, delay, invertmotion, intervallock, off) — reactive voice following. Target voices need NO placeholder notes — content is generated from source at render time.
+- %%GHOSTTRANCE (melody, follower, departprob, departmin, departmax, secondary, off) — generative melody + stochastic follower swarm. Follower voices need NO placeholder notes unless used as departure material.
 
 IMPORTANT: %%TRANSFORM and %%SHADOW target voices are SUPPOSED to have no note content (or only rests). The fork binary generates their content algorithmically from the source voice at render time. A voice with %%TRANSFORM source N or %%SHADOW source N and empty/rest content is CORRECT behavior, NOT a bug. Do NOT flag these as "empty voices" or "voices with no content."
 ` : '';
 
     _qaAgent = new ToolLoopAgent({
-      model: anthropic(getModel('claude-sonnet-4-6'), {
-        cacheControl: { type: 'ephemeral', ttl: '1h' },
+      model: anthropic(getModel('claude-opus-5-5'), {
+        cacheControl: { type: 'ephemeral' },
       }),
 
   instructions: `You are a music composition quality assurance expert.
@@ -90,6 +92,7 @@ Assess whether the piece commits to a coherent mixture strategy:
 - DISTORTION: Is one style recognizable but altered by incongruous elements that don't form a second identity? (If both styles clearly identifiable, it's coexistence, not distortion.)
 - TRAJECTORY: Is the transformation gradual and traceable?
 A piece with no discernible strategy: score below 4. Commits but inconsistent: 4-6. Coherent throughout: 7-10.
+${QA_ADVENTUROUSNESS_RUBRIC}
 Provide detailed, actionable assessment with specific issues and recommendations.`,
 
   output: Output.object({
@@ -105,6 +108,8 @@ Provide detailed, actionable assessment with specific issues and recommendations
         techniqueFidelity: z.number().describe('Technique fidelity score 0-10'),
         fusionStrategy: z.number().describe('Mixture strategy coherence score 0-10'),
         harmonicSophistication: z.number().describe('Harmonic sophistication score 0-10'),
+        adventurousness: z.number().describe('Adventurousness / taste for the unknown 0-10 — reward brand-new ideas, penalize plain genre-mirroring'),
+        modernPresence: z.number().describe('Presence and structural weight of the modern partner vs the classical partner 0-10'),
       }),
 
       issues: z.object({
@@ -229,6 +234,8 @@ Call validate_abc with the abcNotation above to check for technical errors first
     console.log(`   Technique Fidelity: ${assessment.scores.techniqueFidelity}/10`);
     console.log(`   Mixture Strategy: ${assessment.scores.fusionStrategy}/10`);
     console.log(`   Harmonic Sophistication: ${assessment.scores.harmonicSophistication}/10`);
+    console.log(`   Adventurousness: ${assessment.scores.adventurousness}/10`);
+    console.log(`   Modern-Half Presence: ${assessment.scores.modernPresence}/10`);
 
     const totalIssues = assessment.issues.technical.length +
       assessment.issues.musical.length +

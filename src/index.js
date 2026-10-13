@@ -39,6 +39,7 @@ import { generateTemplate } from './commands/generate-template.js';
 import { compose } from './commands/compose.js';
 import { resolveMirrorFile } from './utils/abc-mirror.js';
 import { evolve } from './commands/evolve.js';
+import { playbackCommand } from './playback-tui/cli.js';
 import { setAnthropicConfig, setLlamaServer, setAbc2midiBinary, getAbc2midiBinary } from './utils/llm-client.js';
 
 // ES module path resolution
@@ -118,9 +119,11 @@ program
   .option('--max-iterations <n>', 'Max enhancement iterations for sequential mode', '10')
   .option('--no-object', 'Use text output mode instead of structured object mode (default: object mode)')
   .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
+  .option('--stems', 'Also split each MIDI into per-voice stems')
   .option('--interactive', 'Enable human-in-the-loop interactive mode for sequential enhancement')
   .option('--instructions <text>', 'Hard compositional requirements applied throughout the entire generation pipeline (e.g. "use only grand piano and drums")')
   .option('--movements <n>', 'Compose a long-form work as N separate movement files, focusing the agentic loop on one movement at a time (requires agents enabled; incompatible with --soundfonts)')
+  .option('--refresh-research', 'Force-regenerate and overwrite cached genre research for this run instead of using the cache')
   .option('--temperature <n>', 'Sampling temperature (default: 0.9)', parseFloat)
   .option('--midi', 'Run abc2midi on generated ABC files (enabled by default)', true)
   .option('--no-midi', 'Skip abc2midi conversion')
@@ -203,6 +206,7 @@ program
           interactive: options.interactive || false,
           instructions: options.instructions || '',
           movements: parseInt(options.movements || '1', 10),
+          refreshResearch: options.refreshResearch || false,
           temperature: options.temperature,
           skipDescription: options.description === false,
         };
@@ -219,10 +223,11 @@ program
             const midiFiles = await convertToMidi({ input: abcFile, output: options.output });
             if (midiFiles.length > 0) {
               console.log(`  ✅ ${path.basename(abcFile)} → MIDI`);
-              // Extract stems for each successfully created MIDI
-              const stemResult = await extractMidiStems(abcFile);
-              if (!stemResult.success) {
-                console.warn(`  ⚠️ Stem extraction failed: ${stemResult.error}`);
+              if (options.stems) {
+                const stemResult = await extractMidiStems(abcFile);
+                if (!stemResult.success) {
+                  console.warn(`  ⚠️ Stem extraction failed: ${stemResult.error}`);
+                }
               }
             }
           } catch (midiError) {
@@ -609,6 +614,7 @@ program
   .option('--producer <name>', 'Make it sound as if it was produced by the provided record producer')
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
+  .option('--stems', 'Also split each MIDI into per-voice stems')
   .option('--sequential', 'Enable sequential mode: validates with abc2midi and auto-fixes issues')
   .option('--midi', 'Run abc2midi on successful output (default: true)', true)
   .option('--no-midi', 'Skip abc2midi conversion')
@@ -647,10 +653,11 @@ program
         try {
           await execa(getAbc2midiBinary(), [modifiedFile, '-o', midiFile]);
           console.log(`🎵 MIDI generated: ${midiFile}`);
-          // Extract stems for the modified composition
-          const stemResult = await extractMidiStems(modifiedFile);
-          if (!stemResult.success) {
-            console.warn(`  ⚠️ Stem extraction failed: ${stemResult.error}`);
+          if (options.stems) {
+            const stemResult = await extractMidiStems(modifiedFile);
+            if (!stemResult.success) {
+              console.warn(`  ⚠️ Stem extraction failed: ${stemResult.error}`);
+            }
           }
         } catch (midiError) {
           console.warn(`⚠️ abc2midi conversion failed: ${midiError.message}`);
@@ -794,6 +801,7 @@ program
   .option('--instruments <list>', 'Comma-separated list of instruments the output ABC notations must include')
   .option('--sequential', 'Enable sequential mode: validates with abc2midi and auto-fixes issues')
   .option('--stream-text', 'Use streaming mode for API calls (helps avoid timeout errors on large generations)')
+  .option('--stems', 'Also split each MIDI into per-voice stems')
   .option('--midi', 'Run abc2midi on generated ABC files (enabled by default)', true)
   .option('--no-midi', 'Skip abc2midi conversion')
   .action(async (options) => {
@@ -812,10 +820,11 @@ program
             const midiFile = abcFile.replace(/\.abc$/, '.mid');
             await execa(getAbc2midiBinary(), [abcFile, '-o', midiFile]);
             console.log(`  ✅ ${path.basename(abcFile)} → MIDI`);
-            // Extract stems for each successfully created MIDI
-            const stemResult = await extractMidiStems(abcFile);
-            if (!stemResult.success) {
-              console.warn(`  ⚠️ Stem extraction failed: ${stemResult.error}`);
+            if (options.stems) {
+              const stemResult = await extractMidiStems(abcFile);
+              if (!stemResult.success) {
+                console.warn(`  ⚠️ Stem extraction failed: ${stemResult.error}`);
+              }
             }
           } catch (midiError) {
             console.warn(`  ⚠️ abc2midi failed for ${path.basename(abcFile)}: ${midiError.message}`);
@@ -1092,6 +1101,19 @@ program
       process.exit(1);
     }
   });
+program
+  .command('playback')
+  .description('TUI playback of an ABC file: draws/highlights the notes and surfaces every note, comment, and %%directive in time with fluidsynth audio')
+  .argument('<abcFile>', 'Path to ABC notation file to play')
+  .action(async (abcFile) => {
+    try {
+      await playbackCommand(abcFile);
+    } catch (error) {
+      console.error('Error in playback:', error.message);
+      process.exit(1);
+    }
+  });
+
 // Default help message
 // Handle default command behavior
 if (process.argv.length === 2) {

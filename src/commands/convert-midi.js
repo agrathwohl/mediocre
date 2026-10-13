@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { execa } from 'execa';
 import { config } from '../utils/config.js';
 import { validateAbcNotation, cleanAbcNotation } from '../utils/claude.js';
+import { getAbc2midiBinary } from '../utils/llm-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,13 +71,13 @@ async function convertFile(inputPath, outputPath) {
   try {
     console.log(`Converting ${inputPath} to ${outputPath}`);
     
-    const abc2midiBin = process.env.ABC2MIDI_BIN || 'abc2midi';
+    const abc2midiBin = getAbc2midiBinary();
 
     // Check if abc2midi is installed
     try {
       await execa('which', [abc2midiBin]);
     } catch (error) {
-      throw new Error(`${abc2midiBin} not found. Set ABC2MIDI_BIN or install abcmidi.`);
+      throw new Error(`${abc2midiBin} not found. Set MEDIOCRE_ABC2MIDI / --abc2midi or install abcmidi.`);
     }
     
     // Read the ABC file
